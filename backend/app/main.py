@@ -1,0 +1,75 @@
+import os
+import sys
+
+# Ensure backend root directory is in python search path
+backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+from app.database import engine, Base
+from app.api import upload
+from app.services.upload_service import ensure_upload_directory_exists
+
+# Create database tables automatically on startup
+Base.metadata.create_all(bind=engine)
+
+# Ensure upload storage folder exists
+upload_dir = ensure_upload_directory_exists()
+
+app = FastAPI(
+    title="AI Clinical Intelligence Platform API",
+    description="Document Intake & Processing Pipeline Backend (Epic 1.1 FR-01)",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
+
+# Configure CORS for frontend access
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "*"
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Serve uploaded documents statically
+app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
+
+# Include Document Intake router
+app.include_router(upload.router, prefix="/api/v1")
+
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+@app.get("/ui", include_in_schema=False)
+async def serve_ui():
+    ui_path = os.path.join(static_dir, "index.html")
+    return FileResponse(ui_path)
+
+@app.get("/", tags=["Health Check"])
+async def root():
+    return {
+        "platform": "AI Clinical Intelligence Platform",
+        "module": "Epic 1.1 Document Intake Service",
+        "status": "Healthy",
+        "swagger_docs": "/docs",
+        "web_ui": "/ui"
+    }
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)

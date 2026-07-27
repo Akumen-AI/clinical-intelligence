@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Clinical Intelligence Platform | Document Intake (Epic 1.1)</title>
+  <!-- Google Fonts & Lucide Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- React & Babel CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    :root {
+      --bg-dark: #0B0F19;
+      --bg-card: rgba(18, 26, 43, 0.75);
+      --border-glow: rgba(56, 189, 248, 0.2);
+      --border-light: rgba(255, 255, 255, 0.08);
+      --primary-cyan: #06B6D4;
+      --primary-blue: #3B82F6;
+      --primary-violet: #8B5CF6;
+      --accent-emerald: #10B981;
+      --accent-amber: #F59E0B;
+      --accent-rose: #EF4444;
+      --text-main: #F8FAFC;
+      --text-muted: #94A3B8;
+      --text-dim: #64748B;
+      --font-family: 'Plus Jakarta Sans', sans-serif;
+      --font-heading: 'Outfit', sans-serif;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --shadow-glow: 0 0 25px rgba(6, 182, 212, 0.15);
+      --shadow-card: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(6, 182, 212, 0.08) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.08) 0px, transparent 50%);
+      background-attachment: fixed;
+      color: var(--text-main);
+      font-family: var(--font-family);
+      min-height: 100vh;
+      padding: 2rem 1.5rem;
+    }
+    .app-container { max-width: 1280px; margin: 0 auto; }
+    .app-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 2.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border-light);
+    }
+    .brand-wrapper { display: flex; align-items: center; gap: 1rem; }
+    .brand-logo {
+      width: 48px; height: 48px; background: linear-gradient(135deg, var(--primary-cyan), var(--primary-blue));
+      border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center;
+      box-shadow: var(--shadow-glow); font-size: 1.5rem; color: #fff;
+    }
+    .brand-title h1 {
+      font-family: var(--font-heading); font-size: 1.75rem; font-weight: 700;
+      background: linear-gradient(90deg, #FFFFFF, #94A3B8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .brand-title p { font-size: 0.875rem; color: var(--text-muted); }
+    .pipeline-badge {
+      display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem;
+      background: rgba(6, 182, 212, 0.1); border: 1px solid var(--border-glow);
+      border-radius: 9999px; font-size: 0.85rem; color: var(--primary-cyan); font-weight: 600;
+    }
+    .pulse-dot {
+      width: 8px; height: 8px; background-color: var(--primary-cyan); border-radius: 50%;
+      box-shadow: 0 0 10px var(--primary-cyan); animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { transform: scale(0.95); opacity: 0.8; } 50% { transform: scale(1.2); opacity: 1; } }
+    .glass-card {
+      background: var(--bg-card); backdrop-filter: blur(16px);
+      border: 1px solid var(--border-light); border-radius: var(--radius-lg);
+      padding: 1.75rem; box-shadow: var(--shadow-card); margin-bottom: 2rem;
+    }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.25rem; margin-bottom: 2rem; }
+    .stat-card { display: flex; align-items: center; gap: 1.25rem; margin-bottom: 0; }
+    .stat-icon { width: 48px; height: 48px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; }
+    .stat-icon.queued { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); }
+    .stat-icon.total { background: rgba(59, 130, 246, 0.15); color: var(--primary-blue); }
+    .stat-icon.processed { background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald); }
+    .stat-icon.pipeline { background: rgba(139, 92, 246, 0.15); color: var(--primary-violet); }
+    .stat-info h3 { font-size: 1.6rem; font-family: var(--font-heading); font-weight: 700; }
+    .stat-info p { font-size: 0.85rem; color: var(--text-muted); }
+    .dropzone-container {
+      border: 2px dashed rgba(56, 189, 248, 0.3); border-radius: var(--radius-lg); padding: 3rem 2rem;
+      text-align: center; background: rgba(15, 23, 42, 0.4); cursor: pointer; transition: all 0.3s;
+    }
+    .dropzone-container:hover, .dropzone-container.active { border-color: var(--primary-cyan); background: rgba(6, 182, 212, 0.05); box-shadow: var(--shadow-glow); }
+    .upload-icon-wrapper {
+      width: 64px; height: 64px; margin: 0 auto 1.25rem; background: linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(59, 130, 246, 0.2));
+      border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--primary-cyan); font-size: 1.75rem;
+    }
+    .allowed-tags { display: flex; justify-content: center; gap: 0.5rem; margin-top: 1rem; }
+    .tag { background: rgba(255, 255, 255, 0.06); padding: 0.25rem 0.65rem; border-radius: var(--radius-sm); font-size: 0.75rem; font-weight: 600; color: var(--text-muted); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.75rem 1.5rem; border-radius: var(--radius-md); font-weight: 600; font-size: 0.9rem; cursor: pointer; border: none; text-decoration: none; }
+    .btn-primary { background: linear-gradient(135deg, var(--primary-cyan), var(--primary-blue)); color: #fff; }
+    .btn-secondary { background: rgba(255, 255, 255, 0.08); color: var(--text-main); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .custom-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.875rem; }
+    .custom-table th { background: rgba(15, 23, 42, 0.8); color: var(--text-muted); padding: 1rem; border-bottom: 1px solid var(--border-light); font-size: 0.75rem; text-transform: uppercase; }
+    .custom-table td { padding: 1rem; border-bottom: 1px solid var(--border-light); }
+    .uuid-text { font-family: monospace; font-size: 0.8rem; color: var(--primary-cyan); background: rgba(6, 182, 212, 0.08); padding: 0.2rem 0.5rem; border-radius: var(--radius-sm); }
+    .badge-status { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+    .badge-QUEUED { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.3); }
+    .alert-banner { padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem; }
+    .alert-banner.error { background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); color: #FCA5A5; }
+    .alert-banner.success { background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: #6EE7B7; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    const ALLOWED_TYPES = ['pdf', 'png', 'jpg', 'jpeg', 'tiff'];
+
+    function App() {
+      const [documents, setDocuments] = useState([]);
+      const [selectedFiles, setSelectedFiles] = useState([]);
+      const [isUploading, setIsUploading] = useState(false);
+      const [errorMessage, setErrorMessage] = useState(null);
+      const [successMessage, setSuccessMessage] = useState(null);
+      const [searchQuery, setSearchQuery] = useState('');
+      const fileInputRef = useRef(null);
+
+      const loadDocuments = async () => {
+        try {
+          const res = await axios.get('/api/v1/documents');
+          setDocuments(res.data);
+        } catch (err) {
+          console.error(err);
+        }
+      };
+
+      useEffect(() => { loadDocuments(); }, []);
+
+      const getExt = (name) => name.split('.').pop().toLowerCase();
+
+      const handleFiles = (filesArray) => {
+        const valid = [];
+        const invalid = [];
+        filesArray.forEach(f => {
+          if (ALLOWED_TYPES.includes(getExt(f.name))) valid.push(f);
+          else invalid.push(f.name);
+        });
+
+        if (invalid.length > 0) {
+          setErrorMessage(`Unsupported file type(s): ${invalid.join(', ')}. Only PDF, PNG, JPG, JPEG, and TIFF are allowed.`);
+        } else {
+          setErrorMessage(null);
+        }
+        setSelectedFiles(prev => [...prev, ...valid]);
+      };
+
+      const handleUpload = async () => {
+        if (selectedFiles.length === 0) return;
+        setIsUploading(true);
+        setErrorMessage(null);
+        setSuccessMessage(null);
+
+        const formData = new FormData();
+        selectedFiles.forEach(f => formData.append('files', f));
+
+        try {
+          const res = await axios.post('/api/v1/documents/upload', formData);
+          setSuccessMessage(`Successfully uploaded and queued ${res.data.length} document(s)!`);
+          setSelectedFiles([]);
+          loadDocuments();
+        } catch (err) {
+          setErrorMessage(err.response?.data?.detail || 'Upload failed.');
+        } finally {
+          setIsUploading(false);
+        }
+      };
+
+      const filteredDocs = documents.filter(d => 
+        d.filename.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        d.document_id.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+
+      const queuedCount = documents.filter(d => d.status === 'QUEUED').length;
+
+      return (
+        <div className="app-container">
+          <header className="app-header">
+            <div className="brand-wrapper">
+              <div className="brand-logo">🏥</div>
+              <div className="brand-title">
+                <h1>AI Clinical Intelligence Platform</h1>
+                <p>Epic 1.1 Document Intake Engine (FR-01)</p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              <a href="/docs" target="_blank" className="btn btn-secondary">FastAPI Swagger Docs ↗</a>
+              <div className="pipeline-badge">
+                <span className="pulse-dot"></span>
+                Pipeline Ready
+              </div>
+            </div>
+          </header>
+
+          <div className="stats-grid">
+            <div className="glass-card stat-card">
+              <div className="stat-icon total">📂</div>
+              <div className="stat-info">
+                <h3>{documents.length}</h3>
+                <p>Total Documents Ingested</p>
+              </div>
+            </div>
+            <div className="glass-card stat-card">
+              <div className="stat-icon queued">⏳</div>
+              <div className="stat-info">
+                <h3>{queuedCount}</h3>
+                <p>Status: QUEUED (Epic 1.1)</p>
+              </div>
+            </div>
+            <div className="glass-card stat-card">
+              <div className="stat-icon processed">✅</div>
+              <div className="stat-info">
+                <h3>{documents.length - queuedCount}</h3>
+                <p>Processed Pipeline</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="glass-card">
+            <h2 style={{ fontFamily: 'Outfit', fontSize: '1.25rem', marginBottom: '1rem' }}>Upload Patient Documents</h2>
+
+            {errorMessage && (
+              <div className="alert-banner error">
+                <span>⚠️ {errorMessage}</span>
+                <button onClick={() => setErrorMessage(null)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>✕</button>
+              </div>
+            )}
+
+            {successMessage && (
+              <div className="alert-banner success">
+                <span>✅ {successMessage}</span>
+                <button onClick={() => setSuccessMessage(null)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>✕</button>
+              </div>
+            )}
+
+            <div 
+              className="dropzone-container"
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => { e.preventDefault(); handleFiles(Array.from(e.dataTransfer.files)); }}
+            >
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={(e) => handleFiles(Array.from(e.target.files))} 
+                multiple 
+                accept=".pdf,.png,.jpg,.jpeg,.tiff"
+                style={{ display: 'none' }}
+              />
+              <div className="upload-icon-wrapper">☁️</div>
+              <h3 style={{ fontSize: '1.2rem', marginBottom: '0.5rem' }}>Drag & drop clinical files here</h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>or click to select single/bulk patient records</p>
+              <div className="allowed-tags">
+                <span className="tag">PDF</span><span className="tag">PNG</span><span className="tag">JPG</span><span className="tag">JPEG</span><span className="tag">TIFF</span>
+              </div>
+            </div>
+
+            {selectedFiles.length > 0 && (
+              <div style={{ marginTop: '1.5rem' }}>
+                <div style={{ marginBottom: '0.75rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                  Selected Files ({selectedFiles.length}):
+                </div>
+                {selectedFiles.map((f, i) => (
+                  <div key={i} style={{ padding: '0.75rem 1rem', background: 'rgba(30, 41, 59, 0.6)', borderRadius: '8px', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>📄 {f.name}</span>
+                    <button onClick={() => setSelectedFiles(prev => prev.filter((_, idx) => idx !== i))} style={{ background: 'none', border: 'none', color: 'var(--accent-rose)', cursor: 'pointer' }}>✕</button>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
+                  <button className="btn btn-secondary" onClick={() => setSelectedFiles([])}>Clear</button>
+                  <button className="btn btn-primary" onClick={handleUpload} disabled={isUploading}>
+                    {isUploading ? 'Uploading...' : `Upload ${selectedFiles.length} File(s)`}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="glass-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <h2 style={{ fontFamily: 'Outfit', fontSize: '1.25rem' }}>Document Ingestion Repository</h2>
+              <input 
+                type="text" 
+                placeholder="Search documents..." 
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                style={{ padding: '0.5rem 1rem', background: 'rgba(15, 23, 42, 0.6)', border: '1px solid var(--border-light)', borderRadius: '8px', color: '#fff' }}
+              />
+            </div>
+
+            {filteredDocs.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                No documents found in repository.
+              </div>
+            ) : (
+              <table className="custom-table">
+                <thead>
+                  <tr>
+                    <th>Filename</th>
+                    <th>Document ID (UUID)</th>
+                    <th>Format</th>
+                    <th>Uploaded At</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredDocs.map(d => (
+                    <tr key={d.document_id}>
+                      <td style={{ fontWeight: '600' }}>{d.filename}</td>
+                      <td><span className="uuid-text">{d.document_id}</span></td>
+                      <td><span className="tag">{d.filetype.toUpperCase()}</span></td>
+                      <td style={{ color: 'var(--text-muted)' }}>{new Date(d.uploaded_at).toLocaleString()}</td>
+                      <td>
+                        <span className={`badge-status badge-${d.status}`}>
+                          <span className="pulse-dot" style={{ width: '6px', height: '6px' }}></span>
+                          {d.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
