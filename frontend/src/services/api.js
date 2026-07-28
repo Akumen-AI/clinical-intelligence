@@ -33,4 +33,9 @@ export const fetchDocumentById = async (documentId) => {
   return response.data;
 };
 
+export const fetchUploadLogs = async () => {
+  const response = await apiClient.get('/documents/upload-logs');
+  return response.data;
+};
+
 export default apiClient;

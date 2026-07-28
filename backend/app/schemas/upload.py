@@ -18,11 +18,28 @@ class DocumentUploadItem(BaseModel):
     status: str
     filetype: str
 
-class UploadSummaryResponse(BaseModel):
-    message: str
-    uploaded_documents: List[DocumentUploadItem]
-    failed_uploads: List[dict] = []
-
-class ErrorDetail(BaseModel):
+class RejectedUploadItem(BaseModel):
     filename: str
-    error: str
+    reason: str
+    status: str = "REJECTED"
+
+class UploadSummaryResponse(BaseModel):
+    total_uploaded: int
+    accepted_count: int
+    rejected_count: int
+    accepted: List[DocumentUploadItem] = []
+    rejected: List[RejectedUploadItem] = []
+
+class UploadLogResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    filename: str
+    timestamp: datetime
+    reason: Optional[str] = None
+    status: str
+    client_ip: Optional[str] = None
+    http_status: Optional[int] = None
+
+class ErrorResponseSchema(BaseModel):
+    detail: str
