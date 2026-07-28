@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 import enum
-from sqlalchemy import Column, String, DateTime
+from sqlalchemy import Column, String, DateTime, Integer
 from app.database import Base
 
 class DocumentStatus(str, enum.Enum):
@@ -22,5 +22,6 @@ class Document(Base):
     status = Column(String(50), default=DocumentStatus.NEW.value, nullable=False)
     uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     processed_uri = Column(String(500), nullable=True)
+    processing_time_ms = Column(Integer, nullable=True)
     doc_type = Column(String(100), nullable=True)
     rejection_reason = Column(String(500), nullable=True)

@@ -11,6 +11,8 @@ class DocumentResponse(BaseModel):
     uploaded_at: datetime
     raw_uri: str
     filetype: str
+    processed_uri: Optional[str] = None
+    processing_time_ms: Optional[int] = None
 
 class DocumentUploadItem(BaseModel):
     document_id: str

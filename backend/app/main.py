@@ -11,12 +11,22 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
+from sqlalchemy import text
 from app.database import engine, Base
 from app.api import upload
 from app.services.upload_service import ensure_upload_directory_exists
 
 # Create database tables automatically on startup
 Base.metadata.create_all(bind=engine)
+
+# Add column safety migration for existing DB files
+with engine.connect() as conn:
+    try:
+        conn.execute(text("ALTER TABLE documents ADD COLUMN processing_time_ms INTEGER;"))
+        conn.commit()
+    except Exception:
+        # Already exists or table doesn't exist yet
+        pass
 
 # Ensure upload storage folder exists
 upload_dir = ensure_upload_directory_exists()
