@@ -9,7 +9,7 @@ class DocumentResponse(BaseModel):
     filename: str
     status: str
     uploaded_at: datetime
-    filepath: str
+    raw_uri: str
     filetype: str
 
 class DocumentUploadItem(BaseModel):
