@@ -64,11 +64,11 @@ def create_document(
     filetype: str
 ) -> Document:
     doc = Document(
-        id=document_id,
+        document_id=document_id,
         filename=filename,
-        filepath=filepath,
+        raw_uri=filepath,
         filetype=filetype,
-        status=DocumentStatus.QUEUED.value
+        status=DocumentStatus.NEW.value
     )
     db.add(doc)
     db.commit()
@@ -97,4 +97,4 @@ def get_all_documents(db: Session) -> List[Document]:
     return db.query(Document).order_by(Document.uploaded_at.desc()).all()
 
 def get_document_by_id(db: Session, document_id: str) -> Optional[Document]:
-    return db.query(Document).filter(Document.id == document_id).first()
+    return db.query(Document).filter(Document.document_id == document_id).first()

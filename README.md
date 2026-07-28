@@ -48,32 +48,42 @@ ai-clinical-intelligence-platform/
 ## 🛠️ Quick Start
 
 ### 1. Install & Run Backend (FastAPI)
+
+**For Mac/Linux:**
 ```bash
 cd backend
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 python app/main.py
 ```
+
+**For Windows:**
+```bash
+cd backend
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python app\main.py
+```
+
 - **Web Interface**: [http://localhost:8000/ui](http://localhost:8000/ui)
 - **API Documentation**: [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ### 2. Run Test Suite
+
+**For Mac/Linux:**
 ```bash
 cd backend
-python -m pytest tests/test_upload.py
+source .venv/bin/activate
+PYTHONPATH=. pytest tests/test_upload.py
 ```
 
----
-
-## ⚡ Git & GitHub Setup
-
-To push this repository to GitHub, run the following commands in your terminal from the project directory:
-
+**For Windows:**
 ```bash
-cd C:\Users\LENOVO\.gemini\antigravity-ide\scratch\ai-clinical-intelligence-platform
-git init
-git add .
-git commit -m "feat(epic-1.1): implement document intake service & UI"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/ai-clinical-intelligence-platform.git
-git push -u origin main
+cd backend
+.venv\Scripts\activate
+set PYTHONPATH=.
+pytest tests\test_upload.py
 ```
+

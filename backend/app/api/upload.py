@@ -21,7 +21,7 @@ async def upload_documents(
     
     Accepts patient documents (PDF, PNG, JPG, JPEG, TIFF) individually or in bulk.
     Validates file extensions, saves files securely, creates database records,
-    and initializes status to QUEUED.
+    and initializes status to new.
     """
     if not files:
         raise HTTPException(
@@ -39,7 +39,7 @@ async def upload_documents(
         doc = upload_service.queue_document(db, file)
         results.append(
             DocumentUploadItem(
-                document_id=doc.id,
+                document_id=doc.document_id,
                 filename=doc.filename,
                 status=doc.status,
                 filetype=doc.filetype
@@ -58,11 +58,11 @@ async def list_documents(db: Session = Depends(get_db)):
     docs = upload_service.get_all_documents(db)
     return [
         DocumentResponse(
-            document_id=doc.id,
+            document_id=doc.document_id,
             filename=doc.filename,
             status=doc.status,
             uploaded_at=doc.uploaded_at,
-            filepath=doc.filepath,
+            raw_uri=doc.raw_uri,
             filetype=doc.filetype
         )
         for doc in docs
@@ -82,10 +82,25 @@ async def get_document(document_id: str, db: Session = Depends(get_db)):
             detail=f"Document with ID '{document_id}' not found."
         )
     return DocumentResponse(
-        document_id=doc.id,
+        document_id=doc.document_id,
         filename=doc.filename,
         status=doc.status,
         uploaded_at=doc.uploaded_at,
-        filepath=doc.filepath,
+        raw_uri=doc.raw_uri,
         filetype=doc.filetype
     )
+
+@router.get("/{document_id}/status")
+async def get_document_status(document_id: str, db: Session = Depends(get_db)):
+    """
+    GET /api/v1/documents/{document_id}/status
+    
+    Poll pipeline stage for one document.
+    """
+    doc = upload_service.get_document_by_id(db, document_id)
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document with ID '{document_id}' not found."
+        )
+    return {"document_id": doc.document_id, "status": doc.status}

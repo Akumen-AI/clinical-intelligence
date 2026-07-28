@@ -110,7 +110,7 @@
     .custom-table td { padding: 1rem; border-bottom: 1px solid var(--border-light); }
     .uuid-text { font-family: monospace; font-size: 0.8rem; color: var(--primary-cyan); background: rgba(6, 182, 212, 0.08); padding: 0.2rem 0.5rem; border-radius: var(--radius-sm); }
     .badge-status { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
-    .badge-QUEUED { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.3); }
+    .badge-new { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.3); }
     .alert-banner { padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem; }
     .alert-banner.error { background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); color: #FCA5A5; }
     .alert-banner.success { background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: #6EE7B7; }
@@ -188,7 +188,7 @@
         d.document_id.toLowerCase().includes(searchQuery.toLowerCase())
       );
 
-      const queuedCount = documents.filter(d => d.status === 'QUEUED').length;
+      const queuedCount = documents.filter(d => d.status === 'new').length;
 
       return (
         <div className="app-container">
@@ -221,7 +221,7 @@
               <div className="stat-icon queued">⏳</div>
               <div className="stat-info">
                 <h3>{queuedCount}</h3>
-                <p>Status: QUEUED (Epic 1.1)</p>
+                <p>Status: NEW (Epic 1.1)</p>
               </div>
             </div>
             <div className="glass-card stat-card">

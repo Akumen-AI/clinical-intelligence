@@ -46,7 +46,7 @@ def test_upload_single_valid_pdf():
     data = response.json()
     assert len(data) == 1
     assert data[0]["filename"] == "patient_report.pdf"
-    assert data[0]["status"] == "QUEUED"
+    assert data[0]["status"] == "new"
     assert data[0]["filetype"] == "pdf"
     assert "document_id" in data[0]
 
@@ -69,7 +69,7 @@ def test_upload_bulk_valid_files():
     data = response.json()
     assert len(data) == 3
     for item in data:
-        assert item["status"] == "QUEUED"
+        assert item["status"] == "new"
         assert item["document_id"] is not None
 
 def test_get_all_documents():
@@ -83,4 +83,16 @@ def test_get_all_documents():
     docs = response.json()
     assert len(docs) >= 1
     assert docs[0]["filename"] == "blood_work.pdf"
-    assert docs[0]["status"] == "QUEUED"
+    assert docs[0]["status"] == "new"
+
+def test_get_document_status():
+    file_content = b"%PDF-1.4 Test"
+    files = [("files", ("blood_work.pdf", io.BytesIO(file_content), "application/pdf"))]
+    upload_resp = client.post("/api/v1/documents/upload", files=files)
+    doc_id = upload_resp.json()[0]["document_id"]
+
+    response = client.get(f"/api/v1/documents/{doc_id}/status")
+    assert response.status_code == 200
+    status_data = response.json()
+    assert status_data["document_id"] == doc_id
+    assert status_data["status"] == "new"
