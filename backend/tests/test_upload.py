@@ -96,3 +96,44 @@ def test_get_document_status():
     status_data = response.json()
     assert status_data["document_id"] == doc_id
     assert status_data["status"] == "new"
+
+def test_upload_image_and_preprocess():
+    import numpy as np
+    import cv2
+    import os
+    from app.models.document import DocumentStatus
+
+    # Create a simple 100x100 dummy image (white background with a black rectangle)
+    img = np.ones((100, 100, 3), dtype=np.uint8) * 255
+    cv2.rectangle(img, (20, 20), (80, 80), (0, 0, 0), -1)
+    _, img_encoded = cv2.imencode('.png', img)
+    image_bytes = img_encoded.tobytes()
+
+    files = [
+        ("files", ("test_image.png", io.BytesIO(image_bytes), "image/png"))
+    ]
+    response = client.post("/api/v1/documents/upload", files=files)
+    assert response.status_code == 201
+    data = response.json()
+    assert len(data) == 1
+    doc_id = data[0]["document_id"]
+
+    # Verify database updates
+    db = next(override_get_db())
+    from app.services import upload_service
+    doc = upload_service.get_document_by_id(db, doc_id)
+    assert doc is not None
+    assert doc.status == DocumentStatus.PREPROCESSED.value
+    assert doc.processing_time_ms is not None
+    assert doc.processing_time_ms >= 0
+    assert doc.processed_uri is not None
+
+    # Construct paths and check existence
+    backend_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    original_path = os.path.join(backend_root, doc.raw_uri)
+    processed_path = os.path.join(backend_root, doc.processed_uri)
+
+    assert os.path.exists(original_path)
+    assert os.path.exists(processed_path)
+    assert doc.raw_uri != doc.processed_uri
+
