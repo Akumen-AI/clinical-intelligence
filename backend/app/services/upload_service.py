@@ -6,6 +6,8 @@ from fastapi import UploadFile, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.models.document import Document, DocumentStatus
+from app.services.validation_service import ValidationService
+from app.utils.validators import FileValidationError
 
 ALLOWED_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "tiff"}
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads")
@@ -21,22 +23,6 @@ def get_file_extension(filename: str) -> str:
     if not filename or "." not in filename:
         return ""
     return filename.rsplit(".", 1)[1].lower()
-
-def validate_file(file: UploadFile) -> str:
-    if not file.filename:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Filename cannot be empty"
-        )
-    
-    ext = get_file_extension(file.filename)
-    if ext not in ALLOWED_EXTENSIONS:
-        allowed_str = ", ".join(sorted(ALLOWED_EXTENSIONS)).upper()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported file type '.{ext}'. Allowed file types are: {allowed_str}"
-        )
-    return ext
 
 def save_file(file: UploadFile, document_id: str, target_dir: str = UPLOAD_DIR) -> Tuple[str, str]:
     ensure_upload_directory_exists(target_dir)
@@ -68,7 +54,7 @@ def create_document(
         filename=filename,
         raw_uri=filepath,
         filetype=filetype,
-        status=DocumentStatus.NEW.value
+        status=DocumentStatus.QUEUED.value
     )
     db.add(doc)
     db.commit()
@@ -78,7 +64,7 @@ def create_document(
 def process_document(db: Session, document_id: str):
     """
     Extension point hook for Epic 1.2 (Image Preprocessing).
-    This function will be called asynchronously or as a background task to process queued documents.
+    This function is called for valid, queued documents.
     """
     print(f"[Epic 1.2 Hook Triggered] Document ID '{document_id}' is queued for preprocessing.")
     from app.services.preprocessing_service import preprocess_document_file
@@ -147,13 +133,35 @@ def process_document(db: Session, document_id: str):
     print(f"[Epic 1.4 Hook Success] provider={provider}, model={model_name}, processing_time={class_elapsed_ms}ms, confidence={result.confidence}, document_type={result.document_type}")
 
 
-def queue_document(db: Session, file: UploadFile) -> Document:
-    ext = validate_file(file)
+async def process_single_upload(
+    db: Session,
+    file: UploadFile,
+    client_ip: Optional[str] = None
+) -> Document:
+    """
+    Validates, logs, saves, and queues a single file upload.
+    Raises FileValidationError if file fails validation rules.
+    """
+    try:
+        _, ext = await ValidationService.validate_file(file)
+    except FileValidationError as e:
+        ValidationService.log_rejection(
+            db=db,
+            filename=file.filename or "unknown",
+            reason=e.message,
+            client_ip=client_ip,
+            http_status=e.status_code
+        )
+        raise e
+
     doc_id = generate_uuid()
     _, relative_path = save_file(file, doc_id)
     doc = create_document(db, doc_id, file.filename, relative_path, ext)
     
-    # Extension hook call for Epic 1.2
+    # Log accepted attempt
+    ValidationService.log_acceptance(db, file.filename, client_ip)
+    
+    # Epic 1.2 preprocessing hook
     process_document(db, doc_id)
     
     return doc

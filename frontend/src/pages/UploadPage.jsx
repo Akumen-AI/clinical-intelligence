@@ -9,24 +9,32 @@ import {
   Database,
   ExternalLink,
   ShieldCheck,
-  Trash2
+  Trash2,
+  AlertOctagon,
+  ListFilter
 } from 'lucide-react';
 import FileUploader from '../components/FileUploader';
-import { fetchDocuments, deleteDocument, deleteAllDocuments } from '../services/api';
+import { fetchDocuments, deleteDocument, deleteAllDocuments, fetchUploadLogs } from '../services/api';
 
 export default function UploadPage() {
   const [documents, setDocuments] = useState([]);
+  const [uploadLogs, setUploadLogs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('documents'); // 'documents' or 'logs'
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const loadDocumentsList = async () => {
+  const loadData = async () => {
     setIsRefreshing(true);
     try {
-      const data = await fetchDocuments();
-      setDocuments(data);
+      const [docsData, logsData] = await Promise.all([
+        fetchDocuments(),
+        fetchUploadLogs()
+      ]);
+      setDocuments(docsData);
+      setUploadLogs(logsData);
     } catch (err) {
-      console.error('Failed to load document list:', err);
+      console.error('Failed to load document/log repository:', err);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -34,11 +42,11 @@ export default function UploadPage() {
   };
 
   useEffect(() => {
-    loadDocumentsList();
+    loadData();
   }, []);
 
   const handleUploadSuccess = () => {
-    loadDocumentsList();
+    loadData();
   };
 
   const handleDeleteDocument = async (documentId, filename) => {
@@ -70,8 +78,18 @@ export default function UploadPage() {
     );
   });
 
-  const queuedCount = documents.filter((d) => d.status === 'QUEUED').length;
-  const verifiedCount = documents.filter((d) => d.status === 'VERIFIED').length;
+  const filteredLogs = uploadLogs.filter((log) => {
+    const q = searchQuery.toLowerCase();
+    return (
+      log.filename.toLowerCase().includes(q) ||
+      (log.reason && log.reason.toLowerCase().includes(q)) ||
+      log.status.toLowerCase().includes(q)
+    );
+  });
+
+  const queuedCount = documents.filter((d) => d.status === 'QUEUED' || d.status === 'new').length;
+  const rejectedLogsCount = uploadLogs.filter((l) => l.status === 'REJECTED').length;
+  const acceptedLogsCount = uploadLogs.filter((l) => l.status === 'ACCEPTED').length;
 
   const formatDate = (isoString) => {
     if (!isoString) return 'N/A';
@@ -95,7 +113,7 @@ export default function UploadPage() {
           </div>
           <div className="brand-title">
             <h1>AI Clinical Intelligence Platform</h1>
-            <p>Epic 1.1 Document Intake & Ingestion Engine (FR-01)</p>
+            <p>Epic 1.1 Document Intake & Epic 1.3 Validation Engine (FR-04)</p>
           </div>
         </div>
 
@@ -111,7 +129,7 @@ export default function UploadPage() {
           </a>
           <div className="pipeline-badge">
             <div className="pulse-dot"></div>
-            <span>Pipeline Entry Point</span>
+            <span>Validation & Intake Active</span>
           </div>
         </div>
       </header>
@@ -124,7 +142,7 @@ export default function UploadPage() {
           </div>
           <div className="stat-info">
             <h3>{documents.length}</h3>
-            <p>Total Documents Ingested</p>
+            <p>Total Documents Saved</p>
           </div>
         </div>
 
@@ -139,12 +157,12 @@ export default function UploadPage() {
         </div>
 
         <div className="glass-card stat-card">
-          <div className="stat-icon processed">
-            <FileCheck size={24} />
+          <div className="stat-icon processed" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>
+            <AlertOctagon size={24} color="#ef4444" />
           </div>
           <div className="stat-info">
-            <h3>{verifiedCount}</h3>
-            <p>Verified Records</p>
+            <h3 style={{ color: '#ef4444' }}>{rejectedLogsCount}</h3>
+            <p>Rejected Upload Logs</p>
           </div>
         </div>
 
@@ -153,8 +171,8 @@ export default function UploadPage() {
             <ShieldCheck size={24} />
           </div>
           <div className="stat-info">
-            <h3>Ready</h3>
-            <p>Epic 1.2 Hand-off Hook</p>
+            <h3>100%</h3>
+            <p>Validated Before Queueing</p>
           </div>
         </div>
       </div>
@@ -162,10 +180,44 @@ export default function UploadPage() {
       {/* File Uploader Section */}
       <FileUploader onUploadSuccess={handleUploadSuccess} />
 
-      {/* Document Records Table Section */}
+      {/* Tabs & Table Section */}
       <div className="glass-card">
-        <div className="section-header">
-          <h2 className="section-title">Ingested Document Repository</h2>
+        <div className="section-header" style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem' }}>
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <button
+              onClick={() => setActiveTab('documents')}
+              style={{
+                background: activeTab === 'documents' ? 'var(--primary-cyan)' : 'transparent',
+                color: activeTab === 'documents' ? '#0f172a' : 'var(--text-muted)',
+                border: 'none',
+                padding: '0.5rem 1rem',
+                borderRadius: '6px',
+                fontWeight: '600',
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              Queued Documents ({documents.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('logs')}
+              style={{
+                background: activeTab === 'logs' ? 'var(--primary-cyan)' : 'transparent',
+                color: activeTab === 'logs' ? '#0f172a' : 'var(--text-muted)',
+                border: 'none',
+                padding: '0.5rem 1rem',
+                borderRadius: '6px',
+                fontWeight: '600',
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              Upload Audit Logs ({uploadLogs.length})
+            </button>
+          </div>
+
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
             <div style={{ position: 'relative', width: '260px' }}>
               <Search
@@ -175,7 +227,7 @@ export default function UploadPage() {
               />
               <input
                 type="text"
-                placeholder="Search by filename or ID..."
+                placeholder={activeTab === 'documents' ? "Search filename or ID..." : "Search logs or reasons..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
@@ -193,12 +245,12 @@ export default function UploadPage() {
 
             <button
               className="btn btn-secondary"
-              onClick={loadDocumentsList}
+              onClick={loadData}
               disabled={isRefreshing}
               style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
             >
               <RefreshCw size={14} className={isRefreshing ? 'spin' : ''} />
-              Refresh Table
+              Refresh
             </button>
             {documents.length > 0 && (
               <button
@@ -220,79 +272,132 @@ export default function UploadPage() {
 
         {isLoading ? (
           <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-            Loading document repository...
+            Loading database repository...
           </div>
-        ) : filteredDocuments.length === 0 ? (
-          <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-            <Database size={36} style={{ marginBottom: '0.75rem', opacity: 0.5 }} />
-            <p>No clinical documents found in the database repository.</p>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginTop: '0.25rem' }}>
-              Upload files above to generate UUID document IDs and queue them for processing.
-            </p>
-          </div>
-        ) : (
-          <div className="table-responsive">
-            <table className="custom-table">
-              <thead>
-                <tr>
-                  <th>Filename</th>
-                  <th>Document ID (UUID)</th>
-                  <th>Format</th>
-                  <th>Ingestion Date</th>
-                  <th>Status</th>
-                  <th>Document Type</th>
-                  <th>Confidence</th>
-                  <th>Review Required</th>
-                  <th style={{ width: '60px' }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredDocuments.map((doc) => (
-                  <tr key={doc.document_id}>
-                    <td style={{ fontWeight: '600' }}>{doc.filename}</td>
-                    <td>
-                      <span className="uuid-text">{doc.document_id}</span>
-                    </td>
-                    <td>
-                      <span className="tag" style={{ textTransform: 'uppercase' }}>
-                        {doc.filetype}
-                      </span>
-                    </td>
-                    <td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                      {formatDate(doc.uploaded_at)}
-                    </td>
-                    <td>
-                      <span className={`badge-status badge-${doc.status}`}>
-                        <span className="pulse-dot" style={{ width: '6px', height: '6px' }}></span>
-                        {doc.status}
-                      </span>
-                    </td>
-                    <td>{doc.document_type || '-'}</td>
-                    <td>{doc.classification_confidence !== null && doc.classification_confidence !== undefined ? doc.classification_confidence.toFixed(2) : '-'}</td>
-                    <td>
-                      {doc.needs_manual_review === true ? (
-                        <span style={{ color: 'var(--accent-rose)', fontWeight: 'bold' }}>Yes</span>
-                      ) : doc.needs_manual_review === false ? (
-                        <span style={{ color: '#10b981' }}>No</span>
-                      ) : '-'}
-                    </td>
-                    <td>
-                      <button
-                        className="btn-icon"
-                        title="Delete document"
-                        onClick={() => handleDeleteDocument(doc.document_id, doc.filename)}
-                        style={{ color: 'var(--text-dim)', cursor: 'pointer' }}
-                        onMouseOver={(e) => e.currentTarget.style.color = 'var(--accent-rose)'}
-                        onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-dim)'}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </td>
+        ) : activeTab === 'documents' ? (
+          /* Documents Table */
+          filteredDocuments.length === 0 ? (
+            <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <Database size={36} style={{ marginBottom: '0.75rem', opacity: 0.5 }} />
+              <p>No valid clinical documents found in repository.</p>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginTop: '0.25rem' }}>
+                Upload valid PDF, PNG, JPG, or TIFF files above to populate the QUEUED queue.
+              </p>
+            </div>
+          ) : (
+            <div className="table-responsive" style={{ marginTop: '1rem' }}>
+              <table className="custom-table">
+                <thead>
+                  <tr>
+                    <th>Filename</th>
+                    <th>Document ID (UUID)</th>
+                    <th>Format</th>
+                    <th>Ingestion Date</th>
+                    <th>Pipeline Status</th>
+                    <th>Document Type</th>
+                    <th>Confidence</th>
+                    <th>Review Required</th>
+                    <th style={{ width: '60px' }}></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filteredDocuments.map((doc) => (
+                    <tr key={doc.document_id}>
+                      <td style={{ fontWeight: '600' }}>{doc.filename}</td>
+                      <td>
+                        <span className="uuid-text">{doc.document_id}</span>
+                      </td>
+                      <td>
+                        <span className="tag" style={{ textTransform: 'uppercase' }}>
+                          {doc.filetype}
+                        </span>
+                      </td>
+                      <td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                        {formatDate(doc.uploaded_at)}
+                      </td>
+                      <td>
+                        <span className={`badge-status badge-${doc.status}`}>
+                          <span className="pulse-dot" style={{ width: '6px', height: '6px' }}></span>
+                          {doc.status}
+                        </span>
+                      </td>
+                      <td>{doc.document_type || '-'}</td>
+                      <td>{doc.classification_confidence !== null && doc.classification_confidence !== undefined ? doc.classification_confidence.toFixed(2) : '-'}</td>
+                      <td>
+                        {doc.needs_manual_review === true ? (
+                          <span style={{ color: 'var(--accent-rose)', fontWeight: 'bold' }}>Yes</span>
+                        ) : doc.needs_manual_review === false ? (
+                          <span style={{ color: '#10b981' }}>No</span>
+                        ) : '-'}
+                      </td>
+                      <td>
+                        <button
+                          className="btn-icon"
+                          title="Delete document"
+                          onClick={() => handleDeleteDocument(doc.document_id, doc.filename)}
+                          style={{ color: 'var(--text-dim)', cursor: 'pointer', background: 'none', border: 'none' }}
+                          onMouseOver={(e) => e.currentTarget.style.color = 'var(--accent-rose)'}
+                          onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-dim)'}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        ) : (
+          /* Upload Logs Table */
+          filteredLogs.length === 0 ? (
+            <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <ListFilter size={36} style={{ marginBottom: '0.75rem', opacity: 0.5 }} />
+              <p>No upload log entries recorded yet.</p>
+            </div>
+          ) : (
+            <div className="table-responsive" style={{ marginTop: '1rem' }}>
+              <table className="custom-table">
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>Filename</th>
+                    <th>Validation Status</th>
+                    <th>Rejection Reason</th>
+                    <th>Client IP</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredLogs.map((log) => (
+                    <tr key={log.id}>
+                      <td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                        {formatDate(log.timestamp)}
+                      </td>
+                      <td style={{ fontWeight: '600' }}>{log.filename}</td>
+                      <td>
+                        <span 
+                          className="tag" 
+                          style={{
+                            background: log.status === 'REJECTED' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                            color: log.status === 'REJECTED' ? '#ef4444' : '#10b981',
+                            fontWeight: '700'
+                          }}
+                        >
+                          {log.status === 'REJECTED' ? '❌ REJECTED' : '✓ ACCEPTED'}
+                        </span>
+                      </td>
+                      <td style={{ color: log.status === 'REJECTED' ? '#fca5a5' : 'var(--text-muted)', fontSize: '0.85rem' }}>
+                        {log.reason || 'None (Validated & Queued)'}
+                      </td>
+                      <td style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>
+                        {log.client_ip || '127.0.0.1'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
         )}
       </div>
     </div>

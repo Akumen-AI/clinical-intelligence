@@ -51,7 +51,8 @@ def test_gemini_classifier_success(mocker):
     assert result.document_type == "Discharge Summary"
     assert result.confidence == 0.85
 
-def test_gemini_classifier_missing_key():
+def test_gemini_classifier_missing_key(mocker):
+    mocker.patch.object(settings, 'GEMINI_API_KEY', None)
     with pytest.raises(ValueError):
         GeminiClassifier(api_key="")
 
