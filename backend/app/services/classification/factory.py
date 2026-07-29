@@ -2,7 +2,6 @@ import requests
 from app.config import settings
 from app.services.classification.base import DocumentClassifier
 from app.services.classification.ollama_classifier import OllamaClassifier
-from app.services.classification.gemini_classifier import GeminiClassifier
 
 
 def _is_ollama_available(host: str = "http://localhost:11434") -> bool:
@@ -24,6 +23,7 @@ def get_document_classifier() -> DocumentClassifier:
     if provider == "gemini":
         # Explicitly configured for Gemini
         print("[Classification] Using Gemini classifier (configured via AI_PROVIDER).")
+        from app.services.classification.gemini_classifier import GeminiClassifier
         return GeminiClassifier()
 
     # Default / "ollama" provider: try Ollama first, fall back to Gemini
@@ -34,6 +34,7 @@ def get_document_classifier() -> DocumentClassifier:
     # Ollama not available — try Gemini as fallback
     if settings.GEMINI_API_KEY:
         print("[Classification] Ollama not available. Falling back to Gemini classifier.")
+        from app.services.classification.gemini_classifier import GeminiClassifier
         return GeminiClassifier()
 
     print("[Classification] WARNING: No classifier available. Ollama is not running and GEMINI_API_KEY is not set.")

@@ -1,5 +1,5 @@
 from typing import List, Union, Optional
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Request, status
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Request, status, BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -22,7 +22,7 @@ router = APIRouter(
 
 @router.post(
     "/upload",
-    response_model=Union[UploadSummaryResponse, List[DocumentUploadItem]],
+    response_model=UploadSummaryResponse,
     status_code=status.HTTP_201_CREATED,
     responses={
         400: {
@@ -33,6 +33,7 @@ router = APIRouter(
 )
 async def upload_documents(
     request: Request,
+    background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
     db: Session = Depends(get_db)
 ):
@@ -58,14 +59,21 @@ async def upload_documents(
         file = files[0]
         try:
             doc = await upload_service.process_single_upload(db, file, client_ip)
-            return [
-                DocumentUploadItem(
-                    document_id=doc.document_id,
-                    filename=doc.filename,
-                    status=doc.status,
-                    filetype=doc.filetype
-                )
-            ]
+            background_tasks.add_task(upload_service.process_document, db, doc.document_id)
+            
+            accepted_item = DocumentUploadItem(
+                document_id=doc.document_id,
+                filename=doc.filename,
+                status=doc.status,
+                filetype=doc.filetype
+            )
+            return UploadSummaryResponse(
+                total_uploaded=1,
+                accepted_count=1,
+                rejected_count=0,
+                accepted=[accepted_item],
+                rejected=[]
+            )
         except FileValidationError as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -79,6 +87,7 @@ async def upload_documents(
     for file in files:
         try:
             doc = await upload_service.process_single_upload(db, file, client_ip)
+            background_tasks.add_task(upload_service.process_document, db, doc.document_id)
             accepted_items.append(
                 DocumentUploadItem(
                     document_id=doc.document_id,

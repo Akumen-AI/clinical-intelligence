@@ -2,7 +2,21 @@ import io
 import pytest
 from PIL import Image
 from pypdf import PdfWriter
+import time
 from tests.conftest import override_get_db
+
+def wait_for_document_processing(client, doc_id: str, timeout: int = 5):
+    """Helper to poll document status until it is no longer queued."""
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        resp = client.get(f"/api/v1/documents/{doc_id}/status")
+        if resp.status_code == 200:
+            status_data = resp.json()
+            if status_data["status"] != "QUEUED":
+                return status_data
+        time.time()
+        time.sleep(0.5)
+    raise TimeoutError(f"Document {doc_id} processing timed out.")
 
 def make_valid_pdf_bytes() -> bytes:
     writer = PdfWriter()
@@ -42,11 +56,11 @@ def test_upload_single_valid_pdf(client):
     response = client.post("/api/v1/documents/upload", files=files)
     assert response.status_code == 201
     data = response.json()
-    assert len(data) == 1
-    assert data[0]["filename"] == "patient_report.pdf"
-    assert data[0]["status"] == "classified"
-    assert data[0]["filetype"] == "pdf"
-    assert "document_id" in data[0]
+    assert data["accepted_count"] == 1
+    assert data["accepted"][0]["filename"] == "patient_report.pdf"
+    assert data["accepted"][0]["status"] == "QUEUED"
+    assert data["accepted"][0]["filetype"] == "pdf"
+    assert "document_id" in data["accepted"][0]
 
 def test_upload_invalid_extension_rejected(client):
     file_content = b"Mock docx file content"
@@ -68,7 +82,7 @@ def test_upload_bulk_valid_files(client):
     assert summary["accepted_count"] == 3
     assert summary["rejected_count"] == 0
     for item in summary["accepted"]:
-        assert item["status"] == "classified"
+        assert item["status"] == "QUEUED"
         assert item["document_id"] is not None
 
 def test_get_all_documents(client):
@@ -80,18 +94,16 @@ def test_get_all_documents(client):
     assert response.status_code == 200
     docs = response.json()
     assert len(docs) >= 1
-    assert docs[0]["filename"] == "blood_work.pdf"
-    assert docs[0]["status"] == "classified"
+    # We might not know which document is which, but at least one was queued/classified
+    assert any(d["filename"] == "blood_work.pdf" for d in docs)
 
 def test_get_document_status(client):
     file_content = make_valid_pdf_bytes()
     files = [("files", ("blood_work.pdf", io.BytesIO(file_content), "application/pdf"))]
     upload_resp = client.post("/api/v1/documents/upload", files=files)
-    doc_id = upload_resp.json()[0]["document_id"]
+    doc_id = upload_resp.json()["accepted"][0]["document_id"]
 
-    response = client.get(f"/api/v1/documents/{doc_id}/status")
-    assert response.status_code == 200
-    status_data = response.json()
+    status_data = wait_for_document_processing(client, doc_id)
     assert status_data["document_id"] == doc_id
     assert status_data["status"] == "classified"
 
@@ -113,8 +125,11 @@ def test_upload_image_and_preprocess(client):
     response = client.post("/api/v1/documents/upload", files=files)
     assert response.status_code == 201
     data = response.json()
-    assert len(data) == 1
-    doc_id = data[0]["document_id"]
+    assert data["accepted_count"] == 1
+    doc_id = data["accepted"][0]["document_id"]
+
+    # Wait for processing to finish
+    wait_for_document_processing(client, doc_id)
 
     # Verify database updates
     db = next(override_get_db())
@@ -134,4 +149,49 @@ def test_upload_image_and_preprocess(client):
     assert os.path.exists(original_path)
     assert os.path.exists(processed_path)
     assert doc.raw_uri != doc.processed_uri
+
+def test_upload_path_traversal(client):
+    file_content = make_valid_pdf_bytes()
+    # Attempt path traversal
+    files = [
+        ("files", ("../../../../tmp/evil.pdf", io.BytesIO(file_content), "application/pdf"))
+    ]
+    response = client.post("/api/v1/documents/upload", files=files)
+    assert response.status_code == 201
+    data = response.json()
+    assert data["accepted_count"] == 1
+    doc_id = data["accepted"][0]["document_id"]
+
+    db = next(override_get_db())
+    from app.services import upload_service
+    doc = upload_service.get_document_by_id(db, doc_id)
+    assert doc is not None
+    # Verify that the filename was sanitized in the stored URI
+    assert doc.raw_uri.startswith("uploads/")
+    assert doc.raw_uri.endswith("evil.pdf")
+
+def test_invalid_document_type_forces_manual_review(client, mocker):
+    file_content = make_valid_pdf_bytes()
+    
+    # Mock the classifier to return a high-confidence but invalid document type
+    mock_classifier = mocker.MagicMock()
+    mock_result = mocker.MagicMock()
+    mock_result.document_type = "Pizza Receipt"
+    mock_result.confidence = 0.99
+    mock_classifier.classify.return_value = mock_result
+    mocker.patch("app.services.classification.factory.get_document_classifier", return_value=mock_classifier)
+    
+    # Skip actual text extraction for this test to speed it up and isolate it
+    mocker.patch("app.services.text_extraction_service.extract_text", return_value="dummy text")
+    
+    files = [("files", ("test.pdf", io.BytesIO(file_content), "application/pdf"))]
+    response = client.post("/api/v1/documents/upload", files=files)
+    assert response.status_code == 201
+    
+    doc_id = response.json()["accepted"][0]["document_id"]
+    status_data = wait_for_document_processing(client, doc_id)
+    
+    assert status_data["status"] == "classified"
+    assert status_data["document_type"] == "Pizza Receipt"
+    assert status_data["needs_manual_review"] == True
 

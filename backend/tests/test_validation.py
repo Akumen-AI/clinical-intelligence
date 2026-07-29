@@ -38,10 +38,10 @@ def test_valid_pdf_upload(client):
     response = client.post("/api/v1/documents/upload", files=files)
     assert response.status_code == 201
     data = response.json()
-    assert len(data) == 1
-    assert data[0]["filename"] == "report.pdf"
-    assert data[0]["status"] == "classified"
-    assert data[0]["filetype"] == "pdf"
+    assert data["accepted_count"] == 1
+    assert data["accepted"][0]["filename"] == "report.pdf"
+    assert data["accepted"][0]["status"] == "QUEUED"
+    assert data["accepted"][0]["filetype"] == "pdf"
 
 def test_valid_png_upload(client):
     content = make_valid_png_bytes()
@@ -49,9 +49,9 @@ def test_valid_png_upload(client):
     response = client.post("/api/v1/documents/upload", files=files)
     assert response.status_code == 201
     data = response.json()
-    assert data[0]["filename"] == "lab_results.png"
-    assert data[0]["status"] == "classified"
-    assert data[0]["filetype"] == "png"
+    assert data["accepted"][0]["filename"] == "lab_results.png"
+    assert data["accepted"][0]["status"] == "QUEUED"
+    assert data["accepted"][0]["filetype"] == "png"
 
 def test_valid_tiff_upload(client):
     content = make_valid_tiff_bytes()
@@ -59,9 +59,9 @@ def test_valid_tiff_upload(client):
     response = client.post("/api/v1/documents/upload", files=files)
     assert response.status_code == 201
     data = response.json()
-    assert data[0]["filename"] == "mri_scan.tiff"
-    assert data[0]["status"] == "classified"
-    assert data[0]["filetype"] == "tiff"
+    assert data["accepted"][0]["filename"] == "mri_scan.tiff"
+    assert data["accepted"][0]["status"] == "QUEUED"
+    assert data["accepted"][0]["filetype"] == "tiff"
 
 def test_corrupted_pdf_rejected(client):
     corrupted_content = b"%PDF-1.4 Invalid garbage content not a real pdf"
