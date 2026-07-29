@@ -9,11 +9,12 @@ import {
   Database,
   ExternalLink,
   ShieldCheck,
+  Trash2,
   AlertOctagon,
   ListFilter
 } from 'lucide-react';
 import FileUploader from '../components/FileUploader';
-import { fetchDocuments, fetchUploadLogs } from '../services/api';
+import { fetchDocuments, deleteDocument, deleteAllDocuments, fetchUploadLogs } from '../services/api';
 
 export default function UploadPage() {
   const [documents, setDocuments] = useState([]);
@@ -46,6 +47,26 @@ export default function UploadPage() {
 
   const handleUploadSuccess = () => {
     loadData();
+  };
+
+  const handleDeleteDocument = async (documentId, filename) => {
+    if (!window.confirm(`Delete document "${filename}"?`)) return;
+    try {
+      await deleteDocument(documentId);
+      loadDocumentsList();
+    } catch (err) {
+      console.error('Failed to delete document:', err);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (!window.confirm(`Delete ALL ${documents.length} document(s)? This cannot be undone.`)) return;
+    try {
+      await deleteAllDocuments();
+      loadDocumentsList();
+    } catch (err) {
+      console.error('Failed to delete all documents:', err);
+    }
   };
 
   const filteredDocuments = documents.filter((doc) => {
@@ -231,6 +252,21 @@ export default function UploadPage() {
               <RefreshCw size={14} className={isRefreshing ? 'spin' : ''} />
               Refresh
             </button>
+            {documents.length > 0 && (
+              <button
+                className="btn btn-secondary"
+                onClick={handleDeleteAll}
+                style={{
+                  padding: '0.5rem 1rem',
+                  fontSize: '0.85rem',
+                  color: 'var(--accent-rose)',
+                  borderColor: 'rgba(239, 68, 68, 0.3)'
+                }}
+              >
+                <Trash2 size={14} />
+                Delete All
+              </button>
+            )}
           </div>
         </div>
 
@@ -258,6 +294,10 @@ export default function UploadPage() {
                     <th>Format</th>
                     <th>Ingestion Date</th>
                     <th>Pipeline Status</th>
+                    <th>Document Type</th>
+                    <th>Confidence</th>
+                    <th>Review Required</th>
+                    <th style={{ width: '60px' }}></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -280,6 +320,27 @@ export default function UploadPage() {
                           <span className="pulse-dot" style={{ width: '6px', height: '6px' }}></span>
                           {doc.status}
                         </span>
+                      </td>
+                      <td>{doc.document_type || '-'}</td>
+                      <td>{doc.classification_confidence !== null && doc.classification_confidence !== undefined ? doc.classification_confidence.toFixed(2) : '-'}</td>
+                      <td>
+                        {doc.needs_manual_review === true ? (
+                          <span style={{ color: 'var(--accent-rose)', fontWeight: 'bold' }}>Yes</span>
+                        ) : doc.needs_manual_review === false ? (
+                          <span style={{ color: '#10b981' }}>No</span>
+                        ) : '-'}
+                      </td>
+                      <td>
+                        <button
+                          className="btn-icon"
+                          title="Delete document"
+                          onClick={() => handleDeleteDocument(doc.document_id, doc.filename)}
+                          style={{ color: 'var(--text-dim)', cursor: 'pointer', background: 'none', border: 'none' }}
+                          onMouseOver={(e) => e.currentTarget.style.color = 'var(--accent-rose)'}
+                          onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-dim)'}
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </td>
                     </tr>
                   ))}

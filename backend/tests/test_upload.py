@@ -2,6 +2,7 @@ import io
 import pytest
 from PIL import Image
 from pypdf import PdfWriter
+from tests.conftest import override_get_db
 
 def make_valid_pdf_bytes() -> bytes:
     writer = PdfWriter()
@@ -43,7 +44,7 @@ def test_upload_single_valid_pdf(client):
     data = response.json()
     assert len(data) == 1
     assert data[0]["filename"] == "patient_report.pdf"
-    assert data[0]["status"] == "QUEUED"
+    assert data[0]["status"] == "classified"
     assert data[0]["filetype"] == "pdf"
     assert "document_id" in data[0]
 
@@ -66,6 +67,9 @@ def test_upload_bulk_valid_files(client):
     summary = response.json()
     assert summary["accepted_count"] == 3
     assert summary["rejected_count"] == 0
+    for item in summary["accepted"]:
+        assert item["status"] == "classified"
+        assert item["document_id"] is not None
 
 def test_get_all_documents(client):
     file_content = make_valid_pdf_bytes()
@@ -77,7 +81,7 @@ def test_get_all_documents(client):
     docs = response.json()
     assert len(docs) >= 1
     assert docs[0]["filename"] == "blood_work.pdf"
-    assert docs[0]["status"] == "QUEUED"
+    assert docs[0]["status"] == "classified"
 
 def test_get_document_status(client):
     file_content = make_valid_pdf_bytes()
@@ -89,7 +93,7 @@ def test_get_document_status(client):
     assert response.status_code == 200
     status_data = response.json()
     assert status_data["document_id"] == doc_id
-    assert status_data["status"] == "QUEUED"
+    assert status_data["status"] == "classified"
 
 def test_upload_image_and_preprocess(client):
     import numpy as np
@@ -117,7 +121,7 @@ def test_upload_image_and_preprocess(client):
     from app.services import upload_service
     doc = upload_service.get_document_by_id(db, doc_id)
     assert doc is not None
-    assert doc.status == DocumentStatus.PREPROCESSED.value
+    assert doc.status == DocumentStatus.CLASSIFIED.value
     assert doc.processing_time_ms is not None
     assert doc.processing_time_ms >= 0
     assert doc.processed_uri is not None

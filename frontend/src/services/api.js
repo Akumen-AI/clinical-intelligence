@@ -33,9 +33,20 @@ export const fetchDocumentById = async (documentId) => {
   return response.data;
 };
 
+export const deleteDocument = async (documentId) => {
+  const response = await apiClient.delete(`/documents/${documentId}`);
+  return response.data;
+};
+
+export const deleteAllDocuments = async () => {
+  const response = await apiClient.delete('/documents');
+  return response.data;
+};
+
 export const fetchUploadLogs = async () => {
   const response = await apiClient.get('/documents/upload-logs');
   return response.data;
 };
 
 export default apiClient;
+

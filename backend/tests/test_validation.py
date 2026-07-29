@@ -40,7 +40,7 @@ def test_valid_pdf_upload(client):
     data = response.json()
     assert len(data) == 1
     assert data[0]["filename"] == "report.pdf"
-    assert data[0]["status"] == "QUEUED"
+    assert data[0]["status"] == "classified"
     assert data[0]["filetype"] == "pdf"
 
 def test_valid_png_upload(client):
@@ -50,7 +50,7 @@ def test_valid_png_upload(client):
     assert response.status_code == 201
     data = response.json()
     assert data[0]["filename"] == "lab_results.png"
-    assert data[0]["status"] == "QUEUED"
+    assert data[0]["status"] == "classified"
     assert data[0]["filetype"] == "png"
 
 def test_valid_tiff_upload(client):
@@ -60,7 +60,7 @@ def test_valid_tiff_upload(client):
     assert response.status_code == 201
     data = response.json()
     assert data[0]["filename"] == "mri_scan.tiff"
-    assert data[0]["status"] == "QUEUED"
+    assert data[0]["status"] == "classified"
     assert data[0]["filetype"] == "tiff"
 
 def test_corrupted_pdf_rejected(client):

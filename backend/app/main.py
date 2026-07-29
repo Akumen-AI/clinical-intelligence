@@ -27,7 +27,26 @@ with engine.connect() as conn:
         conn.execute(text("ALTER TABLE documents ADD COLUMN processing_time_ms INTEGER;"))
         conn.commit()
     except Exception:
-        # Already exists or table doesn't exist yet
+        pass
+    try:
+        conn.execute(text("ALTER TABLE documents RENAME COLUMN doc_type TO document_type;"))
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE documents ADD COLUMN document_type VARCHAR(100);"))
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE documents ADD COLUMN classification_confidence FLOAT;"))
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE documents ADD COLUMN needs_manual_review BOOLEAN NOT NULL DEFAULT 0;"))
+        conn.commit()
+    except Exception:
         pass
 
 # Ensure upload storage folder exists
