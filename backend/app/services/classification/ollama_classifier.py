@@ -10,8 +10,9 @@ class OllamaClassifier(DocumentClassifier):
 
     def classify(self, text: str) -> ClassificationResult:
         prompt = self._get_prompt(text)
-        # Disable thinking mode for models like qwen3 that enable it by default
-        prompt = "/no_think\n" + prompt
+        # Disable thinking mode only for models that enable it by default (e.g. qwen3)
+        if "qwen3" in self.model.lower():
+            prompt = "/no_think\n" + prompt
 
         try:
             response = requests.post(

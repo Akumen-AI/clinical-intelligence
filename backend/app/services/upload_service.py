@@ -1,4 +1,5 @@
 import os
+import gc
 import uuid
 import shutil
 from typing import List, Tuple, Optional
@@ -46,7 +47,8 @@ def save_file(file: UploadFile, document_id: str, target_dir: str = UPLOAD_DIR) 
             detail=f"Failed to save file on server: {str(e)}"
         )
     
-    relative_path = os.path.join("uploads", safe_filename)
+    # Always use forward slashes for stored relative paths (cross-platform compatibility)
+    relative_path = "uploads/" + safe_filename
     return filepath, relative_path
 
 def create_document(
@@ -149,6 +151,9 @@ def process_document(db: Session, document_id: str):
         provider = "ollama"
         model_name = settings.OLLAMA_MODEL
     print(f"[Epic 1.4 Hook Success] provider={provider}, model={model_name}, processing_time={class_elapsed_ms}ms, confidence={result.confidence}, document_type={result.document_type}")
+
+    # Reclaim any residual memory from preprocessing (OpenCV buffers, etc.)
+    gc.collect()
 
 
 async def process_single_upload(

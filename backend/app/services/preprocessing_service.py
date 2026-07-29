@@ -113,7 +113,8 @@ def preprocess_document_file(raw_uri: str, filetype: str) -> tuple[str, int]:
     # Define processed filename and path
     basename = os.path.basename(original_abspath)
     processed_filename = f"processed_{basename}"
-    processed_relative_path = os.path.join("uploads", processed_filename)
+    # Always use forward slashes for stored relative paths (cross-platform compatibility)
+    processed_relative_path = "uploads/" + processed_filename
     processed_abspath = os.path.abspath(os.path.join(backend_dir, processed_relative_path))
     
     start_time = time.perf_counter()
