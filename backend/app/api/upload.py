@@ -1,27 +1,49 @@
-from typing import List
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
+from typing import List, Union, Optional
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.schemas.upload import DocumentResponse, DocumentUploadItem, UploadSummaryResponse
+from app.schemas.upload import (
+    DocumentResponse, 
+    DocumentUploadItem, 
+    RejectedUploadItem,
+    UploadSummaryResponse,
+    UploadLogResponse,
+    ErrorResponseSchema
+)
 from app.services import upload_service
+from app.services.validation_service import ValidationService
+from app.utils.validators import FileValidationError
 
 router = APIRouter(
     prefix="/documents",
-    tags=["Document Intake (Epic 1.1)"]
+    tags=["Document Intake & Validation (Epic 1.1 & 1.3)"]
 )
 
-@router.post("/upload", response_model=List[DocumentUploadItem], status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/upload",
+    response_model=Union[UploadSummaryResponse, List[DocumentUploadItem]],
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        400: {
+            "model": ErrorResponseSchema,
+            "description": "Validation failed: Unsupported file type, corrupted file, empty file, or oversized file."
+        }
+    }
+)
 async def upload_documents(
+    request: Request,
     files: List[UploadFile] = File(...),
     db: Session = Depends(get_db)
 ):
     """
     POST /api/v1/documents/upload
     
-    Accepts patient documents (PDF, PNG, JPG, JPEG, TIFF) individually or in bulk.
-    Validates file extensions, saves files securely, creates database records,
-    and initializes status to new.
+    Accepts clinical documents (PDF, PNG, JPG, JPEG, TIFF) individually or in bulk.
+    Validates file extensions, MIME types, sizes (<20MB), and file readability/corruption before queueing.
+    
+    - Invalid files are REJECTED, recorded in `UploadLog`, and barred from queueing.
+    - Valid files are saved, assigned `QUEUED` status, recorded in `UploadLog`, and queued for processing.
     """
     if not files:
         raise HTTPException(
@@ -29,31 +51,85 @@ async def upload_documents(
             detail="No files provided in upload request."
         )
 
-    # First pass validation: fail early if any file has an unsupported format
-    for file in files:
-        upload_service.validate_file(file)
+    client_ip = request.client.host if request.client else "unknown"
 
-    results: List[DocumentUploadItem] = []
-
-    for file in files:
-        doc = upload_service.queue_document(db, file)
-        results.append(
-            DocumentUploadItem(
-                document_id=doc.document_id,
-                filename=doc.filename,
-                status=doc.status,
-                filetype=doc.filetype
+    # Single File Upload Flow
+    if len(files) == 1:
+        file = files[0]
+        try:
+            doc = await upload_service.process_single_upload(db, file, client_ip)
+            return [
+                DocumentUploadItem(
+                    document_id=doc.document_id,
+                    filename=doc.filename,
+                    status=doc.status,
+                    filetype=doc.filetype
+                )
+            ]
+        except FileValidationError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=e.message
             )
+
+    # Multi-File Bulk Upload Flow
+    accepted_items: List[DocumentUploadItem] = []
+    rejected_items: List[RejectedUploadItem] = []
+
+    for file in files:
+        try:
+            doc = await upload_service.process_single_upload(db, file, client_ip)
+            accepted_items.append(
+                DocumentUploadItem(
+                    document_id=doc.document_id,
+                    filename=doc.filename,
+                    status=doc.status,
+                    filetype=doc.filetype
+                )
+            )
+        except FileValidationError as e:
+            rejected_items.append(
+                RejectedUploadItem(
+                    filename=file.filename or "unknown",
+                    reason=e.message,
+                    status="REJECTED"
+                )
+            )
+
+    # If all files failed validation in a multi-file upload, raise HTTP 400 with first failure reason or summary
+    if len(accepted_items) == 0 and len(rejected_items) > 0:
+        first_reason = rejected_items[0].reason
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"All files rejected: {first_reason}" if len(rejected_items) == 1 else f"Validation failed for all uploaded files. Reason: {first_reason}"
         )
 
-    return results
+    return UploadSummaryResponse(
+        total_uploaded=len(files),
+        accepted_count=len(accepted_items),
+        rejected_count=len(rejected_items),
+        accepted=accepted_items,
+        rejected=rejected_items
+    )
+
+@router.get("/upload-logs", response_model=List[UploadLogResponse])
+async def get_upload_logs(
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """
+    GET /api/v1/documents/upload-logs
+    
+    Retrieve audit history of all accepted and rejected file upload attempts.
+    """
+    return ValidationService.get_upload_logs(db, limit=limit)
 
 @router.get("", response_model=List[DocumentResponse])
 async def list_documents(db: Session = Depends(get_db)):
     """
     GET /api/v1/documents
     
-    Retrieve all uploaded patient documents with document ID, file path, file type, and current pipeline status.
+    Retrieve all uploaded patient documents with document ID, file path, file type, and pipeline status.
     """
     docs = upload_service.get_all_documents(db)
     return [

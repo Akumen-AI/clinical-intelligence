@@ -13,6 +13,8 @@ from fastapi.responses import FileResponse
 
 from sqlalchemy import text
 from app.database import engine, Base
+from app.models.document import Document
+from app.models.upload_log import UploadLog
 from app.api import upload
 from app.services.upload_service import ensure_upload_directory_exists
 
@@ -33,7 +35,7 @@ upload_dir = ensure_upload_directory_exists()
 
 app = FastAPI(
     title="AI Clinical Intelligence Platform API",
-    description="Document Intake & Processing Pipeline Backend (Epic 1.1 FR-01)",
+    description="Document Intake & File Validation Module (Epic 1.1 FR-01 & Epic 1.3 FR-04)",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc"

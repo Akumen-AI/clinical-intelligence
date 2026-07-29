@@ -1,43 +1,40 @@
 import io
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from PIL import Image
+from pypdf import PdfWriter
 
-from app.main import app
-from app.database import Base, get_db
+def make_valid_pdf_bytes() -> bytes:
+    writer = PdfWriter()
+    writer.add_blank_page(width=100, height=100)
+    buf = io.BytesIO()
+    writer.write(buf)
+    return buf.getvalue()
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test_clinical_platform.db"
+def make_valid_png_bytes() -> bytes:
+    img = Image.new("RGB", (20, 20), color="blue")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
 
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
-)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+def make_valid_jpg_bytes() -> bytes:
+    img = Image.new("RGB", (20, 20), color="red")
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG")
+    return buf.getvalue()
 
-def override_get_db():
-    try:
-        db = TestingSessionLocal()
-        yield db
-    finally:
-        db.close()
+def make_valid_tiff_bytes() -> bytes:
+    img = Image.new("RGB", (20, 20), color="yellow")
+    buf = io.BytesIO()
+    img.save(buf, format="TIFF")
+    return buf.getvalue()
 
-app.dependency_overrides[get_db] = override_get_db
-
-@pytest.fixture(autouse=True)
-def setup_db():
-    Base.metadata.create_all(bind=engine)
-    yield
-    Base.metadata.drop_all(bind=engine)
-
-client = TestClient(app)
-
-def test_root_health_check():
+def test_root_health_check(client):
     response = client.get("/")
     assert response.status_code == 200
     assert response.json()["status"] == "Healthy"
 
-def test_upload_single_valid_pdf():
-    file_content = b"%PDF-1.4 Mock PDF clinical report"
+def test_upload_single_valid_pdf(client):
+    file_content = make_valid_pdf_bytes()
     files = [
         ("files", ("patient_report.pdf", io.BytesIO(file_content), "application/pdf"))
     ]
@@ -46,35 +43,32 @@ def test_upload_single_valid_pdf():
     data = response.json()
     assert len(data) == 1
     assert data[0]["filename"] == "patient_report.pdf"
-    assert data[0]["status"] == "new"
+    assert data[0]["status"] == "QUEUED"
     assert data[0]["filetype"] == "pdf"
     assert "document_id" in data[0]
 
-def test_upload_invalid_extension_rejected():
+def test_upload_invalid_extension_rejected(client):
     file_content = b"Mock docx file content"
     files = [
         ("files", ("resume.docx", io.BytesIO(file_content), "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
     ]
     response = client.post("/api/v1/documents/upload", files=files)
     assert response.status_code == 400
-    assert "Unsupported file type '.docx'" in response.json()["detail"]
+    assert "This file type is not supported" in response.json()["detail"]
 
-def test_upload_bulk_valid_files():
-    file1 = ("files", ("lab_scan.png", io.BytesIO(b"PNG mock data"), "image/png"))
-    file2 = ("files", ("prescription.jpg", io.BytesIO(b"JPEG mock data"), "image/jpeg"))
-    file3 = ("files", ("chest_xray.tiff", io.BytesIO(b"TIFF mock data"), "image/tiff"))
+def test_upload_bulk_valid_files(client):
+    file1 = ("files", ("lab_scan.png", io.BytesIO(make_valid_png_bytes()), "image/png"))
+    file2 = ("files", ("prescription.jpg", io.BytesIO(make_valid_jpg_bytes()), "image/jpeg"))
+    file3 = ("files", ("chest_xray.tiff", io.BytesIO(make_valid_tiff_bytes()), "image/tiff"))
 
     response = client.post("/api/v1/documents/upload", files=[file1, file2, file3])
     assert response.status_code == 201
-    data = response.json()
-    assert len(data) == 3
-    for item in data:
-        assert item["status"] == "new"
-        assert item["document_id"] is not None
+    summary = response.json()
+    assert summary["accepted_count"] == 3
+    assert summary["rejected_count"] == 0
 
-def test_get_all_documents():
-    # Upload first
-    file_content = b"%PDF-1.4 Test"
+def test_get_all_documents(client):
+    file_content = make_valid_pdf_bytes()
     files = [("files", ("blood_work.pdf", io.BytesIO(file_content), "application/pdf"))]
     client.post("/api/v1/documents/upload", files=files)
 
@@ -83,10 +77,10 @@ def test_get_all_documents():
     docs = response.json()
     assert len(docs) >= 1
     assert docs[0]["filename"] == "blood_work.pdf"
-    assert docs[0]["status"] == "new"
+    assert docs[0]["status"] == "QUEUED"
 
-def test_get_document_status():
-    file_content = b"%PDF-1.4 Test"
+def test_get_document_status(client):
+    file_content = make_valid_pdf_bytes()
     files = [("files", ("blood_work.pdf", io.BytesIO(file_content), "application/pdf"))]
     upload_resp = client.post("/api/v1/documents/upload", files=files)
     doc_id = upload_resp.json()[0]["document_id"]
@@ -95,9 +89,9 @@ def test_get_document_status():
     assert response.status_code == 200
     status_data = response.json()
     assert status_data["document_id"] == doc_id
-    assert status_data["status"] == "new"
+    assert status_data["status"] == "QUEUED"
 
-def test_upload_image_and_preprocess():
+def test_upload_image_and_preprocess(client):
     import numpy as np
     import cv2
     import os
