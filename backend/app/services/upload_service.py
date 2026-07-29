@@ -141,8 +141,13 @@ def process_document(db: Session, document_id: str):
     db.refresh(doc)
     
     # Logging required: provider, model, processing_time, confidence, document_type
-    provider = settings.AI_PROVIDER.lower()
-    model_name = settings.OLLAMA_MODEL if provider == "ollama" else "gemini-2.5-flash"
+    from app.services.classification.gemini_classifier import GeminiClassifier
+    if isinstance(classifier, GeminiClassifier):
+        provider = "gemini"
+        model_name = classifier.model_name
+    else:
+        provider = "ollama"
+        model_name = settings.OLLAMA_MODEL
     print(f"[Epic 1.4 Hook Success] provider={provider}, model={model_name}, processing_time={class_elapsed_ms}ms, confidence={result.confidence}, document_type={result.document_type}")
 
 

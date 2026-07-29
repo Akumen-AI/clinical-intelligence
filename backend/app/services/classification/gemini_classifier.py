@@ -9,7 +9,7 @@ class GeminiClassifier(DocumentClassifier):
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY must be set to use GeminiClassifier")
         self.client = genai.Client(api_key=self.api_key)
-        self.model_name = "gemini-2.5-flash"
+        self.model_name = "gemini-3.5-flash"
 
     def classify(self, text: str) -> ClassificationResult:
         prompt = self._get_prompt(text)
