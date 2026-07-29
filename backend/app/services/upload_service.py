@@ -46,7 +46,8 @@ def save_file(file: UploadFile, document_id: str, target_dir: str = UPLOAD_DIR) 
             detail=f"Failed to save file on server: {str(e)}"
         )
     
-    relative_path = os.path.join("uploads", safe_filename)
+    # Always use forward slashes for stored relative paths (cross-platform compatibility)
+    relative_path = "uploads/" + safe_filename
     return filepath, relative_path
 
 def create_document(
