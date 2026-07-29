@@ -23,8 +23,7 @@ def _get_paddle_ocr():
         from paddleocr import PaddleOCR
         # use_angle_cls=True enables text direction detection (useful for rotated docs)
         # lang='en' for English medical documents
-        # show_log=False suppresses verbose PaddlePaddle startup logs
-        _paddle_ocr_instance = PaddleOCR(use_angle_cls=True, lang='en', show_log=False)
+        _paddle_ocr_instance = PaddleOCR(use_angle_cls=True, lang='en')
     return _paddle_ocr_instance
 
 
@@ -35,19 +34,22 @@ def _extract_text_with_paddle(image_path: str) -> str:
     """
     try:
         ocr = _get_paddle_ocr()
-        result = ocr.ocr(image_path, cls=True)
-
-        if not result or not result[0]:
+        # In PaddleOCR 3.7.0 (PaddleX based), the API uses predict() and returns a dict list
+        # We need to extract the 'rec_text' list from the first result dictionary
+        result = ocr.predict(image_path)
+        
+        if not result:
             return ""
 
-        # PaddleOCR returns: [ [line1, line2, ...] ] where each line is
-        # [bounding_box, (text, confidence)]
-        lines = []
-        for line in result[0]:
-            text = line[1][0]  # Extract the text string
-            lines.append(text)
-
-        return "\n".join(lines).strip()
+        # result is a generator or list of dict-like objects. We take the first one.
+        res_dict = next(iter(result))
+        
+        # In PaddleOCR 3.7.0 / PaddleX, the key is 'rec_texts' (plural)
+        if hasattr(res_dict, 'keys') and 'rec_texts' in res_dict and res_dict['rec_texts']:
+            # It's a list of strings
+            return "\n".join(res_dict['rec_texts']).strip()
+            
+        return ""
     except Exception as e:
         print(f"[Text Extraction] PaddleOCR failed: {e}")
         return ""
