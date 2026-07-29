@@ -3,6 +3,9 @@ from abc import ABC, abstractmethod
 
 class ClassificationResult(BaseModel):
     document_type: str
+    # Note: This confidence score is the LLM's self-reported number. It is not derived 
+    # from logprobs/embedding similarity, and self-reported LLM confidence is known to 
+    # be poorly calibrated. Tune DOCUMENT_CLASSIFICATION_THRESHOLD with this caveat in mind.
     confidence: float
 
 class DocumentClassifier(ABC):

@@ -26,7 +26,14 @@ def get_file_extension(filename: str) -> str:
 
 def save_file(file: UploadFile, document_id: str, target_dir: str = UPLOAD_DIR) -> Tuple[str, str]:
     ensure_upload_directory_exists(target_dir)
-    safe_filename = f"{document_id}_{file.filename}"
+    
+    # Sanitize filename to prevent path traversal
+    base_filename = os.path.basename(file.filename)
+    safe_filename_part = base_filename.replace("..", "").replace("/", "").replace("\\", "")
+    if not safe_filename_part:
+        safe_filename_part = "unnamed_file"
+        
+    safe_filename = f"{document_id}_{safe_filename_part}"
     filepath = os.path.join(target_dir, safe_filename)
     
     try:
@@ -120,16 +127,27 @@ def process_document(db: Session, document_id: str):
     result = classifier.classify(ocr_text)
     class_elapsed_ms = int((time.time() - start_time) * 1000)
     
+    allowed_types = {"Prescription", "Lab Report", "Discharge Summary", "Referral", "Admission Form", "Unknown"}
     doc.document_type = result.document_type
     doc.classification_confidence = result.confidence
-    doc.needs_manual_review = result.confidence < settings.DOCUMENT_CLASSIFICATION_THRESHOLD
+    
+    if result.document_type not in allowed_types:
+        doc.needs_manual_review = True
+        print(f"[Epic 1.4] Document type '{result.document_type}' is not in allowed set. Forcing manual review.")
+    else:
+        doc.needs_manual_review = result.confidence < settings.DOCUMENT_CLASSIFICATION_THRESHOLD
     doc.status = DocumentStatus.CLASSIFIED.value
     db.commit()
     db.refresh(doc)
     
     # Logging required: provider, model, processing_time, confidence, document_type
-    provider = settings.AI_PROVIDER.lower()
-    model_name = settings.OLLAMA_MODEL if provider == "ollama" else "gemini-2.5-flash"
+    from app.services.classification.gemini_classifier import GeminiClassifier
+    if isinstance(classifier, GeminiClassifier):
+        provider = "gemini"
+        model_name = classifier.model_name
+    else:
+        provider = "ollama"
+        model_name = settings.OLLAMA_MODEL
     print(f"[Epic 1.4 Hook Success] provider={provider}, model={model_name}, processing_time={class_elapsed_ms}ms, confidence={result.confidence}, document_type={result.document_type}")
 
 
@@ -161,8 +179,7 @@ async def process_single_upload(
     # Log accepted attempt
     ValidationService.log_acceptance(db, file.filename, client_ip)
     
-    # Epic 1.2 preprocessing hook
-    process_document(db, doc_id)
+    # process_document should be called via BackgroundTasks in the router, not here synchronously.
     
     return doc
 

@@ -75,23 +75,14 @@ export default function FileUploader({ onUploadSuccess }) {
       const result = await uploadDocuments(selectedFiles);
       setUploadProgress(100);
 
-      if (Array.isArray(result)) {
-        // Single or multi array response
-        setSuccessMessage(`Successfully validated and queued ${result.length} file(s)!`);
-        setUploadSummary({
-          total_uploaded: result.length,
-          accepted_count: result.length,
-          rejected_count: 0,
-          accepted: result,
-          rejected: []
-        });
-      } else if (result && typeof result === 'object') {
-        // Multi-file batch summary response
+      if (result && typeof result === 'object') {
         setUploadSummary(result);
         if (result.rejected_count > 0 && result.accepted_count > 0) {
-          setErrorMessage(`Batch Upload Warning: ${result.accepted_count} file(s) accepted & queued, ${result.rejected_count} file(s) rejected.`);
+          setErrorMessage(`Upload Warning: ${result.accepted_count} file(s) accepted & queued, ${result.rejected_count} file(s) rejected.`);
         } else if (result.accepted_count > 0) {
-          setSuccessMessage(`All ${result.accepted_count} file(s) successfully validated & queued!`);
+          setSuccessMessage(`Successfully validated and queued ${result.accepted_count} file(s)!`);
+        } else if (result.rejected_count > 0) {
+          setErrorMessage(`All ${result.rejected_count} file(s) were rejected.`);
         }
       }
       
