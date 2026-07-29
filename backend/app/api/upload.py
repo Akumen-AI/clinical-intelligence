@@ -63,7 +63,12 @@ async def list_documents(db: Session = Depends(get_db)):
             status=doc.status,
             uploaded_at=doc.uploaded_at,
             raw_uri=doc.raw_uri,
-            filetype=doc.filetype
+            filetype=doc.filetype,
+            processed_uri=doc.processed_uri,
+            processing_time_ms=doc.processing_time_ms,
+            document_type=doc.document_type,
+            classification_confidence=doc.classification_confidence,
+            needs_manual_review=doc.needs_manual_review
         )
         for doc in docs
     ]
@@ -87,7 +92,12 @@ async def get_document(document_id: str, db: Session = Depends(get_db)):
         status=doc.status,
         uploaded_at=doc.uploaded_at,
         raw_uri=doc.raw_uri,
-        filetype=doc.filetype
+        filetype=doc.filetype,
+        processed_uri=doc.processed_uri,
+        processing_time_ms=doc.processing_time_ms,
+        document_type=doc.document_type,
+        classification_confidence=doc.classification_confidence,
+        needs_manual_review=doc.needs_manual_review
     )
 
 @router.get("/{document_id}/status")
@@ -103,4 +113,36 @@ async def get_document_status(document_id: str, db: Session = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Document with ID '{document_id}' not found."
         )
-    return {"document_id": doc.document_id, "status": doc.status}
+    return {
+        "document_id": doc.document_id,
+        "status": doc.status,
+        "document_type": doc.document_type,
+        "classification_confidence": doc.classification_confidence,
+        "needs_manual_review": doc.needs_manual_review
+    }
+
+@router.delete("/{document_id}", status_code=status.HTTP_200_OK)
+async def delete_document(document_id: str, db: Session = Depends(get_db)):
+    """
+    DELETE /api/v1/documents/{document_id}
+
+    Delete a specific document by UUID, removing the database record and associated files.
+    """
+    deleted = upload_service.delete_document(db, document_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document with ID '{document_id}' not found."
+        )
+    return {"message": f"Document '{document_id}' deleted successfully."}
+
+@router.delete("", status_code=status.HTTP_200_OK)
+async def delete_all_documents(db: Session = Depends(get_db)):
+    """
+    DELETE /api/v1/documents
+
+    Delete all documents, removing database records and associated files.
+    """
+    count = upload_service.delete_all_documents(db)
+    return {"message": f"Deleted {count} document(s) successfully.", "count": count}
+

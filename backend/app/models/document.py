@@ -1,11 +1,12 @@
 from datetime import datetime, timezone
 import enum
-from sqlalchemy import Column, String, DateTime, Integer
+from sqlalchemy import Column, String, DateTime, Integer, Float, Boolean
 from app.database import Base
 
 class DocumentStatus(str, enum.Enum):
     NEW = "new"
     PREPROCESSED = "preprocessed"
+    CLASSIFIED = "classified"
     EXTRACTED = "extracted"
     PENDING_REVIEW = "pending_review"
     COMMITTED = "committed"
@@ -23,5 +24,7 @@ class Document(Base):
     uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     processed_uri = Column(String(500), nullable=True)
     processing_time_ms = Column(Integer, nullable=True)
-    doc_type = Column(String(100), nullable=True)
+    document_type = Column(String(100), nullable=True)
+    classification_confidence = Column(Float, nullable=True)
+    needs_manual_review = Column(Boolean, default=False, nullable=False)
     rejection_reason = Column(String(500), nullable=True)

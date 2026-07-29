@@ -13,6 +13,9 @@ class DocumentResponse(BaseModel):
     filetype: str
     processed_uri: Optional[str] = None
     processing_time_ms: Optional[int] = None
+    document_type: Optional[str] = None
+    classification_confidence: Optional[float] = None
+    needs_manual_review: Optional[bool] = None
 
 class DocumentUploadItem(BaseModel):
     document_id: str

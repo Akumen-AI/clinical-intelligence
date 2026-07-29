@@ -102,6 +102,51 @@ def process_document(db: Session, document_id: str):
         db.refresh(doc)
         print(f"[Epic 1.2 Hook Error] Preprocessing failed for document {document_id}: {str(e)}")
 
+    # Epic 1.4: Document Classification
+    from app.services.classification.factory import get_document_classifier
+    from app.config import settings
+    import time
+
+    print(f"[Epic 1.4 Hook Triggered] Document ID '{document_id}' is queued for classification.")
+    classifier = get_document_classifier()
+    
+    # Extract actual text from the document for classification.
+    # Use the raw file first — preprocessing converts PDFs to image-only PDFs,
+    # stripping embedded text. Fall back to processed file for scanned documents
+    # where image enhancement may help OCR.
+    from app.services.text_extraction_service import extract_text
+
+    ocr_text = extract_text(doc.raw_uri, doc.filetype)
+    if not ocr_text and doc.processed_uri:
+        ocr_text = extract_text(doc.processed_uri, doc.filetype)
+
+    if not ocr_text:
+        print(f"[Epic 1.4] No text could be extracted from document {document_id}. Skipping classification.")
+        doc.document_type = "Unknown"
+        doc.classification_confidence = 0.0
+        doc.needs_manual_review = True
+        doc.status = DocumentStatus.CLASSIFIED.value
+        db.commit()
+        db.refresh(doc)
+        return
+    
+    start_time = time.time()
+    result = classifier.classify(ocr_text)
+    class_elapsed_ms = int((time.time() - start_time) * 1000)
+    
+    doc.document_type = result.document_type
+    doc.classification_confidence = result.confidence
+    doc.needs_manual_review = result.confidence < settings.DOCUMENT_CLASSIFICATION_THRESHOLD
+    doc.status = DocumentStatus.CLASSIFIED.value
+    db.commit()
+    db.refresh(doc)
+    
+    # Logging required: provider, model, processing_time, confidence, document_type
+    provider = settings.AI_PROVIDER.lower()
+    model_name = settings.OLLAMA_MODEL if provider == "ollama" else "gemini-2.5-flash"
+    print(f"[Epic 1.4 Hook Success] provider={provider}, model={model_name}, processing_time={class_elapsed_ms}ms, confidence={result.confidence}, document_type={result.document_type}")
+
+
 def queue_document(db: Session, file: UploadFile) -> Document:
     ext = validate_file(file)
     doc_id = generate_uuid()
@@ -118,3 +163,48 @@ def get_all_documents(db: Session) -> List[Document]:
 
 def get_document_by_id(db: Session, document_id: str) -> Optional[Document]:
     return db.query(Document).filter(Document.document_id == document_id).first()
+
+def delete_document(db: Session, document_id: str) -> bool:
+    """Delete a document record and its associated files from disk."""
+    doc = get_document_by_id(db, document_id)
+    if not doc:
+        return False
+
+    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+    # Remove raw file
+    if doc.raw_uri:
+        raw_path = os.path.join(backend_dir, doc.raw_uri)
+        if os.path.exists(raw_path):
+            os.remove(raw_path)
+
+    # Remove processed file
+    if doc.processed_uri:
+        processed_path = os.path.join(backend_dir, doc.processed_uri)
+        if os.path.exists(processed_path):
+            os.remove(processed_path)
+
+    db.delete(doc)
+    db.commit()
+    return True
+
+def delete_all_documents(db: Session) -> int:
+    """Delete all document records and their associated files. Returns count deleted."""
+    docs = db.query(Document).all()
+    count = len(docs)
+    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+    for doc in docs:
+        if doc.raw_uri:
+            raw_path = os.path.join(backend_dir, doc.raw_uri)
+            if os.path.exists(raw_path):
+                os.remove(raw_path)
+        if doc.processed_uri:
+            processed_path = os.path.join(backend_dir, doc.processed_uri)
+            if os.path.exists(processed_path):
+                os.remove(processed_path)
+
+    db.query(Document).delete()
+    db.commit()
+    return count
+
