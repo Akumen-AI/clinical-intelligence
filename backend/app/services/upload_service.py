@@ -61,12 +61,32 @@ def create_document(
     db.refresh(doc)
     return doc
 
-def process_document(document_id: str):
+def process_document(db: Session, document_id: str):
     """
     Extension point hook for Epic 1.2 (Image Preprocessing).
     This function is called for valid, queued documents.
     """
     print(f"[Epic 1.2 Hook Triggered] Document ID '{document_id}' is queued for preprocessing.")
+    from app.services.preprocessing_service import preprocess_document_file
+
+    doc = get_document_by_id(db, document_id)
+    if not doc:
+        print(f"[Epic 1.2 Hook Error] Document ID '{document_id}' not found in database.")
+        return
+
+    try:
+        processed_uri, elapsed_time_ms = preprocess_document_file(doc.raw_uri, doc.filetype)
+        doc.processed_uri = processed_uri
+        doc.processing_time_ms = elapsed_time_ms
+        doc.status = DocumentStatus.PREPROCESSED.value
+        db.commit()
+        db.refresh(doc)
+        print(f"[Epic 1.2 Hook Success] Preprocessed document {document_id} in {elapsed_time_ms}ms")
+    except Exception as e:
+        doc.rejection_reason = f"Preprocessing failed: {str(e)}"
+        db.commit()
+        db.refresh(doc)
+        print(f"[Epic 1.2 Hook Error] Preprocessing failed for document {document_id}: {str(e)}")
 
 async def process_single_upload(
     db: Session,
@@ -98,6 +118,8 @@ async def process_single_upload(
     
     # Epic 1.2 preprocessing hook
     process_document(doc_id)
+    # Extension hook call for Epic 1.2
+    process_document(db, doc_id)
     
     return doc
 

@@ -55,7 +55,7 @@ cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python app/main.py
+uvicorn app.main:app --reload
 ```
 
 **For Windows:**
@@ -64,7 +64,7 @@ cd backend
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
-python app\main.py
+uvicorn app.main:app --reload
 ```
 
 - **Web Interface**: [http://localhost:8000/ui](http://localhost:8000/ui)
