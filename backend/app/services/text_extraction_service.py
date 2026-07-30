@@ -42,6 +42,15 @@ def _paddle_ocr_worker(image_paths: list, result_queue):
     """
     results = []
     try:
+        # --- Windows Compatibility Flags ---
+        # PaddlePaddle's oneDNN (MKL-DNN) executor crashes on Windows with:
+        #   "ConvertPirAttribute2RuntimeAttribute not support
+        #    [pir::ArrayAttribute<pir::DoubleAttribute>]"
+        # Disabling oneDNN and the PIR API avoids this crash.
+        # These are safe no-ops on macOS and Linux.
+        os.environ.setdefault("FLAGS_use_mkldnn", "0")
+        os.environ.setdefault("FLAGS_enable_pir_api", "0")
+
         from paddleocr import PaddleOCR
         # use_angle_cls=True enables text direction detection (useful for rotated docs)
         # lang='en' for English medical documents
