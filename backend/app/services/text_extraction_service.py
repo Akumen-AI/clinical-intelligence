@@ -61,7 +61,11 @@ def _paddle_ocr_worker(image_paths: list, result_queue):
         from paddleocr import PaddleOCR
         # use_angle_cls=True enables text direction detection (useful for rotated docs)
         # lang='en' for English medical documents
-        ocr = PaddleOCR(use_angle_cls=True, lang='en')
+        # enable_mkldnn=False is CRITICAL for Windows: env vars alone don't reliably
+        # prevent PaddlePaddle's C++ layer from using oneDNN, which crashes with:
+        #   "ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute...]"
+        # This flag is a harmless no-op on macOS/Linux.
+        ocr = PaddleOCR(use_angle_cls=True, lang='en', enable_mkldnn=False)
 
         for image_path in image_paths:
             try:
