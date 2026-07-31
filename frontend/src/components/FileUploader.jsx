@@ -94,7 +94,16 @@ export default function FileUploader({ onUploadSuccess }) {
       }
     } catch (err) {
       console.error('Upload Error:', err);
-      const detail = err.response?.data?.detail || 'Document upload failed. Please verify file integrity and server state.';
+      let detail;
+      if (err.response?.data?.detail) {
+        // Server responded with a structured error (validation failure, etc.)
+        detail = err.response.data.detail;
+      } else if (err.code === 'ERR_NETWORK' || err.code === 'ERR_CONNECTION_REFUSED' || !err.response) {
+        // Network error — backend is not reachable
+        detail = 'Cannot reach the server. Please ensure the backend is running on http://localhost:8000 and try again.';
+      } else {
+        detail = `Upload failed (HTTP ${err.response?.status ?? 'unknown'}). Please verify file integrity and server state.`;
+      }
       setErrorMessage(detail);
     } finally {
       setIsUploading(false);

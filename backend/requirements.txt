@@ -9,6 +9,9 @@ pytest-mock>=3.10.0
 requests>=2.31.0
 pypdf>=3.0.0
 Pillow>=10.0.0
+# PaddleX/PaddleOCR currently has better compatibility with the pandas 2.x
+# native wheels on Windows than with pandas 3.x.
+pandas<3.0
 
 opencv-python-headless>=4.8.0
 pymupdf>=1.22.0
