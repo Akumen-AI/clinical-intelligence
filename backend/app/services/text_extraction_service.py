@@ -17,6 +17,7 @@ compatibility (macOS, Windows, and Linux).
 
 import os
 import gc
+import queue
 import multiprocessing
 import fitz  # PyMuPDF
 
@@ -48,8 +49,14 @@ def _paddle_ocr_worker(image_paths: list, result_queue):
         #    [pir::ArrayAttribute<pir::DoubleAttribute>]"
         # Disabling oneDNN and the PIR API avoids this crash.
         # These are safe no-ops on macOS and Linux.
-        os.environ.setdefault("FLAGS_use_mkldnn", "0")
-        os.environ.setdefault("FLAGS_enable_pir_api", "0")
+        # Set these explicitly rather than with setdefault(): a reloader or
+        # parent process may already have supplied a conflicting value.
+        # PaddlePaddle 3.x also has a separate PIR executor switch; disabling
+        # only FLAGS_enable_pir_api still leaves the Windows oneDNN/PIR crash.
+        os.environ["FLAGS_use_mkldnn"] = "0"
+        os.environ["FLAGS_use_onednn"] = "0"
+        os.environ["FLAGS_enable_pir_api"] = "0"
+        os.environ["FLAGS_enable_pir_in_executor"] = "0"
 
         from paddleocr import PaddleOCR
         # use_angle_cls=True enables text direction detection (useful for rotated docs)
@@ -129,13 +136,18 @@ def _run_paddle_ocr_subprocess(image_paths: list, timeout: int = _OCR_SUBPROCESS
             process.join(timeout=5)
         return [""] * len(image_paths)
 
+    # Do not use Queue.empty() here. It is inherently racy and is especially
+    # unreliable with multiprocessing queues on Windows: the child may have
+    # put its result on the queue while the feeder thread has not flushed it
+    # yet, causing empty() to incorrectly return True.
     try:
-        if not result_queue.empty():
-            results = result_queue.get_nowait()
-            print(f"[Text Extraction] OCR subprocess completed successfully.")
-            return results
-    except Exception:
-        pass
+        results = result_queue.get(timeout=5)
+        print(f"[Text Extraction] OCR subprocess completed successfully.")
+        return results
+    except queue.Empty:
+        print("[Text Extraction] OCR subprocess returned no result.")
+    except Exception as e:
+        print(f"[Text Extraction] Failed to read OCR subprocess result: {e}")
 
     return [""] * len(image_paths)
 
