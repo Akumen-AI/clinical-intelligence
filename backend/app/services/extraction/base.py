@@ -31,6 +31,20 @@ CRITICAL RULES:
 4. For diagnosis, medications, and lab_results, provide a list of objects or null if none are mentioned.
 5. Return ONLY valid raw JSON. Do not include markdown codeblocks (no ```json).
 
+INPUT FORMAT NOTES:
+- The document text may contain TAB-SEPARATED columns representing tabular data (e.g., lab results).
+  Tab characters (\\t) indicate column boundaries. For example, a lab result row may look like:
+  "Hemoglobin (Hb)\\t13.2\\tg/dL\\t13.0 - 17.0"
+  This means: Test=Hemoglobin (Hb), Value=13.2, Unit=g/dL, Range=13.0 - 17.0
+- Each line represents a row. Read across columns within a row, not down.
+
+EXCLUSION RULES — DO NOT extract the following as lab results or clinical data:
+- Phone numbers, fax numbers (e.g., "Ph: 0484-4012345")
+- Addresses, websites, email addresses
+- Barcode numbers, lab accession numbers, sample IDs (these go in patient_identifier if relevant)
+- Timestamps (e.g., "08:30 AM", "01:15 PM") — these are collection/report times, not lab values
+- Document headers/footers (lab name, logo text, disclaimers)
+
 REQUIRED JSON SCHEMA:
 {{
   "patient_identifier": {{

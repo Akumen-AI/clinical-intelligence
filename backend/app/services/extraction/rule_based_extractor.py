@@ -293,22 +293,40 @@ class RuleBasedFieldExtractor(ClinicalFieldExtractor):
             re.IGNORECASE,
         )
 
+        # Fields that look like lab results but aren't — expanded to catch
+        # phone numbers, timestamps, barcodes, and document metadata
         vitals_and_meta = {
             "date", "dob", "bp", "hr", "pulse", "temp", "rr", "spo2", "weight", "height", "bmi",
-            "age", "page", "phone", "fax", "patient", "mrn", "id"
+            "age", "page", "phone", "fax", "patient", "mrn", "id",
+            "ph", "lab", "no", "collection", "report", "sample", "location", "barcode",
+            "reg", "email", "website", "www", "address", "pin", "zip", "code",
         }
+
+        # Patterns that indicate the "value" is actually a phone number or time
+        phone_pattern = re.compile(r"^\d{3,4}$")  # e.g., "0484" from "Ph: 0484-4012345"
+        time_unit_pattern = re.compile(r"^(AM|PM|am|pm)$")
 
         for line in text.split("\n"):
             line = line.strip()
             match = pattern.match(line)
             if match:
                 test_name = match.group(1).strip()
-                if any(v in test_name.lower() for v in vitals_and_meta):
+                # Check if any metadata keyword appears in test name
+                test_name_lower = test_name.lower().strip()
+                if any(v == test_name_lower or v in test_name_lower.split() for v in vitals_and_meta):
                     continue
                 val = match.group(2).strip() if match.group(2) else None
                 unit = match.group(3).strip() if match.group(3) else None
                 ref_range = match.group(4).strip() if match.group(4) else None
                 flag = match.group(5).strip() if match.group(5) else None
+
+                # Skip entries where the unit looks like a phone suffix or time
+                if unit and (re.match(r"^-\d{5,}$", unit) or time_unit_pattern.match(unit)):
+                    continue
+                # Skip if value looks like part of a phone number (3-4 digits followed
+                # by a dash-prefixed unit) — e.g., Ph: 0484-4012345
+                if val and unit and phone_pattern.match(val) and unit.startswith("-"):
+                    continue
 
                 if flag:
                     if flag.upper() == "H":

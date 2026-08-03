@@ -30,6 +30,116 @@ _BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 _OCR_SUBPROCESS_TIMEOUT = 300
 
 
+def _reconstruct_spatial_layout(texts: list, boxes, scores=None) -> str:
+    """
+    Reconstruct a 2D text layout from OCR text fragments and their bounding boxes.
+
+    PaddleOCR returns a flat list of text fragments (rec_texts) with bounding
+    boxes (rec_boxes) as [x_min, y_min, x_max, y_max]. Without reconstruction,
+    joining fragments with newlines destroys tabular structure — causing lab
+    report columns (test name, value, unit, reference range) to be read as
+    separate unrelated lines.
+
+    This function:
+    1. Groups fragments into rows by y-coordinate proximity (same visual line)
+    2. Sorts each row left-to-right by x-coordinate
+    3. Uses tab separation for significant horizontal gaps (column boundaries)
+       and space separation for adjacent text within the same column
+
+    Args:
+        texts: List of recognized text strings from PaddleOCR.
+        boxes: Array/list of bounding boxes, each as [x_min, y_min, x_max, y_max].
+        scores: Optional list of confidence scores. Fragments with very low
+                confidence (< 0.3) are excluded to reduce noise.
+
+    Returns:
+        Spatially-reconstructed text string with rows separated by newlines
+        and columns separated by tabs.
+    """
+    if not texts or boxes is None or len(boxes) == 0:
+        # Fallback: no spatial data available
+        return "\n".join(texts).strip() if texts else ""
+
+    # Convert boxes to plain list of lists (handles numpy arrays)
+    try:
+        box_list = []
+        for b in boxes:
+            if hasattr(b, 'tolist'):
+                box_list.append(b.tolist())
+            else:
+                box_list.append(list(b))
+    except Exception:
+        return "\n".join(texts).strip()
+
+    # Pair each text fragment with its box and optional score
+    fragments = []
+    for i, (text, box) in enumerate(zip(texts, box_list)):
+        if not text or not text.strip():
+            continue
+        # Filter out very low confidence fragments if scores available
+        if scores is not None and i < len(scores):
+            try:
+                if float(scores[i]) < 0.3:
+                    continue
+            except (ValueError, TypeError):
+                pass
+        # box format: [x_min, y_min, x_max, y_max]
+        x_min, y_min, x_max, y_max = float(box[0]), float(box[1]), float(box[2]), float(box[3])
+        fragments.append({
+            "text": text.strip(),
+            "x_min": x_min,
+            "y_min": y_min,
+            "x_max": x_max,
+            "y_max": y_max,
+            "height": y_max - y_min,
+        })
+
+    if not fragments:
+        return "\n".join(texts).strip()
+
+    # Calculate adaptive row-grouping tolerance based on median text height
+    heights = sorted(f["height"] for f in fragments if f["height"] > 0)
+    if heights:
+        median_height = heights[len(heights) // 2]
+    else:
+        median_height = 15.0  # sensible default for ~300 DPI OCR
+
+    row_tolerance = median_height * 0.5
+    col_gap_threshold = median_height * 1.5
+
+    # Sort all fragments by y_min (top to bottom), then x_min (left to right)
+    fragments.sort(key=lambda f: (f["y_min"], f["x_min"]))
+
+    # Group fragments into rows: fragments with similar y_min belong together
+    rows = []
+    current_row = [fragments[0]]
+    for frag in fragments[1:]:
+        # Compare with the average y_min of the current row
+        avg_y = sum(f["y_min"] for f in current_row) / len(current_row)
+        if abs(frag["y_min"] - avg_y) <= row_tolerance:
+            current_row.append(frag)
+        else:
+            rows.append(current_row)
+            current_row = [frag]
+    rows.append(current_row)
+
+    # Build the output: sort each row left-to-right, use tab for column gaps
+    output_lines = []
+    for row in rows:
+        row.sort(key=lambda f: f["x_min"])
+        line_parts = [row[0]["text"]]
+        for i in range(1, len(row)):
+            gap = row[i]["x_min"] - row[i - 1]["x_max"]
+            if gap > col_gap_threshold:
+                line_parts.append("\t")
+            else:
+                line_parts.append(" ")
+            line_parts.append(row[i]["text"])
+        output_lines.append("".join(line_parts))
+
+    return "\n".join(output_lines).strip()
+
+
 def _paddle_ocr_worker(image_paths: list, result_queue):
     """
     Subprocess worker: initializes PaddleOCR, processes image(s), puts results in queue.
@@ -79,9 +189,23 @@ def _paddle_ocr_worker(image_paths: list, result_queue):
                 # result is a generator or list of dict-like objects
                 res_dict = next(iter(result))
 
-                # In PaddleOCR 3.7.0 / PaddleX, the key is 'rec_texts' (plural)
+                # In PaddleOCR 3.7.0 / PaddleX, the result dict contains:
+                #   rec_texts: list of recognized text strings
+                #   rec_boxes: bounding boxes as [x_min, y_min, x_max, y_max]
+                #   rec_scores: confidence scores per fragment
+                # Using rec_boxes for spatial layout reconstruction preserves
+                # the tabular structure of documents like lab reports.
                 if hasattr(res_dict, 'keys') and 'rec_texts' in res_dict and res_dict['rec_texts']:
-                    results.append("\n".join(res_dict['rec_texts']).strip())
+                    texts = res_dict['rec_texts']
+                    boxes = res_dict.get('rec_boxes', None)
+                    scores = res_dict.get('rec_scores', None)
+
+                    if boxes is not None and len(boxes) == len(texts):
+                        reconstructed = _reconstruct_spatial_layout(texts, boxes, scores)
+                        results.append(reconstructed)
+                    else:
+                        # Fallback if boxes unavailable or mismatched
+                        results.append("\n".join(texts).strip())
                 else:
                     results.append("")
             except Exception as e:

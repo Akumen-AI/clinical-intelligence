@@ -211,10 +211,8 @@ export default function ExtractedFieldsModal({ document: doc, onClose, onRefresh
                     <span className="field-val">{fields.patient_identifier?.dob || <em>null</em>}</span>
                   </div>
                   <div className="field-row">
-                    <span className="field-label">Age / Gender:</span>
-                    <span className="field-val">
-                      {fields.patient_identifier?.age ? `${fields.patient_identifier.age} yrs` : 'null'} / {fields.patient_identifier?.gender || 'null'}
-                    </span>
+                    <span className="field-label">Gender:</span>
+                    <span className="field-val">{fields.patient_identifier?.gender || <em>null</em>}</span>
                   </div>
                 </div>
               </div>
@@ -236,7 +234,7 @@ export default function ExtractedFieldsModal({ document: doc, onClose, onRefresh
                   </div>
                   <div className="field-row">
                     <span className="field-label">Specialty / Dept:</span>
-                    <span className="field-val">{fields.ordering_physician?.specialty || fields.ordering_physician?.department || <em>null</em>}</span>
+                    <span className="field-val">{fields.ordering_physician?.department || fields.ordering_physician?.specialty || <em>null</em>}</span>
                   </div>
                   <div className="field-row">
                     <span className="field-label">NPI / License:</span>
@@ -246,45 +244,67 @@ export default function ExtractedFieldsModal({ document: doc, onClose, onRefresh
               </div>
 
               {/* Vitals */}
-              {fields.vitals && (
-                <div className="summary-card full-width">
-                  <div className="summary-card-header">
-                    <Activity size={16} color="var(--accent-emerald)" />
-                    <h4>Vitals</h4>
-                  </div>
-                  <div className="vitals-grid">
-                    <div className="vital-item">
-                      <span className="vital-label">Blood Pressure</span>
-                      <span className="vital-val">{fields.vitals.blood_pressure || 'null'}</span>
-                    </div>
-                    <div className="vital-item">
-                      <span className="vital-label">Heart Rate</span>
-                      <span className="vital-val">{fields.vitals.heart_rate || 'null'}</span>
-                    </div>
-                    <div className="vital-item">
-                      <span className="vital-label">Temperature</span>
-                      <span className="vital-val">{fields.vitals.temperature || 'null'}</span>
-                    </div>
-                    <div className="vital-item">
-                      <span className="vital-label">Respiratory Rate</span>
-                      <span className="vital-val">{fields.vitals.respiratory_rate || 'null'}</span>
-                    </div>
-                    <div className="vital-item">
-                      <span className="vital-label">SpO2</span>
-                      <span className="vital-val">{fields.vitals.oxygen_saturation || 'null'}</span>
-                    </div>
-                  </div>
+              <div className="summary-card full-width">
+                <div className="summary-card-header">
+                  <Activity size={16} color="var(--accent-emerald)" />
+                  <h4>Vitals</h4>
                 </div>
-              )}
+                <div className="summary-card-content">
+                  {!fields.vitals || Object.values(fields.vitals).every(v => v === null || v === undefined) ? (
+                    <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>No vitals extracted (null)</p>
+                  ) : (
+                    <div className="vitals-grid">
+                      <div className="vital-item">
+                        <span className="vital-label">Blood Pressure</span>
+                        <span className="vital-val">{fields.vitals.blood_pressure || '-'}</span>
+                      </div>
+                      <div className="vital-item">
+                        <span className="vital-label">Heart Rate</span>
+                        <span className="vital-val">{fields.vitals.heart_rate || '-'}</span>
+                      </div>
+                      <div className="vital-item">
+                        <span className="vital-label">Temperature</span>
+                        <span className="vital-val">{fields.vitals.temperature || '-'}</span>
+                      </div>
+                      <div className="vital-item">
+                        <span className="vital-label">Resp. Rate</span>
+                        <span className="vital-val">{fields.vitals.respiratory_rate || '-'}</span>
+                      </div>
+                      <div className="vital-item">
+                        <span className="vital-label">SpO2</span>
+                        <span className="vital-val">{fields.vitals.spo2 || fields.vitals.oxygen_saturation || '-'}</span>
+                      </div>
+                      {fields.vitals.weight && (
+                        <div className="vital-item">
+                          <span className="vital-label">Weight</span>
+                          <span className="vital-val">{fields.vitals.weight}</span>
+                        </div>
+                      )}
+                      {fields.vitals.height && (
+                        <div className="vital-item">
+                          <span className="vital-label">Height</span>
+                          <span className="vital-val">{fields.vitals.height}</span>
+                        </div>
+                      )}
+                      {fields.vitals.bmi && (
+                        <div className="vital-item">
+                          <span className="vital-label">BMI</span>
+                          <span className="vital-val">{fields.vitals.bmi}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
 
               {/* Medications */}
               <div className="summary-card full-width">
                 <div className="summary-card-header">
                   <Pill size={16} color="var(--accent-amber)" />
-                  <h4>Medications ({fields.medications?.length || 0})</h4>
+                  <h4>Medications ({Array.isArray(fields.medications) ? fields.medications.length : 0})</h4>
                 </div>
                 <div className="summary-card-content">
-                  {(!fields.medications || fields.medications.length === 0) ? (
+                  {(!fields.medications || !Array.isArray(fields.medications) || fields.medications.length === 0) ? (
                     <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>No medications extracted (null)</p>
                   ) : (
                     <table className="mini-table">
@@ -298,15 +318,18 @@ export default function ExtractedFieldsModal({ document: doc, onClose, onRefresh
                         </tr>
                       </thead>
                       <tbody>
-                        {fields.medications.map((m, idx) => (
-                          <tr key={idx}>
-                            <td style={{ fontWeight: '600', color: 'var(--text-main)' }}>{m.name || '-'}</td>
-                            <td>{m.dosage || '-'}</td>
-                            <td>{m.frequency || '-'}</td>
-                            <td>{m.route || '-'}</td>
-                            <td>{m.duration || '-'}</td>
-                          </tr>
-                        ))}
+                        {fields.medications.map((m, idx) => {
+                          const medName = typeof m === 'string' ? m : (m?.medication_name || m?.name || '-');
+                          return (
+                            <tr key={idx}>
+                              <td style={{ fontWeight: '600', color: 'var(--text-main)' }}>{medName}</td>
+                              <td>{typeof m === 'object' ? (m?.dosage || '-') : '-'}</td>
+                              <td>{typeof m === 'object' ? (m?.frequency || '-') : '-'}</td>
+                              <td>{typeof m === 'object' ? (m?.route || '-') : '-'}</td>
+                              <td>{typeof m === 'object' ? (m?.duration || '-') : '-'}</td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   )}
@@ -317,10 +340,10 @@ export default function ExtractedFieldsModal({ document: doc, onClose, onRefresh
               <div className="summary-card full-width">
                 <div className="summary-card-header">
                   <FlaskConical size={16} color="var(--primary-violet)" />
-                  <h4>Lab Results ({fields.lab_results?.length || 0})</h4>
+                  <h4>Lab Results ({Array.isArray(fields.lab_results) ? fields.lab_results.length : 0})</h4>
                 </div>
                 <div className="summary-card-content">
-                  {(!fields.lab_results || fields.lab_results.length === 0) ? (
+                  {(!fields.lab_results || !Array.isArray(fields.lab_results) || fields.lab_results.length === 0) ? (
                     <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>No lab results extracted (null)</p>
                   ) : (
                     <table className="mini-table">
@@ -334,21 +357,28 @@ export default function ExtractedFieldsModal({ document: doc, onClose, onRefresh
                         </tr>
                       </thead>
                       <tbody>
-                        {fields.lab_results.map((l, idx) => (
-                          <tr key={idx}>
-                            <td style={{ fontWeight: '600', color: 'var(--text-main)' }}>{l.test_name || '-'}</td>
-                            <td style={{ color: 'var(--primary-cyan)', fontWeight: '600' }}>{l.value || '-'}</td>
-                            <td>{l.unit || '-'}</td>
-                            <td>{l.reference_range || '-'}</td>
-                            <td>
-                              {l.flag ? (
-                                <span className="tag" style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' }}>
-                                  {l.flag}
-                                </span>
-                              ) : '-'}
-                            </td>
-                          </tr>
-                        ))}
+                        {fields.lab_results.map((l, idx) => {
+                          const testName = typeof l === 'string' ? l : (l?.test_name || '-');
+                          const val = typeof l === 'object' ? (l?.value || '-') : '-';
+                          const unit = typeof l === 'object' ? (l?.unit || '-') : '-';
+                          const refRange = typeof l === 'object' ? (l?.reference_range || '-') : '-';
+                          const flag = typeof l === 'object' ? l?.flag : null;
+                          return (
+                            <tr key={idx}>
+                              <td style={{ fontWeight: '600', color: 'var(--text-main)' }}>{testName}</td>
+                              <td style={{ color: 'var(--primary-cyan)', fontWeight: '600' }}>{val}</td>
+                              <td>{unit}</td>
+                              <td>{refRange}</td>
+                              <td>
+                                {flag ? (
+                                  <span className="tag" style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' }}>
+                                    {String(flag)}
+                                  </span>
+                                ) : '-'}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   )}
@@ -364,30 +394,59 @@ export default function ExtractedFieldsModal({ document: doc, onClose, onRefresh
                 <div className="summary-card-content" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   <div>
                     <span className="field-label" style={{ display: 'block', marginBottom: '0.25rem' }}>Diagnoses:</span>
-                    {(!fields.diagnosis || fields.diagnosis.length === 0) ? (
+                    {(!fields.diagnosis || !Array.isArray(fields.diagnosis) || fields.diagnosis.length === 0) ? (
                       <span className="field-val"><em>null</em></span>
                     ) : (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                        {fields.diagnosis.map((d, i) => (
-                          <span key={i} className="tag" style={{ background: 'rgba(59, 130, 246, 0.15)', color: 'var(--primary-blue)' }}>
-                            {d.code ? `[${d.code}] ` : ''}{d.description || d}
-                          </span>
-                        ))}
+                        {fields.diagnosis.map((d, i) => {
+                          if (typeof d === 'string') {
+                            return (
+                              <span key={i} className="tag" style={{ background: 'rgba(59, 130, 246, 0.15)', color: 'var(--primary-blue)' }}>
+                                {d}
+                              </span>
+                            );
+                          }
+                          const code = d?.icd10_code || d?.code;
+                          const name = d?.condition_name || d?.name || d?.description || (typeof d === 'object' ? JSON.stringify(d) : String(d));
+                          return (
+                            <span key={i} className="tag" style={{ background: 'rgba(59, 130, 246, 0.15)', color: 'var(--primary-blue)' }}>
+                              {code ? `[${code}] ` : ''}{name}
+                            </span>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
                   <div>
                     <span className="field-label" style={{ display: 'block', marginBottom: '0.25rem' }}>Symptoms:</span>
-                    {(!fields.symptoms || fields.symptoms.length === 0) ? (
+                    {(!fields.symptoms || !Array.isArray(fields.symptoms) || fields.symptoms.length === 0) ? (
                       <span className="field-val"><em>null</em></span>
                     ) : (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                        {fields.symptoms.map((s, i) => (
-                          <span key={i} className="tag">{s}</span>
-                        ))}
+                        {fields.symptoms.map((s, i) => {
+                          const name = typeof s === 'string' ? s : (s?.name || s?.symptom || JSON.stringify(s));
+                          return (
+                            <span key={i} className="tag">{name}</span>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
+                  {fields.procedures && Array.isArray(fields.procedures) && fields.procedures.length > 0 && (
+                    <div>
+                      <span className="field-label" style={{ display: 'block', marginBottom: '0.25rem' }}>Procedures:</span>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                        {fields.procedures.map((p, i) => {
+                          const name = typeof p === 'string' ? p : (p?.name || p?.procedure || JSON.stringify(p));
+                          return (
+                            <span key={i} className="tag" style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent-emerald)' }}>
+                              {name}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
