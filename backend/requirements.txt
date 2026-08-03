@@ -18,3 +18,6 @@ pymupdf>=1.22.0
 paddleocr==3.7.0
 paddlepaddle==3.3.1
 google-genai>=0.2.0
+# LayoutParser is loaded lazily; its Detectron2 backend must be installed
+# separately where supported by the host platform.
+layoutparser>=0.3.4
