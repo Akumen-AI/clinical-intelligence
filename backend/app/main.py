@@ -16,8 +16,10 @@ from app.database import engine, Base
 from app.models.document import Document
 from app.models.upload_log import UploadLog
 from app.models.layout_region import LayoutRegion
+from app.models.extracted_field import ExtractedField
 from app.api import upload
 from app.api import layout
+from app.api import fields
 from app.services import layout_trigger
 from app.services.upload_service import ensure_upload_directory_exists
 
@@ -81,9 +83,10 @@ app.add_middleware(
 # Serve uploaded documents statically
 app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
 
-# Include Document Intake router
+# Include routers
 app.include_router(upload.router, prefix="/api/v1")
 app.include_router(layout.router, prefix="/api/v1")
+app.include_router(fields.router, prefix="/api/v1")
 
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_dir):

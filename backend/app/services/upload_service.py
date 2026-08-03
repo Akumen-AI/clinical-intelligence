@@ -72,88 +72,95 @@ def create_document(
 
 def process_document(db: Session, document_id: str):
     """
-    Extension point hook for Epic 1.2 (Image Preprocessing).
-    This function is called for valid, queued documents.
+    Extension point hook for document processing pipeline.
+    Handles Preprocessing, Classification, and Field Extraction.
     """
-    print(f"[Epic 1.2 Hook Triggered] Document ID '{document_id}' is queued for preprocessing.")
-    from app.services.preprocessing_service import preprocess_document_file
-
-    doc = get_document_by_id(db, document_id)
-    if not doc:
-        print(f"[Epic 1.2 Hook Error] Document ID '{document_id}' not found in database.")
-        return
-
     try:
-        processed_uri, elapsed_time_ms = preprocess_document_file(doc.raw_uri, doc.filetype)
-        doc.processed_uri = processed_uri
-        doc.processing_time_ms = elapsed_time_ms
-        doc.status = DocumentStatus.PREPROCESSED.value
-        db.commit()
-        db.refresh(doc)
-        print(f"[Epic 1.2 Hook Success] Preprocessed document {document_id} in {elapsed_time_ms}ms")
-    except Exception as e:
-        doc.rejection_reason = f"Preprocessing failed: {str(e)}"
-        db.commit()
-        db.refresh(doc)
-        print(f"[Epic 1.2 Hook Error] Preprocessing failed for document {document_id}: {str(e)}")
+        print(f"[Epic 1.2 Hook Triggered] Document ID '{document_id}' is queued for preprocessing.")
+        from app.services.preprocessing_service import preprocess_document_file
 
-    # Epic 1.4: Document Classification
-    from app.services.classification.factory import get_document_classifier
-    from app.config import settings
-    import time
+        doc = get_document_by_id(db, document_id)
+        if not doc:
+            print(f"[Epic 1.2 Hook Error] Document ID '{document_id}' not found in database.")
+            return
 
-    print(f"[Epic 1.4 Hook Triggered] Document ID '{document_id}' is queued for classification.")
-    classifier = get_document_classifier()
-    
-    # Extract actual text from the document for classification.
-    # Use the raw file first — preprocessing converts PDFs to image-only PDFs,
-    # stripping embedded text. Fall back to processed file for scanned documents
-    # where image enhancement may help OCR.
-    from app.services.text_extraction_service import extract_text
+        try:
+            processed_uri, elapsed_time_ms = preprocess_document_file(doc.raw_uri, doc.filetype)
+            doc.processed_uri = processed_uri
+            doc.processing_time_ms = elapsed_time_ms
+            doc.status = DocumentStatus.PREPROCESSED.value
+            db.commit()
+            db.refresh(doc)
+            print(f"[Epic 1.2 Hook Success] Preprocessed document {document_id} in {elapsed_time_ms}ms")
+        except Exception as e:
+            doc.rejection_reason = f"Preprocessing failed: {str(e)}"
+            db.commit()
+            db.refresh(doc)
+            print(f"[Epic 1.2 Hook Error] Preprocessing failed for document {document_id}: {str(e)}")
 
-    ocr_text = extract_text(doc.raw_uri, doc.filetype)
-    if not ocr_text and doc.processed_uri:
-        ocr_text = extract_text(doc.processed_uri, doc.filetype)
+        # Epic 1.4: Document Classification
+        from app.services.classification.factory import get_document_classifier
+        from app.config import settings
+        import time
 
-    if not ocr_text:
-        print(f"[Epic 1.4] No text could be extracted from document {document_id}. Skipping classification.")
-        doc.document_type = "Unknown"
-        doc.classification_confidence = 0.0
-        doc.needs_manual_review = True
+        print(f"[Epic 1.4 Hook Triggered] Document ID '{document_id}' is queued for classification.")
+        classifier = get_document_classifier()
+        
+        # Extract actual text from the document for classification.
+        from app.services.text_extraction_service import extract_text
+
+        ocr_text = extract_text(doc.raw_uri, doc.filetype)
+        if not ocr_text and doc.processed_uri:
+            ocr_text = extract_text(doc.processed_uri, doc.filetype)
+
+        if not ocr_text:
+            print(f"[Epic 1.4] No text could be extracted from document {document_id}. Skipping classification.")
+            doc.document_type = "Unknown"
+            doc.classification_confidence = 0.0
+            doc.needs_manual_review = True
+            doc.status = DocumentStatus.CLASSIFIED.value
+            db.commit()
+            db.refresh(doc)
+            return
+        
+        start_time = time.time()
+        result = classifier.classify(ocr_text)
+        class_elapsed_ms = int((time.time() - start_time) * 1000)
+        
+        allowed_types = {"Prescription", "Lab Report", "Discharge Summary", "Referral", "Admission Form", "Unknown"}
+        doc.document_type = result.document_type
+        doc.classification_confidence = result.confidence
+        
+        if result.document_type not in allowed_types:
+            doc.needs_manual_review = True
+            print(f"[Epic 1.4] Document type '{result.document_type}' is not in allowed set. Forcing manual review.")
+        else:
+            doc.needs_manual_review = result.confidence < settings.DOCUMENT_CLASSIFICATION_THRESHOLD
         doc.status = DocumentStatus.CLASSIFIED.value
         db.commit()
         db.refresh(doc)
-        return
-    
-    start_time = time.time()
-    result = classifier.classify(ocr_text)
-    class_elapsed_ms = int((time.time() - start_time) * 1000)
-    
-    allowed_types = {"Prescription", "Lab Report", "Discharge Summary", "Referral", "Admission Form", "Unknown"}
-    doc.document_type = result.document_type
-    doc.classification_confidence = result.confidence
-    
-    if result.document_type not in allowed_types:
-        doc.needs_manual_review = True
-        print(f"[Epic 1.4] Document type '{result.document_type}' is not in allowed set. Forcing manual review.")
-    else:
-        doc.needs_manual_review = result.confidence < settings.DOCUMENT_CLASSIFICATION_THRESHOLD
-    doc.status = DocumentStatus.CLASSIFIED.value
-    db.commit()
-    db.refresh(doc)
-    
-    # Logging required: provider, model, processing_time, confidence, document_type
-    from app.services.classification.gemini_classifier import GeminiClassifier
-    if isinstance(classifier, GeminiClassifier):
-        provider = "gemini"
-        model_name = classifier.model_name
-    else:
-        provider = "ollama"
-        model_name = settings.OLLAMA_MODEL
-    print(f"[Epic 1.4 Hook Success] provider={provider}, model={model_name}, processing_time={class_elapsed_ms}ms, confidence={result.confidence}, document_type={result.document_type}")
+        
+        from app.services.classification.gemini_classifier import GeminiClassifier
+        if isinstance(classifier, GeminiClassifier):
+            provider = "gemini"
+            model_name = classifier.model_name
+        else:
+            provider = "ollama"
+            model_name = settings.OLLAMA_MODEL
+        print(f"[Epic 1.4 Hook Success] provider={provider}, model={model_name}, processing_time={class_elapsed_ms}ms, confidence={result.confidence}, document_type={result.document_type}")
 
-    # Reclaim any residual memory from preprocessing (OpenCV buffers, etc.)
-    gc.collect()
+        # Epic 2.2: Extract key clinical fields
+        try:
+            from app.services.field_extraction_service import extract_and_persist_fields
+            extract_and_persist_fields(db, doc, ocr_text=ocr_text)
+            print(f"[Epic 2.2 Hook Success] Key fields extracted and persisted for {doc.document_id}")
+        except Exception as e:
+            print(f"[Epic 2.2 Extraction Warning] Field extraction encountered an issue: {e}")
+
+        # Reclaim any residual memory from preprocessing
+        gc.collect()
+    except Exception as exc:
+        print(f"[Process Document Warning] Background processing error for document {document_id}: {exc}")
 
 
 async def process_single_upload(
