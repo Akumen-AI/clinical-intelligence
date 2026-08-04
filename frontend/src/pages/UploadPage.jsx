@@ -11,9 +11,11 @@ import {
   ShieldCheck,
   Trash2,
   AlertOctagon,
-  ListFilter
+  ListFilter,
+  Code
 } from 'lucide-react';
 import FileUploader from '../components/FileUploader';
+import ExtractedFieldsModal from '../components/ExtractedFieldsModal';
 import { fetchDocuments, deleteDocument, deleteAllDocuments, fetchUploadLogs } from '../services/api';
 
 export default function UploadPage() {
@@ -23,6 +25,7 @@ export default function UploadPage() {
   const [activeTab, setActiveTab] = useState('documents'); // 'documents' or 'logs'
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedDocForFields, setSelectedDocForFields] = useState(null);
 
   const loadData = async () => {
     setIsRefreshing(true);
@@ -301,6 +304,7 @@ export default function UploadPage() {
                     <th>Document Type</th>
                     <th>Confidence</th>
                     <th>Review Required</th>
+                    <th>Extracted Fields</th>
                     <th style={{ width: '60px' }}></th>
                   </tr>
                 </thead>
@@ -333,6 +337,22 @@ export default function UploadPage() {
                         ) : doc.needs_manual_review === false ? (
                           <span style={{ color: '#10b981' }}>No</span>
                         ) : '-'}
+                      </td>
+                      <td>
+                        {(() => {
+                          const isExtracted = ['EXTRACTED', 'PENDING_REVIEW', 'COMMITTED', 'VERIFIED'].includes((doc.status || '').toUpperCase());
+                          return (
+                            <button
+                              className="btn-view-fields"
+                              onClick={() => isExtracted && setSelectedDocForFields(doc)}
+                              disabled={!isExtracted}
+                              title={isExtracted ? "View extracted clinical fields in JSON" : `Extraction pending (Current status: ${doc.status})`}
+                            >
+                              <Code size={13} />
+                              <span>View JSON</span>
+                            </button>
+                          );
+                        })()}
                       </td>
                       <td>
                         <button
@@ -404,6 +424,15 @@ export default function UploadPage() {
           )
         )}
       </div>
+
+      {/* Extracted Fields Modal */}
+      {selectedDocForFields && (
+        <ExtractedFieldsModal
+          document={selectedDocForFields}
+          onClose={() => setSelectedDocForFields(null)}
+          onRefreshRequired={loadData}
+        />
+      )}
     </div>
   );
 }
