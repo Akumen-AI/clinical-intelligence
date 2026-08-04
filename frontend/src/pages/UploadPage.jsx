@@ -43,6 +43,10 @@ export default function UploadPage() {
 
   useEffect(() => {
     loadData();
+    const statusPoller = setInterval(() => {
+      fetchDocuments().then(setDocuments).catch((err) => console.error('Failed to poll document statuses:', err));
+    }, 500);
+    return () => clearInterval(statusPoller);
   }, []);
 
   const handleUploadSuccess = () => {
@@ -318,7 +322,7 @@ export default function UploadPage() {
                       <td>
                         <span className={`badge-status badge-${doc.status}`}>
                           <span className="pulse-dot" style={{ width: '6px', height: '6px' }}></span>
-                          {doc.status}
+                          {{ QUEUED: 'Queued', new: 'Queued', preprocessing: 'Preprocessing...', preprocessed: 'Preprocessing...', detecting_layout: 'Detecting layout...', layout_detected: 'Detecting layout...', extracting: 'Extracting text...', extracted: 'Extracted', classifying: 'Classifying...', classified: 'Classified' }[doc.status] || doc.status}
                         </span>
                       </td>
                       <td>{doc.document_type || '-'}</td>

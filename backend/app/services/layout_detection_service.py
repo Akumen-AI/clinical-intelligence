@@ -70,6 +70,9 @@ def persist_layout_regions(db: Session, document: Document) -> List[LayoutRegion
     if not document.processed_uri:
         raise ValueError(f"Document '{document.document_id}' has no processed file")
 
+    document.status = "detecting_layout"
+    db.commit()
+
     path = _absolute_backend_path(document.processed_uri)
     temporary_path = None
     if document.filetype.lower() == "pdf":
@@ -125,7 +128,7 @@ def _run_layout_detection_after_preprocessing(document_ids: List[str], bind: Eng
     try:
         for document_id in document_ids:
             document = db.get(Document, document_id)
-            if not document or document.status != "preprocessed":
+            if not document or document.status not in {"preprocessed", "detecting_layout"}:
                 continue
             try:
                 persist_layout_regions(db, document)

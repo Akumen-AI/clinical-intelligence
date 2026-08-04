@@ -84,6 +84,9 @@ def process_document(db: Session, document_id: str):
         return
 
     try:
+        doc.status = DocumentStatus.PREPROCESSING.value
+        db.commit()
+        db.refresh(doc)
         processed_uri, elapsed_time_ms = preprocess_document_file(doc.raw_uri, doc.filetype)
         doc.processed_uri = processed_uri
         doc.processing_time_ms = elapsed_time_ms
@@ -111,9 +114,17 @@ def process_document(db: Session, document_id: str):
     # where image enhancement may help OCR.
     from app.services.text_extraction_service import extract_text
 
+    doc.status = DocumentStatus.EXTRACTING.value
+    db.commit()
+    db.refresh(doc)
+
     ocr_text = extract_text(doc.raw_uri, doc.filetype)
     if not ocr_text and doc.processed_uri:
         ocr_text = extract_text(doc.processed_uri, doc.filetype)
+
+    doc.status = DocumentStatus.EXTRACTED.value
+    db.commit()
+    db.refresh(doc)
 
     if not ocr_text:
         print(f"[Epic 1.4] No text could be extracted from document {document_id}. Skipping classification.")
@@ -125,6 +136,10 @@ def process_document(db: Session, document_id: str):
         db.refresh(doc)
         return
     
+    doc.status = DocumentStatus.CLASSIFYING.value
+    db.commit()
+    db.refresh(doc)
+
     start_time = time.time()
     result = classifier.classify(ocr_text)
     class_elapsed_ms = int((time.time() - start_time) * 1000)
