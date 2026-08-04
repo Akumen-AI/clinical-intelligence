@@ -50,5 +50,15 @@ export const fetchUploadLogs = async () => {
   return response.data;
 };
 
+export const fetchDocumentFields = async (documentId) => {
+  const response = await apiClient.get(`/documents/${documentId}/fields`);
+  return response.data;
+};
+
+export const extractDocumentFields = async (documentId) => {
+  const response = await apiClient.post(`/documents/${documentId}/extract`);
+  return response.data;
+};
+
 export default apiClient;
 

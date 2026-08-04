@@ -23,7 +23,7 @@ def _wait_for_status(client, document_id: str, timeout: float = 5.0):
     deadline = time.time() + timeout
     while time.time() < deadline:
         response = client.get(f"/api/v1/documents/{document_id}/status")
-        if response.json()["status"] == "classified":
+        if response.json()["status"] in ["classified", "extracted"]:
             return
         time.sleep(0.05)
     raise AssertionError("document processing did not complete")
@@ -64,6 +64,8 @@ def test_three_document_images_persist_and_retrieve_layout_regions(client, mocke
     classifier.classify.return_value.document_type = "Lab Report"
     classifier.classify.return_value.confidence = 0.95
     mocker.patch("app.services.classification.factory.get_document_classifier", return_value=classifier)
+    from app.services.extraction.rule_based_extractor import RuleBasedFieldExtractor
+    mocker.patch("app.services.extraction.factory.get_field_extractor", return_value=RuleBasedFieldExtractor())
 
     for label in ("prescription", "lab report", "discharge summary"):
         response = client.post(
