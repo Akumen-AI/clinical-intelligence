@@ -16,8 +16,10 @@ from app.database import engine, Base
 from app.models.document import Document
 from app.models.upload_log import UploadLog
 from app.models.layout_region import LayoutRegion
+from app.models.extraction_field import ExtractionField
 from app.api import upload
 from app.api import layout
+from app.routers import documents
 from app.services import layout_trigger
 from app.services.upload_service import ensure_upload_directory_exists
 
@@ -51,6 +53,16 @@ with engine.connect() as conn:
         conn.commit()
     except Exception:
         pass
+    try:
+        conn.execute(text("ALTER TABLE extraction_fields ADD COLUMN confidence FLOAT;"))
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE extraction_fields ADD COLUMN status VARCHAR(50);"))
+        conn.commit()
+    except Exception:
+        pass
 
 # Ensure upload storage folder exists
 upload_dir = ensure_upload_directory_exists()
@@ -81,9 +93,12 @@ app.add_middleware(
 # Serve uploaded documents statically
 app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
 
-# Include Document Intake router
+# Include Document Intake routers
 app.include_router(upload.router, prefix="/api/v1")
 app.include_router(layout.router, prefix="/api/v1")
+app.include_router(documents.router, prefix="/api/v1")
+app.include_router(documents.router)
+
 
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_dir):

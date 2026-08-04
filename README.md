@@ -164,8 +164,9 @@ GEMINI_API_KEY=your-gemini-api-key-here
 # Optional: override the default Ollama model (default: qwen3:4b)
 # OLLAMA_MODEL=qwen3:4b
 
-# Optional: confidence threshold below which documents are flagged for manual review (default: 0.80)
-# DOCUMENT_CLASSIFICATION_THRESHOLD=0.80
+# Optional: confidence threshold below which documents/fields are flagged for manual review (default: 0.75)
+CONFIDENCE_THRESHOLD=0.75
+DOCUMENT_CLASSIFICATION_THRESHOLD=0.80
 ```
 
 **LLM Provider Fallback:** When `AI_PROVIDER=ollama`, the system automatically checks if Ollama is running. If it's unreachable, it falls back to Gemini (provided `GEMINI_API_KEY` is set).
@@ -174,7 +175,7 @@ GEMINI_API_KEY=your-gemini-api-key-here
 
 ## 📡 API Reference
 
-All endpoints are prefixed with `/api/v1/documents`.
+All endpoints are prefixed with `/api/v1/documents` (or direct path where specified).
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -182,9 +183,11 @@ All endpoints are prefixed with `/api/v1/documents`.
 | `GET` | `/` | List all documents with metadata, status, and classification results. |
 | `GET` | `/{document_id}` | Get a single document's metadata by UUID. |
 | `GET` | `/{document_id}/status` | Poll the processing pipeline status for a document. |
+| `GET` | `/{document_id}/fields` | Retrieve extracted fields with character-level confidence scores and status summary. |
 | `GET` | `/upload-logs` | Retrieve the audit trail of accepted and rejected upload attempts. |
 | `DELETE` | `/{document_id}` | Delete a specific document (DB record + files on disk). |
 | `DELETE` | `/` | Delete all documents. |
+
 
 ### Document Statuses
 
@@ -225,7 +228,11 @@ All endpoints are prefixed with `/api/v1/documents`.
   - [x] 1.4 Document Classification (LLM)
   - [ ] 1.5 Scanner-folder intake
 - [ ] **Epic 2** — CV / OCR & Handwriting Recognition Pipeline
+  - [x] 2.1 Layout detection with DocTR
+  - [x] 2.2 PaddleOCR field extraction
+  - [x] 2.3 Per-Field Confidence Scoring
 - [ ] **Epic 3** — Human Verification & Continuous Improvement
+
 - [ ] **Epic 4** — Canonical Patient Record & Timeline
 - [ ] **Epic 5** — Patient-Scoped Clinical RAG Assistant
 - [ ] **Epic 6** — Hospital Policy RAG Chatbot
