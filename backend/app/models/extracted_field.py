@@ -1,6 +1,15 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Float, DateTime, ForeignKey, JSON
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    JSON,
+    String,
+)
 from app.database import Base
 
 
@@ -11,6 +20,18 @@ def generate_uuid() -> str:
 class ExtractedField(Base):
     __tablename__ = "extracted_fields"
 
+    __table_args__ = (
+        CheckConstraint(
+            "confidence_score >= 0.0 AND confidence_score <= 1.0",
+            name="ck_extracted_fields_confidence_range",
+        ),
+        Index(
+            "ix_extracted_fields_doc_confidence",
+            "document_id",
+            "confidence_score",
+        ),
+    )
+
     field_id = Column(String(36), primary_key=True, default=generate_uuid, index=True)
     document_id = Column(
         String(36),
@@ -20,7 +41,7 @@ class ExtractedField(Base):
     )
     field_name = Column(String(100), nullable=False, index=True)
     raw_value = Column(JSON, nullable=True)
-    confidence_score = Column(Float, default=1.0, nullable=False)
+    confidence_score = Column(Float, default=0.0, nullable=False)
     bounding_box = Column(JSON, nullable=True)
     verification_status = Column(String(50), default="extracted", nullable=False)
     verified_value = Column(JSON, nullable=True)

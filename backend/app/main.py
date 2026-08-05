@@ -53,6 +53,16 @@ with engine.connect() as conn:
         conn.commit()
     except Exception:
         pass
+    # Story 2.3: composite index for efficient low-confidence routing (Story 2.5)
+    try:
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_extracted_fields_doc_confidence "
+            "ON extracted_fields(document_id, confidence_score);"
+        ))
+        conn.commit()
+    except Exception:
+        pass
+
 
 # Ensure upload storage folder exists
 upload_dir = ensure_upload_directory_exists()

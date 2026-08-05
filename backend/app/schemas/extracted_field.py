@@ -72,7 +72,7 @@ class ExtractedFieldRecordSchema(BaseModel):
     document_id: str
     field_name: str
     raw_value: Optional[Any] = None
-    confidence_score: float = 1.0
+    confidence_score: float = Field(..., ge=0.0, le=1.0)
     bounding_box: Optional[Any] = None
     verification_status: str = "extracted"
     verified_value: Optional[Any] = None
