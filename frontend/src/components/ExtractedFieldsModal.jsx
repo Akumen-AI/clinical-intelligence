@@ -70,7 +70,18 @@ export default function ExtractedFieldsModal({ document: doc, onClose, onRefresh
 
   const handleCopyJson = () => {
     if (!data) return;
-    const jsonStr = JSON.stringify(data.fields || data, null, 2);
+    const f = data.fields || {};
+    const recs = data.extracted_records || data.field_records || [];
+    const confMap = {};
+    recs.forEach(rec => { confMap[rec.field_name] = rec.confidence_score; });
+    const combined = {};
+    Object.keys(f).forEach(key => {
+      combined[key] = {
+        value: f[key],
+        confidence_score: confMap[key] !== undefined ? confMap[key] : null,
+      };
+    });
+    const jsonStr = JSON.stringify(combined, null, 2);
     navigator.clipboard.writeText(jsonStr).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -173,21 +184,115 @@ export default function ExtractedFieldsModal({ document: doc, onClose, onRefresh
               </button>
             </div>
           ) : activeTab === 'json' ? (
-            /* JSON View */
-            <div className="json-container">
-              <div className="json-toolbar">
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)', fontFamily: 'monospace' }}>
-                  schema: ClinicalFieldsSchema (null-preserved)
-                </span>
-                <button className="btn-copy" onClick={handleCopyJson}>
-                  {copied ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
-                  <span>{copied ? 'Copied!' : 'Copy JSON'}</span>
-                </button>
-              </div>
-              <pre className="json-code-block">
-                <code>{JSON.stringify(fields, null, 2)}</code>
-              </pre>
-            </div>
+            /* JSON View with Confidence Scores */
+            (() => {
+              // Build confidence map from field_records
+              const confidenceMap = {};
+              records.forEach(rec => {
+                confidenceMap[rec.field_name] = rec.confidence_score;
+              });
+
+              // Build combined JSON with value + confidence for each field
+              const fieldsWithConfidence = {};
+              Object.keys(fields).forEach(key => {
+                const conf = confidenceMap[key];
+                fieldsWithConfidence[key] = {
+                  value: fields[key],
+                  confidence_score: conf !== undefined ? conf : null,
+                };
+              });
+
+              const getConfidenceColor = (score) => {
+                if (score === null || score === undefined) return 'var(--text-dim)';
+                if (score >= 0.8) return '#10b981';
+                if (score >= 0.5) return '#f59e0b';
+                return '#ef4444';
+              };
+
+              const getConfidenceLabel = (score) => {
+                if (score === null || score === undefined) return 'N/A';
+                if (score >= 0.8) return 'High';
+                if (score >= 0.5) return 'Medium';
+                return 'Low';
+              };
+
+              return (
+                <div className="json-container">
+                  <div className="json-toolbar">
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)', fontFamily: 'monospace' }}>
+                      schema: ClinicalFieldsSchema (with confidence scores)
+                    </span>
+                    <button className="btn-copy" onClick={handleCopyJson}>
+                      {copied ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
+                      <span>{copied ? 'Copied!' : 'Copy JSON'}</span>
+                    </button>
+                  </div>
+
+                  {/* Confidence Legend */}
+                  <div className="confidence-legend">
+                    <span className="confidence-legend-title">Confidence:</span>
+                    <span className="confidence-legend-item">
+                      <span className="confidence-dot" style={{ background: '#10b981' }}></span>
+                      High (≥ 0.80)
+                    </span>
+                    <span className="confidence-legend-item">
+                      <span className="confidence-dot" style={{ background: '#f59e0b' }}></span>
+                      Medium (0.50–0.79)
+                    </span>
+                    <span className="confidence-legend-item">
+                      <span className="confidence-dot" style={{ background: '#ef4444' }}></span>
+                      Low (&lt; 0.50)
+                    </span>
+                  </div>
+
+                  {/* Field-by-field confidence table */}
+                  <div className="confidence-field-list">
+                    {Object.keys(fields).map(fieldKey => {
+                      const score = confidenceMap[fieldKey];
+                      const scoreNum = score !== undefined ? score : null;
+                      const color = getConfidenceColor(scoreNum);
+                      const label = getConfidenceLabel(scoreNum);
+                      const pct = scoreNum !== null ? (scoreNum * 100).toFixed(1) : null;
+                      const hasValue = fields[fieldKey] !== null && fields[fieldKey] !== undefined;
+
+                      return (
+                        <div className="confidence-field-row" key={fieldKey}>
+                          <div className="confidence-field-name">
+                            <span className="confidence-dot" style={{ background: hasValue ? color : 'var(--text-dim)' }}></span>
+                            {fieldKey}
+                          </div>
+                          <div className="confidence-field-score">
+                            {scoreNum !== null ? (
+                              <>
+                                <div className="confidence-bar-track">
+                                  <div
+                                    className="confidence-bar-fill"
+                                    style={{ width: `${pct}%`, background: color }}
+                                  ></div>
+                                </div>
+                                <span className="confidence-score-text" style={{ color }}>
+                                  {pct}%
+                                </span>
+                                <span className="confidence-label-badge" style={{ background: `${color}20`, color }}>
+                                  {label}
+                                </span>
+                              </>
+                            ) : (
+                              <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>—</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Full JSON with confidence scores */}
+                  <pre className="json-code-block">
+                    <code>{JSON.stringify(fieldsWithConfidence, null, 2)}</code>
+                  </pre>
+                </div>
+              );
+            })()
           ) : (
             /* Structured Clinical Summary View */
             <div className="summary-cards-grid">

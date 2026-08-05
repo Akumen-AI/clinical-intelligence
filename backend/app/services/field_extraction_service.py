@@ -17,6 +17,22 @@ from app.schemas.extracted_field import (
 )
 from app.services.extraction.factory import get_field_extractor
 from app.services.text_extraction_service import extract_text
+from app.services.confidence_engine import ConfidenceEngine
+
+
+def _stringify_value(value: Any) -> Optional[str]:
+    """Convert a raw field value to a string for confidence scoring.
+
+    The ConfidenceEngine's Signal B (format validation) works on strings.
+    Complex values (dicts, lists) are converted to a non-None sentinel so
+    they register as "present" while still being testable by regex patterns.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value if value.strip() else None
+    # dicts / lists — return a sentinel that satisfies non-empty checks
+    return str(value) if value else None
 
 
 def extract_and_persist_fields(
@@ -27,6 +43,9 @@ def extract_and_persist_fields(
     """
     Extracts key fields from document text using the configured extraction engine
     and persists ExtractedField records into the database.
+
+    Confidence scores are computed by the ConfidenceEngine at extraction time
+    and stored immutably — they are NEVER recomputed on read (AC-2).
     """
     if ocr_text is None:
         ocr_text = extract_text(document.raw_uri, document.filetype)
@@ -42,8 +61,8 @@ def extract_and_persist_fields(
         synchronize_session=False
     )
 
-    records: List[ExtractedField] = []
-    field_mapping = {
+    # Build the full field_map first (needed for Signal D cross-field consistency)
+    field_mapping: Dict[str, Any] = {
         "patient_identifier": fields.patient_identifier.model_dump() if fields.patient_identifier else None,
         "document_date": fields.document_date,
         "ordering_physician": fields.ordering_physician.model_dump() if fields.ordering_physician else None,
@@ -55,14 +74,32 @@ def extract_and_persist_fields(
         "procedures": fields.procedures if fields.procedures else None,
     }
 
+    # Build string-valued field_map for cross-field consistency check
+    field_map_for_signal_d: Dict[str, Optional[str]] = {
+        k: _stringify_value(v) for k, v in field_mapping.items()
+    }
+
+    engine = ConfidenceEngine()
+    records: List[ExtractedField] = []
+
     for field_name, value in field_mapping.items():
-        score = result.field_confidences.get(field_name, result.confidence if value is not None else 0.0)
+        score = engine.score_field(
+            field_name=field_name,
+            raw_value=_stringify_value(value),
+            ocr_word_confidences=result.field_confidences.get(field_name, [])
+            if isinstance(result.field_confidences.get(field_name), list)
+            else [],
+            layout_region="body",  # default; layout detection may refine this
+            document_type=document.document_type or "unknown",
+            field_map=field_map_for_signal_d,
+            document_id=document.document_id,
+        )
         record = ExtractedField(
             field_id=str(uuid.uuid4()),
             document_id=document.document_id,
             field_name=field_name,
             raw_value=value,
-            confidence_score=score if value is not None else 0.0,
+            confidence_score=score,
             verification_status="extracted",
         )
         records.append(record)
@@ -79,21 +116,32 @@ def extract_and_persist_fields(
     return fields, records
 
 
-def get_document_fields_response(db: Session, document_id: str) -> Optional[DocumentFieldsResponseSchema]:
+def get_document_fields_response(
+    db: Session,
+    document_id: str,
+    min_confidence: Optional[float] = None,
+    max_confidence: Optional[float] = None,
+) -> Optional[DocumentFieldsResponseSchema]:
     """
     Retrieves and formats extracted fields for a document into a structured JSON schema
     with explicit null values for missing fields.
+
+    Supports optional confidence-range filtering for low-confidence routing (Story 2.5).
     """
     doc = db.query(Document).filter(Document.document_id == document_id).first()
     if not doc:
         return None
 
-    records = (
+    query = (
         db.query(ExtractedField)
         .filter(ExtractedField.document_id == document_id)
-        .order_by(ExtractedField.created_at.asc())
-        .all()
     )
+    if min_confidence is not None:
+        query = query.filter(ExtractedField.confidence_score >= min_confidence)
+    if max_confidence is not None:
+        query = query.filter(ExtractedField.confidence_score <= max_confidence)
+
+    records = query.order_by(ExtractedField.created_at.asc()).all()
 
     field_dict: Dict[str, Any] = {
         "patient_identifier": None,

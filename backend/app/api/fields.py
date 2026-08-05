@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -23,6 +25,18 @@ router = APIRouter(
 )
 async def get_document_fields(
     document_id: str,
+    min_confidence: Optional[float] = Query(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Return only fields with confidence_score >= this value",
+    ),
+    max_confidence: Optional[float] = Query(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Return only fields with confidence_score <= this value",
+    ),
     db: Session = Depends(get_db),
 ):
     """
@@ -31,6 +45,9 @@ async def get_document_fields(
     Retrieve key clinical fields (patient identifier, vitals, diagnosis, medications,
     dates, ordering physician, lab results) extracted from a printed document.
     Returns a structured JSON schema where missing fields are explicitly null.
+
+    Supports optional confidence-range filtering:
+      ?min_confidence=0.0&max_confidence=0.5  → low-confidence fields only
     """
     doc = db.query(Document).filter(Document.document_id == document_id).first()
     if not doc:
@@ -39,11 +56,19 @@ async def get_document_fields(
             detail=f"Document with ID '{document_id}' not found.",
         )
 
-    response = get_document_fields_response(db, document_id)
+    response = get_document_fields_response(
+        db, document_id,
+        min_confidence=min_confidence,
+        max_confidence=max_confidence,
+    )
     if not response or not response.field_records:
         # Extract on the fly if not yet extracted
         extract_and_persist_fields(db, doc)
-        response = get_document_fields_response(db, document_id)
+        response = get_document_fields_response(
+            db, document_id,
+            min_confidence=min_confidence,
+            max_confidence=max_confidence,
+        )
 
     return response
 
