@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Activity, 
   FileCheck, 
@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import FileUploader from '../components/FileUploader';
 import ExtractedFieldsModal from '../components/ExtractedFieldsModal';
-import { fetchDocuments, deleteDocument, deleteAllDocuments, fetchUploadLogs } from '../services/api';
+import { fetchDocuments, fetchDocumentStatus, deleteDocument, deleteAllDocuments, fetchUploadLogs } from '../services/api';
 
 export default function UploadPage() {
   const [documents, setDocuments] = useState([]);
@@ -26,8 +26,11 @@ export default function UploadPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedDocForFields, setSelectedDocForFields] = useState(null);
+  const refreshInFlight = useRef(false);
 
   const loadData = async () => {
+    if (refreshInFlight.current) return;
+    refreshInFlight.current = true;
     setIsRefreshing(true);
     try {
       const [docsData, logsData] = await Promise.all([
@@ -41,12 +44,46 @@ export default function UploadPage() {
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
+      refreshInFlight.current = false;
     }
   };
 
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    const terminalStatuses = new Set(['extracted', 'failed']);
+    const timers = documents
+      .filter((doc) => !terminalStatuses.has((doc.status || '').toLowerCase()))
+      .map((doc) => window.setInterval(async () => {
+        if (document.visibilityState !== 'visible') return;
+        try {
+          const statusData = await fetchDocumentStatus(doc.document_id);
+          setDocuments((current) => current.map((item) => item.document_id === doc.document_id
+            ? { ...item, ...statusData }
+            : item));
+        } catch (err) {
+          console.error(`Failed to poll status for ${doc.document_id}:`, err);
+        }
+      }, 1500));
+
+    return () => timers.forEach((timer) => window.clearInterval(timer));
+  }, [documents]);
+
+  const statusLabel = (status) => ({
+    queued: 'Queued',
+    new: 'Queued',
+    preprocessing: 'Preprocessing...',
+    preprocessed: 'Detecting layout...',
+    detecting_layout: 'Detecting layout...',
+    layout_detected: 'Classifying...',
+    classifying: 'Classifying...',
+    classified: 'Extracting text...',
+    extracting: 'Extracting text...',
+    extracted: 'Extracted',
+    failed: 'failed'
+  }[(status || '').toLowerCase()] || status || 'Queued');
 
   const handleUploadSuccess = () => {
     loadData();
@@ -56,7 +93,7 @@ export default function UploadPage() {
     if (!window.confirm(`Delete document "${filename}"?`)) return;
     try {
       await deleteDocument(documentId);
-      loadDocumentsList();
+      await loadData();
     } catch (err) {
       console.error('Failed to delete document:', err);
     }
@@ -66,7 +103,7 @@ export default function UploadPage() {
     if (!window.confirm(`Delete ALL ${documents.length} document(s)? This cannot be undone.`)) return;
     try {
       await deleteAllDocuments();
-      loadDocumentsList();
+      await loadData();
     } catch (err) {
       console.error('Failed to delete all documents:', err);
     }
@@ -320,9 +357,9 @@ export default function UploadPage() {
                         {formatDate(doc.uploaded_at)}
                       </td>
                       <td>
-                        <span className={`badge-status badge-${doc.status}`}>
+                        <span className={`badge-status badge-${(doc.status || "").toUpperCase()}`}>
                           <span className="pulse-dot" style={{ width: '6px', height: '6px' }}></span>
-                          {doc.status}
+                          {statusLabel(doc.status)}
                         </span>
                       </td>
                       <td>{doc.document_type || '-'}</td>
@@ -342,7 +379,7 @@ export default function UploadPage() {
                               className="btn-view-fields"
                               onClick={() => isExtracted && setSelectedDocForFields(doc)}
                               disabled={!isExtracted}
-                              title={isExtracted ? "View extracted clinical fields in JSON" : `Extraction pending (Current status: ${doc.status})`}
+                              title={isExtracted ? "View extracted clinical fields in JSON" : `Extraction pending (Current status: ${statusLabel(doc.status)})`}
                             >
                               <Code size={13} />
                               <span>View JSON</span>
@@ -432,3 +469,4 @@ export default function UploadPage() {
     </div>
   );
 }
+

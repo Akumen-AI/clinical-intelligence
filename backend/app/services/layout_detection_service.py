@@ -128,6 +128,8 @@ def _run_layout_detection_after_preprocessing(document_ids: List[str], bind: Eng
             if not document or document.status != "preprocessed":
                 continue
             try:
+                document.status = "detecting_layout"
+                db.commit()
                 persist_layout_regions(db, document)
             except Exception as exc:
                 db.rollback()
@@ -138,3 +140,4 @@ def _run_layout_detection_after_preprocessing(document_ids: List[str], bind: Eng
                 print(f"[Layout Detection] Failed for {document_id}: {exc}")
     finally:
         db.close()
+

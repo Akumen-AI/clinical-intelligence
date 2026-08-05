@@ -35,6 +35,11 @@ export const fetchDocumentById = async (documentId) => {
   return response.data;
 };
 
+export const fetchDocumentStatus = async (documentId) => {
+  const response = await apiClient.get(`/documents/${documentId}/status`);
+  return response.data;
+};
+
 export const deleteDocument = async (documentId) => {
   const response = await apiClient.delete(`/documents/${documentId}`);
   return response.data;

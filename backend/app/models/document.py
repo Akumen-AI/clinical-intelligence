@@ -6,6 +6,10 @@ from app.database import Base
 class DocumentStatus(str, enum.Enum):
     QUEUED = "QUEUED"
     NEW = "new"
+    PREPROCESSING = "PREPROCESSING"
+    DETECTING_LAYOUT = "detecting_layout"
+    CLASSIFYING = "classifying"
+    EXTRACTING = "extracting"
     PREPROCESSED = "preprocessed"
     CLASSIFIED = "classified"
     EXTRACTED = "extracted"
@@ -29,3 +33,4 @@ class Document(Base):
     classification_confidence = Column(Float, nullable=True)
     needs_manual_review = Column(Boolean, default=False, nullable=False)
     rejection_reason = Column(String(500), nullable=True)
+

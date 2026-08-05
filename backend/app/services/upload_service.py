@@ -84,6 +84,9 @@ def process_document(db: Session, document_id: str):
             print(f"[Epic 1.2 Hook Error] Document ID '{document_id}' not found in database.")
             return
 
+        doc.status = DocumentStatus.PREPROCESSING.value
+        db.commit()
+
         try:
             processed_uri, elapsed_time_ms = preprocess_document_file(doc.raw_uri, doc.filetype)
             doc.processed_uri = processed_uri
@@ -94,24 +97,29 @@ def process_document(db: Session, document_id: str):
             print(f"[Epic 1.2 Hook Success] Preprocessed document {document_id} in {elapsed_time_ms}ms")
         except Exception as e:
             doc.rejection_reason = f"Preprocessing failed: {str(e)}"
+            doc.status = DocumentStatus.FAILED.value
             db.commit()
             db.refresh(doc)
             print(f"[Epic 1.2 Hook Error] Preprocessing failed for document {document_id}: {str(e)}")
+            return
 
         # Epic 1.4: Document Classification
         from app.services.classification.factory import get_document_classifier
         from app.config import settings
         import time
 
+        doc.status = DocumentStatus.CLASSIFYING.value
+        db.commit()
         print(f"[Epic 1.4 Hook Triggered] Document ID '{document_id}' is queued for classification.")
         classifier = get_document_classifier()
         
         # Extract actual text from the document for classification.
         from app.services.text_extraction_service import extract_text
 
-        ocr_text = extract_text(doc.raw_uri, doc.filetype)
-        if not ocr_text and doc.processed_uri:
-            ocr_text = extract_text(doc.processed_uri, doc.filetype)
+        ocr_source = doc.processed_uri or doc.raw_uri
+        ocr_text = extract_text(ocr_source, doc.filetype)
+        if not ocr_text and doc.processed_uri and doc.raw_uri != doc.processed_uri:
+            ocr_text = extract_text(doc.raw_uri, doc.filetype)
 
         if not ocr_text:
             print(f"[Epic 1.4] No text could be extracted from document {document_id}. Skipping classification.")
@@ -151,6 +159,8 @@ def process_document(db: Session, document_id: str):
 
         # Epic 2.2: Extract key clinical fields
         try:
+            doc.status = DocumentStatus.EXTRACTING.value
+            db.commit()
             from app.services.field_extraction_service import extract_and_persist_fields
             extract_and_persist_fields(db, doc, ocr_text=ocr_text)
             print(f"[Epic 2.2 Hook Success] Key fields extracted and persisted for {doc.document_id}")
