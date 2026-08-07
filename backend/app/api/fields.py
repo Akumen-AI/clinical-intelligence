@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.document import Document
+from app.models.document import Document, DocumentStatus
 from app.schemas.extracted_field import DocumentFieldsResponseSchema
 from app.services.field_extraction_service import (
     extract_and_persist_fields,
@@ -94,6 +94,10 @@ async def extract_document_fields(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Document with ID '{document_id}' not found.",
         )
+
+    doc.status = DocumentStatus.EXTRACTED.value
+    db.commit()
+    db.refresh(doc)
 
     extract_and_persist_fields(db, doc)
     response = get_document_fields_response(db, document_id)

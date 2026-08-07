@@ -23,7 +23,7 @@ def _wait_for_status(client, document_id: str, timeout: float = 5.0):
     deadline = time.time() + timeout
     while time.time() < deadline:
         response = client.get(f"/api/v1/documents/{document_id}/status")
-        if response.json()["status"] in ["classified", "extracted"]:
+        if response.status_code == 200 and response.json().get("status") in ["classified", "extracted"]:
             return
         time.sleep(0.05)
     raise AssertionError("document processing did not complete")
@@ -58,6 +58,10 @@ def test_three_document_images_persist_and_retrieve_layout_regions(client, mocke
     mocker.patch(
         "app.services.text_extraction_service.extract_text",
         side_effect=lambda *args, **kwargs: (pipeline_events.append("ocr"), "sample clinical text")[1],
+    )
+    mocker.patch(
+        "app.services.text_extraction_service.extract_text_with_confidence",
+        side_effect=lambda *args, **kwargs: (pipeline_events.append("ocr"), ("sample clinical text", [0.95]))[1],
     )
 
     classifier = mocker.MagicMock()

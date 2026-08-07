@@ -74,6 +74,11 @@ def process_document(db: Session, document_id: str):
     """
     Extension point hook for document processing pipeline.
     Handles Preprocessing, Classification, and Field Extraction.
+
+    Handwriting routing: after the initial PaddleOCR pass, if a high
+    proportion of OCR fragments fall below the confidence threshold,
+    the document is re-processed through a multimodal vision model
+    (Gemini) that can read handwriting directly from the image.
     """
     try:
         print(f"[Epic 1.2 Hook Triggered] Document ID '{document_id}' is queued for preprocessing.")
@@ -114,16 +119,69 @@ def process_document(db: Session, document_id: str):
         classifier = get_document_classifier()
         
         # Extract actual text from the document for classification.
-        from app.services.text_extraction_service import extract_text
+        # Use the confidence-exposing variant so we can route handwriting.
+        from app.services.text_extraction_service import extract_text, extract_text_with_confidence
+
+        # Track whether this document was routed through handwriting extraction
+        handwriting_result = None
+        ocr_scores = []
 
         # For PDFs, check raw_uri first for embedded digital text (fast and uses zero RAM)
         if doc.filetype.lower() == "pdf":
-            ocr_text = extract_text(doc.raw_uri, doc.filetype)
+            ocr_text, ocr_scores = extract_text_with_confidence(doc.raw_uri, doc.filetype)
             if not ocr_text and doc.processed_uri:
-                ocr_text = extract_text(doc.processed_uri, doc.filetype)
+                ocr_text, ocr_scores = extract_text_with_confidence(doc.processed_uri, doc.filetype)
         else:
             ocr_source = doc.processed_uri or doc.raw_uri
-            ocr_text = extract_text(ocr_source, doc.filetype)
+            ocr_text, ocr_scores = extract_text_with_confidence(ocr_source, doc.filetype)
+
+        # --- Handwriting routing decision ---
+        # If PaddleOCR confidence scores suggest handwriting/illegibility,
+        # route to the multimodal vision model for better extraction.
+        if (
+            ocr_scores
+            and settings.HANDWRITING_EXTRACTION_ENABLED
+            and settings.GEMINI_API_KEY
+        ):
+            from app.services.handwriting.routing import should_route_to_handwriting
+
+            if should_route_to_handwriting(
+                ocr_scores,
+                confidence_threshold=settings.HANDWRITING_OCR_CONFIDENCE_THRESHOLD,
+                proportion_threshold=settings.HANDWRITING_LOW_CONFIDENCE_PROPORTION,
+                consecutive_count_threshold=settings.HANDWRITING_CONSECUTIVE_LOW_CONFIDENCE_COUNT,
+            ):
+                print(
+                    f"[Handwriting Routing] Document {document_id} flagged for handwriting extraction "
+                    f"({sum(1 for s in ocr_scores if s < settings.HANDWRITING_OCR_CONFIDENCE_THRESHOLD)}"
+                    f"/{len(ocr_scores)} fragments below {settings.HANDWRITING_OCR_CONFIDENCE_THRESHOLD} threshold)"
+                )
+                try:
+                    from app.services.handwriting.factory import get_handwriting_extractor
+
+                    hw_extractor = get_handwriting_extractor()
+                    # Use the image file for multimodal extraction
+                    image_source = doc.processed_uri or doc.raw_uri
+                    image_abs_path = os.path.abspath(
+                        os.path.join(
+                            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                            image_source,
+                        )
+                    )
+                    handwriting_result = hw_extractor.extract_from_image(
+                        image_abs_path,
+                        document_type=None,  # not yet classified
+                    )
+                    # Use the handwriting-extracted text for classification
+                    if handwriting_result.raw_text:
+                        ocr_text = handwriting_result.raw_text
+                        print(
+                            f"[Handwriting Routing] Gemini extracted {len(ocr_text)} chars, "
+                            f"{len(handwriting_result.illegible_fields)} illegible fields"
+                        )
+                except Exception as e:
+                    print(f"[Handwriting Routing] Handwriting extraction failed, using PaddleOCR output: {e}")
+                    handwriting_result = None
 
         if not ocr_text:
             print(f"[Epic 1.4] No text could be extracted from document {document_id}. Skipping classification.")
@@ -166,8 +224,50 @@ def process_document(db: Session, document_id: str):
             doc.status = DocumentStatus.EXTRACTING.value
             db.commit()
             from app.services.field_extraction_service import extract_and_persist_fields
-            extract_and_persist_fields(db, doc, ocr_text=ocr_text)
+            
+            # If multimodal handwriting extractor already extracted structured fields,
+            # pass them directly so high-quality multimodal extraction is preserved.
+            pre_extracted = handwriting_result.fields if handwriting_result and handwriting_result.fields else None
+            hw_confidences = handwriting_result.field_confidences if handwriting_result else None
+
+            extract_and_persist_fields(
+                db,
+                doc,
+                ocr_text=ocr_text,
+                pre_extracted_fields=pre_extracted,
+                field_confidences=hw_confidences,
+            )
             print(f"[Epic 2.2 Hook Success] Key fields extracted and persisted for {doc.document_id}")
+
+            # --- Post-process: apply illegible flags from handwriting extraction ---
+            if handwriting_result and handwriting_result.illegible_fields:
+                from app.models.extracted_field import ExtractedField
+
+                illegible_set = set(handwriting_result.illegible_fields)
+                updated_count = 0
+                fields_to_update = (
+                    db.query(ExtractedField)
+                    .filter(
+                        ExtractedField.document_id == document_id,
+                        ExtractedField.field_name.in_(illegible_set),
+                    )
+                    .all()
+                )
+                for field_record in fields_to_update:
+                    field_record.confidence_score = 0.0
+                    field_record.verification_status = "illegible"
+                    updated_count += 1
+
+                # Any illegible field → document needs manual review
+                if updated_count > 0:
+                    doc.needs_manual_review = True
+                    db.commit()
+                    db.refresh(doc)
+                    print(
+                        f"[Handwriting Routing] Flagged {updated_count} field(s) as illegible "
+                        f"for document {document_id}. needs_manual_review=True"
+                    )
+
         except Exception as e:
             print(f"[Epic 2.2 Extraction Warning] Field extraction encountered an issue: {e}")
 
@@ -216,7 +316,7 @@ def get_document_by_id(db: Session, document_id: str) -> Optional[Document]:
     return db.query(Document).filter(Document.document_id == document_id).first()
 
 def delete_document(db: Session, document_id: str) -> bool:
-    """Delete a document record and its associated files from disk."""
+    """Delete a document record and all its associated files from disk."""
     doc = get_document_by_id(db, document_id)
     if not doc:
         return False
@@ -225,37 +325,75 @@ def delete_document(db: Session, document_id: str) -> bool:
 
     # Remove raw file
     if doc.raw_uri:
-        raw_path = os.path.join(backend_dir, doc.raw_uri)
+        raw_path = doc.raw_uri if os.path.isabs(doc.raw_uri) else os.path.join(backend_dir, doc.raw_uri)
         if os.path.exists(raw_path):
-            os.remove(raw_path)
+            try:
+                os.remove(raw_path)
+            except Exception as e:
+                print(f"[Delete Document] Failed to remove raw file {raw_path}: {e}")
 
     # Remove processed file
     if doc.processed_uri:
-        processed_path = os.path.join(backend_dir, doc.processed_uri)
+        processed_path = doc.processed_uri if os.path.isabs(doc.processed_uri) else os.path.join(backend_dir, doc.processed_uri)
         if os.path.exists(processed_path):
-            os.remove(processed_path)
+            try:
+                os.remove(processed_path)
+            except Exception as e:
+                print(f"[Delete Document] Failed to remove processed file {processed_path}: {e}")
+
+    # Clean up any other files in UPLOAD_DIR associated with this document_id
+    if os.path.exists(UPLOAD_DIR):
+        for filename in os.listdir(UPLOAD_DIR):
+            if filename == ".gitkeep":
+                continue
+            if document_id in filename:
+                full_path = os.path.join(UPLOAD_DIR, filename)
+                if os.path.isfile(full_path):
+                    try:
+                        os.remove(full_path)
+                    except Exception as e:
+                        print(f"[Delete Document] Failed to remove associated file {full_path}: {e}")
 
     db.delete(doc)
     db.commit()
     return True
 
 def delete_all_documents(db: Session) -> int:
-    """Delete all document records and their associated files. Returns count deleted."""
+    """Delete all document records and clean up all files in the uploads folder (preserving .gitkeep). Returns count deleted."""
     docs = db.query(Document).all()
     count = len(docs)
     backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
     for doc in docs:
         if doc.raw_uri:
-            raw_path = os.path.join(backend_dir, doc.raw_uri)
+            raw_path = doc.raw_uri if os.path.isabs(doc.raw_uri) else os.path.join(backend_dir, doc.raw_uri)
             if os.path.exists(raw_path):
-                os.remove(raw_path)
+                try:
+                    os.remove(raw_path)
+                except Exception as e:
+                    print(f"[Delete All Documents] Failed to remove raw file {raw_path}: {e}")
         if doc.processed_uri:
-            processed_path = os.path.join(backend_dir, doc.processed_uri)
+            processed_path = doc.processed_uri if os.path.isabs(doc.processed_uri) else os.path.join(backend_dir, doc.processed_uri)
             if os.path.exists(processed_path):
-                os.remove(processed_path)
+                try:
+                    os.remove(processed_path)
+                except Exception as e:
+                    print(f"[Delete All Documents] Failed to remove processed file {processed_path}: {e}")
+
+    # Clean up any remaining files in UPLOAD_DIR (preserving .gitkeep)
+    if os.path.exists(UPLOAD_DIR):
+        for filename in os.listdir(UPLOAD_DIR):
+            if filename == ".gitkeep":
+                continue
+            full_path = os.path.join(UPLOAD_DIR, filename)
+            if os.path.isfile(full_path):
+                try:
+                    os.remove(full_path)
+                except Exception as e:
+                    print(f"[Delete All Documents] Failed to remove orphaned file {full_path}: {e}")
 
     db.query(Document).delete()
     db.commit()
     return count
+
 

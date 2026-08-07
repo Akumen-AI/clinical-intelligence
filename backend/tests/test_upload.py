@@ -183,6 +183,8 @@ def test_invalid_document_type_forces_manual_review(client, mocker):
     
     # Skip actual text extraction for this test to speed it up and isolate it
     mocker.patch("app.services.text_extraction_service.extract_text", return_value="dummy text")
+    # upload_service now uses extract_text_with_confidence for handwriting routing
+    mocker.patch("app.services.text_extraction_service.extract_text_with_confidence", return_value=("dummy text", [0.95]))
     
     files = [("files", ("test.pdf", io.BytesIO(file_content), "application/pdf"))]
     response = client.post("/api/v1/documents/upload", files=files)
@@ -194,4 +196,65 @@ def test_invalid_document_type_forces_manual_review(client, mocker):
     assert status_data["status"] in ("classified", "extracted")
     assert status_data["document_type"] == "Pizza Receipt"
     assert status_data["needs_manual_review"] == True
+
+def test_delete_document_removes_files_from_uploads(client):
+    import os
+    file_content = make_valid_pdf_bytes()
+    files = [("files", ("delete_test.pdf", io.BytesIO(file_content), "application/pdf"))]
+    upload_resp = client.post("/api/v1/documents/upload", files=files)
+    assert upload_resp.status_code == 201
+    doc_id = upload_resp.json()["accepted"][0]["document_id"]
+
+    wait_for_document_processing(client, doc_id)
+
+    db = next(override_get_db())
+    from app.services import upload_service
+    doc = upload_service.get_document_by_id(db, doc_id)
+    assert doc is not None
+
+    backend_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    raw_path = os.path.join(backend_root, doc.raw_uri)
+    assert os.path.exists(raw_path)
+
+    # Now delete via API (same endpoint used by UI)
+    delete_resp = client.delete(f"/api/v1/documents/{doc_id}")
+    assert delete_resp.status_code == 200
+
+    # Verify document is gone from DB
+    deleted_doc = upload_service.get_document_by_id(db, doc_id)
+    assert deleted_doc is None
+
+    # Verify files are deleted from disk
+    assert not os.path.exists(raw_path)
+    if doc.processed_uri:
+        proc_path = os.path.join(backend_root, doc.processed_uri)
+        assert not os.path.exists(proc_path)
+
+    # Verify no files with doc_id remain in uploads
+    upload_dir = upload_service.UPLOAD_DIR
+    matching = [f for f in os.listdir(upload_dir) if doc_id in f]
+    assert len(matching) == 0
+
+def test_delete_all_documents_cleans_uploads_folder(client):
+    import os
+    from app.services import upload_service
+    file_content = make_valid_pdf_bytes()
+    files1 = [("files", ("batch_test1.pdf", io.BytesIO(file_content), "application/pdf"))]
+    files2 = [("files", ("batch_test2.pdf", io.BytesIO(file_content), "application/pdf"))]
+    client.post("/api/v1/documents/upload", files=files1)
+    client.post("/api/v1/documents/upload", files=files2)
+
+    # Also put an orphaned file in upload directory
+    orphan_path = os.path.join(upload_service.UPLOAD_DIR, "orphan_test_file.txt")
+    with open(orphan_path, "w") as f:
+        f.write("orphan")
+
+    # Delete all documents via API
+    resp = client.delete("/api/v1/documents")
+    assert resp.status_code == 200
+
+    # Verify uploads directory only has .gitkeep
+    files_remaining = [f for f in os.listdir(upload_service.UPLOAD_DIR) if f != ".gitkeep"]
+    assert len(files_remaining) == 0
+
 

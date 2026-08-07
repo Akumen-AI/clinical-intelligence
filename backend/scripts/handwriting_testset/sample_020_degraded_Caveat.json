@@ -1,0 +1,13 @@
+{
+  "sample_id": 20,
+  "tier": "degraded",
+  "font": "Caveat",
+  "fields": {
+    "patient_name": "Rachel Thompson",
+    "drug_name": "Prednisone",
+    "dosage": "200mg",
+    "frequency": "Once daily",
+    "doctor_name": "Dr. M. Williams",
+    "document_date": "2026-07-01"
+  }
+}

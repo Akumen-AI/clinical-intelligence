@@ -1,0 +1,13 @@
+{
+  "sample_id": 16,
+  "tier": "degraded",
+  "font": "MarkerFelt.ttc",
+  "fields": {
+    "patient_name": "Raj Sharma",
+    "drug_name": "Ciprofloxacin",
+    "dosage": "50mg",
+    "frequency": "Once daily",
+    "doctor_name": "Dr. D. Kim",
+    "document_date": "2026-05-25"
+  }
+}

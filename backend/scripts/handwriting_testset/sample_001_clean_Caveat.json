@@ -1,0 +1,13 @@
+{
+  "sample_id": 1,
+  "tier": "clean",
+  "font": "Caveat",
+  "fields": {
+    "patient_name": "Sarah Johnson",
+    "drug_name": "Ciprofloxacin",
+    "dosage": "200mg",
+    "frequency": "BID",
+    "doctor_name": "Dr. R. Patel",
+    "document_date": "2026-05-25"
+  }
+}

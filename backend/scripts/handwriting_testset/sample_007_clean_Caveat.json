@@ -1,0 +1,13 @@
+{
+  "sample_id": 7,
+  "tier": "clean",
+  "font": "Caveat",
+  "fields": {
+    "patient_name": "Carlos Rivera",
+    "drug_name": "Metformin",
+    "dosage": "50mg",
+    "frequency": "TID",
+    "doctor_name": "Dr. D. Kim",
+    "document_date": "2026-07-01"
+  }
+}

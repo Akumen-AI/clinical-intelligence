@@ -1,0 +1,1 @@
+# Handwriting extraction provider package

@@ -1,0 +1,142 @@
+[
+  {
+    "sample_id": 1,
+    "tier": "clean",
+    "font": "Caveat",
+    "image_file": "sample_001_clean_Caveat.png",
+    "ground_truth_file": "sample_001_clean_Caveat.json"
+  },
+  {
+    "sample_id": 2,
+    "tier": "clean",
+    "font": "Caveat",
+    "image_file": "sample_002_clean_Caveat.png",
+    "ground_truth_file": "sample_002_clean_Caveat.json"
+  },
+  {
+    "sample_id": 3,
+    "tier": "clean",
+    "font": "Caveat",
+    "image_file": "sample_003_clean_Caveat.png",
+    "ground_truth_file": "sample_003_clean_Caveat.json"
+  },
+  {
+    "sample_id": 4,
+    "tier": "clean",
+    "font": "Noteworthy.ttc",
+    "image_file": "sample_004_clean_Noteworthy.ttc.png",
+    "ground_truth_file": "sample_004_clean_Noteworthy.ttc.json"
+  },
+  {
+    "sample_id": 5,
+    "tier": "clean",
+    "font": "Bradley Hand Bold",
+    "image_file": "sample_005_clean_Bradley Hand Bold.png",
+    "ground_truth_file": "sample_005_clean_Bradley Hand Bold.json"
+  },
+  {
+    "sample_id": 6,
+    "tier": "clean",
+    "font": "Caveat",
+    "image_file": "sample_006_clean_Caveat.png",
+    "ground_truth_file": "sample_006_clean_Caveat.json"
+  },
+  {
+    "sample_id": 7,
+    "tier": "clean",
+    "font": "Caveat",
+    "image_file": "sample_007_clean_Caveat.png",
+    "ground_truth_file": "sample_007_clean_Caveat.json"
+  },
+  {
+    "sample_id": 8,
+    "tier": "clean",
+    "font": "Noteworthy.ttc",
+    "image_file": "sample_008_clean_Noteworthy.ttc.png",
+    "ground_truth_file": "sample_008_clean_Noteworthy.ttc.json"
+  },
+  {
+    "sample_id": 9,
+    "tier": "moderate",
+    "font": "Caveat",
+    "image_file": "sample_009_moderate_Caveat.png",
+    "ground_truth_file": "sample_009_moderate_Caveat.json"
+  },
+  {
+    "sample_id": 10,
+    "tier": "moderate",
+    "font": "Bradley Hand Bold",
+    "image_file": "sample_010_moderate_Bradley Hand Bold.png",
+    "ground_truth_file": "sample_010_moderate_Bradley Hand Bold.json"
+  },
+  {
+    "sample_id": 11,
+    "tier": "moderate",
+    "font": "MarkerFelt.ttc",
+    "image_file": "sample_011_moderate_MarkerFelt.ttc.png",
+    "ground_truth_file": "sample_011_moderate_MarkerFelt.ttc.json"
+  },
+  {
+    "sample_id": 12,
+    "tier": "moderate",
+    "font": "Bradley Hand Bold",
+    "image_file": "sample_012_moderate_Bradley Hand Bold.png",
+    "ground_truth_file": "sample_012_moderate_Bradley Hand Bold.json"
+  },
+  {
+    "sample_id": 13,
+    "tier": "moderate",
+    "font": "MarkerFelt.ttc",
+    "image_file": "sample_013_moderate_MarkerFelt.ttc.png",
+    "ground_truth_file": "sample_013_moderate_MarkerFelt.ttc.json"
+  },
+  {
+    "sample_id": 14,
+    "tier": "moderate",
+    "font": "MarkerFelt.ttc",
+    "image_file": "sample_014_moderate_MarkerFelt.ttc.png",
+    "ground_truth_file": "sample_014_moderate_MarkerFelt.ttc.json"
+  },
+  {
+    "sample_id": 15,
+    "tier": "degraded",
+    "font": "Caveat",
+    "image_file": "sample_015_degraded_Caveat.png",
+    "ground_truth_file": "sample_015_degraded_Caveat.json"
+  },
+  {
+    "sample_id": 16,
+    "tier": "degraded",
+    "font": "MarkerFelt.ttc",
+    "image_file": "sample_016_degraded_MarkerFelt.ttc.png",
+    "ground_truth_file": "sample_016_degraded_MarkerFelt.ttc.json"
+  },
+  {
+    "sample_id": 17,
+    "tier": "degraded",
+    "font": "Bradley Hand Bold",
+    "image_file": "sample_017_degraded_Bradley Hand Bold.png",
+    "ground_truth_file": "sample_017_degraded_Bradley Hand Bold.json"
+  },
+  {
+    "sample_id": 18,
+    "tier": "degraded",
+    "font": "Bradley Hand Bold",
+    "image_file": "sample_018_degraded_Bradley Hand Bold.png",
+    "ground_truth_file": "sample_018_degraded_Bradley Hand Bold.json"
+  },
+  {
+    "sample_id": 19,
+    "tier": "degraded",
+    "font": "Noteworthy.ttc",
+    "image_file": "sample_019_degraded_Noteworthy.ttc.png",
+    "ground_truth_file": "sample_019_degraded_Noteworthy.ttc.json"
+  },
+  {
+    "sample_id": 20,
+    "tier": "degraded",
+    "font": "Caveat",
+    "image_file": "sample_020_degraded_Caveat.png",
+    "ground_truth_file": "sample_020_degraded_Caveat.json"
+  }
+]

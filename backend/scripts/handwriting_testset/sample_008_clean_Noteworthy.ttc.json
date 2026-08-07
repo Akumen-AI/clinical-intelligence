@@ -1,0 +1,13 @@
+{
+  "sample_id": 8,
+  "tier": "clean",
+  "font": "Noteworthy.ttc",
+  "fields": {
+    "patient_name": "Priya Patel",
+    "drug_name": "Lisinopril",
+    "dosage": "150mg",
+    "frequency": "BID",
+    "doctor_name": "Dr. J. Chen",
+    "document_date": "2026-07-15"
+  }
+}

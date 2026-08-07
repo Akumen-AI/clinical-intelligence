@@ -1,0 +1,13 @@
+{
+  "sample_id": 9,
+  "tier": "moderate",
+  "font": "Caveat",
+  "fields": {
+    "patient_name": "Carlos Rivera",
+    "drug_name": "Ciprofloxacin",
+    "dosage": "5mg",
+    "frequency": "At bedtime",
+    "doctor_name": "Dr. E. Brown",
+    "document_date": "2026-06-22"
+  }
+}

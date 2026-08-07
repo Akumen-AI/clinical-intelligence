@@ -1,0 +1,13 @@
+{
+  "sample_id": 3,
+  "tier": "clean",
+  "font": "Caveat",
+  "fields": {
+    "patient_name": "Olivia Wilson",
+    "drug_name": "Levothyroxine",
+    "dosage": "300mg",
+    "frequency": "At bedtime",
+    "doctor_name": "Dr. N. Davis",
+    "document_date": "2026-08-05"
+  }
+}

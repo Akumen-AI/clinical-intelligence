@@ -360,3 +360,63 @@ def test_get_document_fields_404(client):
     non_existent_id = str(uuid.uuid4())
     response = client.get(f"/api/v1/documents/{non_existent_id}/fields")
     assert response.status_code == 404
+
+
+def test_extract_and_persist_pre_extracted_fields():
+    """Test that passing pre_extracted_fields (e.g. from multimodal vision) persists them directly without invoking text extractor."""
+    doc_id = str(uuid.uuid4())
+    db = TestingSessionLocal()
+    try:
+        doc = Document(
+            document_id=doc_id,
+            filename="rx_sample.png",
+            raw_uri="/dummy/rx_sample.png",
+            filetype="image/png",
+            status=DocumentStatus.CLASSIFIED.value,
+            document_type="Prescription",
+        )
+        db.add(doc)
+        db.commit()
+
+        pre_extracted = ClinicalFieldsSchema(
+            patient_identifier={"name": "Shailesh Mitra", "gender": "Male"},
+            document_date="2024-05-11",
+            medications=[
+                {
+                    "medication_name": "Zincovit",
+                    "dosage": "1 tab",
+                    "frequency": "Once daily",
+                    "duration": "10 days",
+                }
+            ],
+            symptoms=["Burning micturition"],
+        )
+        field_confidences = {
+            "patient_identifier": 0.85,
+            "document_date": 0.85,
+            "medications": 0.85,
+            "symptoms": 0.85,
+        }
+
+        fields, records = extract_and_persist_fields(
+            db,
+            doc,
+            pre_extracted_fields=pre_extracted,
+            field_confidences=field_confidences,
+        )
+
+        assert fields.patient_identifier.name == "Shailesh Mitra"
+        assert fields.medications[0].medication_name == "Zincovit"
+        assert fields.symptoms == ["Burning micturition"]
+
+        # Check DB records
+        med_rec = db.query(ExtractedField).filter(
+            ExtractedField.document_id == doc_id,
+            ExtractedField.field_name == "medications",
+        ).first()
+        assert med_rec is not None
+        assert med_rec.raw_value[0]["medication_name"] == "Zincovit"
+        assert med_rec.confidence_score > 0.5
+    finally:
+        db.close()
+
