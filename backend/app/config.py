@@ -7,6 +7,8 @@ class Settings(BaseSettings):
     OLLAMA_MODEL: str = "qwen3:4b"
     GEMINI_API_KEY: str = ""
     DOCUMENT_CLASSIFICATION_THRESHOLD: float = 0.80
+    OLLAMA_TIMEOUT: int = 120  # seconds — read timeout for Ollama API calls
+    OCR_PAGE_TIMEOUT: int = 120  # seconds — per-page timeout for OCR subprocess
 
 settings = Settings()
 

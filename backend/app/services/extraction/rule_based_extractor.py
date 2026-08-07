@@ -15,7 +15,7 @@ from app.schemas.extracted_field import (
 class RuleBasedFieldExtractor(ClinicalFieldExtractor):
     """
     Deterministic rule and regex-based clinical field extractor.
-    Extracts key fields from standard clinical texts and patterns.
+    Extracts key fields from standard clinical texts, colons, and tab-delimited OCR tables.
     Ensures missing fields are explicitly represented as null.
     """
 
@@ -80,18 +80,20 @@ class RuleBasedFieldExtractor(ClinicalFieldExtractor):
         dob = None
         gender = None
 
+        # Look for Patient Name with colon or tab separation
         name_match = re.search(
-            r"(?:Patient(?:\s+Name)?|Name|Pt Name)\s*:\s*([A-Za-z\s,\.\'-]+?)(?:\n|\r|DOB|Age|Gender|Sex|MRN|ID|Date|$)",
+            r"(?:Patient(?:\s+Name)?|Pt(?:\s+Name)?|Name)\s*[:\t]\s*([A-Za-z\s,\.\'-]+?)(?:\t|\n|\r|DOB|Age|Gender|Sex|MRN|ID|Collection|Date|$)",
             text,
             re.IGNORECASE,
         )
         if name_match:
             candidate = name_match.group(1).strip()
-            if candidate and len(candidate) > 2:
+            if candidate and len(candidate) > 2 and candidate.lower() not in {"date", "id", "age", "male", "female"}:
                 name = candidate
 
+        # Look for Patient / Sample / MRN / Lab ID
         id_match = re.search(
-            r"(?:Patient\s*ID|MRN|Record\s*#|UHID|Reg(?:\s*No)?)\s*:\s*([A-Za-z0-9\-_]+)",
+            r"(?:Patient\s*ID|MRN|Record\s*#|UHID|Reg(?:\s*No)?|Sample\s*ID|Lab\s*No\.?)\s*[:\t]\s*([A-Za-z0-9\-_/]+)",
             text,
             re.IGNORECASE,
         )
@@ -99,7 +101,7 @@ class RuleBasedFieldExtractor(ClinicalFieldExtractor):
             patient_id = id_match.group(1).strip()
 
         dob_match = re.search(
-            r"(?:DOB|Date\s*of\s*Birth|Birth\s*Date)\s*:\s*([0-9]{1,4}[/\-\.][0-9]{1,2}[/\-\.][0-9]{1,4})",
+            r"(?:DOB|Date\s*of\s*Birth|Birth\s*Date)\s*[:\t]\s*([0-9]{1,4}[/\-\.][0-9]{1,2}[/\-\.][0-9]{1,4})",
             text,
             re.IGNORECASE,
         )
@@ -107,12 +109,12 @@ class RuleBasedFieldExtractor(ClinicalFieldExtractor):
             dob = dob_match.group(1).strip()
 
         gender_match = re.search(
-            r"(?:Gender|Sex)\s*:\s*(Male|Female|M|F|Other)",
+            r"(?:Gender|Sex|\bAge\s*/\s*Gender)\s*[:\t\s]*([0-9]{1,3}\s*(?:Years?|Yrs?|Y)\s*/\s*)?(Male|Female|M|F|Other)",
             text,
             re.IGNORECASE,
         )
         if gender_match:
-            val = gender_match.group(1).strip().capitalize()
+            val = gender_match.group(2).strip().capitalize()
             if val == "M":
                 val = "Male"
             elif val == "F":
@@ -130,7 +132,7 @@ class RuleBasedFieldExtractor(ClinicalFieldExtractor):
 
     def _extract_date(self, text: str) -> Optional[str]:
         date_match = re.search(
-            r"(?:Date|Encounter\s*Date|Visit\s*Date|Report\s*Date|Prescription\s*Date|Collection\s*Date)\s*:\s*([0-9]{1,4}[/\-\.][0-9]{1,2}[/\-\.][0-9]{1,4}|\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+[0-9]{1,2},?\s+[0-9]{4}\b)",
+            r"(?:Date|Encounter\s*Date|Visit\s*Date|Report\s*Date|Prescription\s*Date|Collection\s*Date|Registered\s*On|Reported\s*On)\s*[:\t]\s*([0-9]{1,4}[/\-\.][0-9]{1,2}[/\-\.][0-9]{1,4}(?:\s+[0-9]{1,2}:[0-9]{2}(?:\s*[AP]M)?)?|\b(?:[0-9]{1,2}[\-\s])?(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\-\s,]+[0-9]{1,2},?[\-\s]+[0-9]{4}\b|\b[0-9]{1,2}\-(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\-[0-9]{4}\b)",
             text,
             re.IGNORECASE,
         )
@@ -138,32 +140,42 @@ class RuleBasedFieldExtractor(ClinicalFieldExtractor):
             return date_match.group(1).strip()
 
         fallback = re.search(
-            r"\b(20[2-3][0-9][\-/][0-1][0-9][\-/][0-3][0-9])\b",
+            r"\b(20[2-3][0-9][\-/][0-1][0-9][\-/][0-3][0-9])\b|\b([0-9]{1,2}\-(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\-20[2-3][0-9])\b",
             text,
+            re.IGNORECASE,
         )
         if fallback:
-            return fallback.group(1).strip()
+            return fallback.group(0).strip()
         return None
 
     def _extract_physician(self, text: str) -> Optional[PhysicianSchema]:
         doc_match = re.search(
-            r"(?:Dr\.\s+[A-Za-z\s\.\'-]+|(?:Doctor|Physician|Ordering\s*(?:Doctor|Physician|Provider)|Prescribing\s*Doctor|Consultant)\s*:\s*([A-Za-z\s\.\'-]+?)(?:\n|\r|Department|NPI|License|Signature|$))",
+            r"(?:Referred\s*By|Doctor|Physician|Ordering\s*(?:Doctor|Physician|Provider)|Prescribing\s*Doctor|Consultant)\s*[:\t]\s*([^\t\n\r]+)",
             text,
             re.IGNORECASE,
         )
+        name = None
         if doc_match:
-            matched = doc_match.group(0).strip()
-            if ":" in matched:
-                name = matched.split(":", 1)[1].strip()
-            else:
-                name = matched
-            name = name.split("\n")[0].strip()
+            candidate = doc_match.group(1).strip()
+            # Clean candidate by stopping at tabs or unwanted words
+            candidate = candidate.split("\t")[0].strip()
+            candidate = re.split(r"\b(?:Fasting|Cash|Date|Sample|Barcode)\b", candidate, flags=re.IGNORECASE)[0].strip()
+            if candidate and len(candidate) > 2:
+                name = candidate
 
-            dept_match = re.search(r"Department\s*:\s*([^\n\r]+)", text, re.IGNORECASE)
+        if not name:
+            dr_match = re.search(r"\b(Dr\.\s+[A-Za-z\s\.\'-]+)", text)
+            if dr_match:
+                candidate = dr_match.group(1).strip()
+                candidate = candidate.split("\t")[0].split("\n")[0].strip()
+                candidate = re.split(r"\b(?:Fasting|Cash|Date|Sample|Barcode|MD|MBBS)\b", candidate, flags=re.IGNORECASE)[0].strip()
+                if candidate:
+                    name = candidate
+
+        if name:
+            dept_match = re.search(r"Department\s*[:\t]\s*([^\t\n\r]+)", text, re.IGNORECASE)
             dept = dept_match.group(1).strip() if dept_match else None
-
-            if name:
-                return PhysicianSchema(name=name, department=dept)
+            return PhysicianSchema(name=name, department=dept)
         return None
 
     def _extract_vitals(self, text: str) -> Optional[VitalsSchema]:
@@ -176,35 +188,35 @@ class RuleBasedFieldExtractor(ClinicalFieldExtractor):
         height = None
         bmi = None
 
-        bp_match = re.search(r"(?:BP|Blood\s*Pressure)\s*:\s*([0-9]{2,3}/[0-9]{2,3}(?:\s*mmHg)?)", text, re.IGNORECASE)
+        bp_match = re.search(r"(?:BP|Blood\s*Pressure)\s*[:\t]\s*([0-9]{2,3}/[0-9]{2,3}(?:\s*mmHg)?)", text, re.IGNORECASE)
         if bp_match:
             bp = bp_match.group(1).strip()
 
-        hr_match = re.search(r"(?:HR|Heart\s*Rate|Pulse(?:\s*Rate)?)\s*:\s*([0-9]{2,3}(?:\s*(?:bpm|/min))?)", text, re.IGNORECASE)
+        hr_match = re.search(r"(?:HR|Heart\s*Rate|Pulse(?:\s*Rate)?)\s*[:\t]\s*([0-9]{2,3}(?:\s*(?:bpm|/min))?)", text, re.IGNORECASE)
         if hr_match:
             hr = hr_match.group(1).strip()
 
-        temp_match = re.search(r"(?:Temp(?:erature)?)\s*:\s*([0-9]{2,3}(?:\.[0-9])?\s*(?:°?F|°?C|F|C))", text, re.IGNORECASE)
+        temp_match = re.search(r"(?:Temp(?:erature)?)\s*[:\t]\s*([0-9]{2,3}(?:\.[0-9])?\s*(?:°?F|°?C|F|C))", text, re.IGNORECASE)
         if temp_match:
             temp = temp_match.group(1).strip()
 
-        rr_match = re.search(r"(?:RR|Respiratory\s*Rate)\s*:\s*([0-9]{1,2}(?:\s*(?:/min|bpm))?)", text, re.IGNORECASE)
+        rr_match = re.search(r"(?:RR|Respiratory\s*Rate)\s*[:\t]\s*([0-9]{1,2}(?:\s*(?:/min|bpm))?)", text, re.IGNORECASE)
         if rr_match:
             rr = rr_match.group(1).strip()
 
-        spo2_match = re.search(r"(?:SpO2|Oxygen\s*Saturation|O2\s*Sat)\s*:\s*([0-9]{2,3}\s*%)", text, re.IGNORECASE)
+        spo2_match = re.search(r"(?:SpO2|Oxygen\s*Saturation|O2\s*Sat)\s*[:\t]\s*([0-9]{2,3}\s*%)", text, re.IGNORECASE)
         if spo2_match:
             spo2 = spo2_match.group(1).strip()
 
-        weight_match = re.search(r"(?:Weight|Wt)\s*:\s*([0-9]{1,3}(?:\.[0-9])?\s*(?:kg|lbs|pounds)?)", text, re.IGNORECASE)
+        weight_match = re.search(r"(?:Weight|Wt)\s*[:\t]\s*([0-9]{1,3}(?:\.[0-9])?\s*(?:kg|lbs|pounds)?)", text, re.IGNORECASE)
         if weight_match:
             weight = weight_match.group(1).strip()
 
-        height_match = re.search(r"(?:Height|Ht)\s*:\s*([0-9]{2,3}(?:\.[0-9])?\s*(?:cm|in|feet)?|[0-9]'[0-9]{1,2}\"?)", text, re.IGNORECASE)
+        height_match = re.search(r"(?:Height|Ht)\s*[:\t]\s*([0-9]{2,3}(?:\.[0-9])?\s*(?:cm|in|feet)?|[0-9]'[0-9]{1,2}\"?)", text, re.IGNORECASE)
         if height_match:
             height = height_match.group(1).strip()
 
-        bmi_match = re.search(r"(?:BMI)\s*:\s*([0-9]{1,2}(?:\.[0-9])?)", text, re.IGNORECASE)
+        bmi_match = re.search(r"(?:BMI)\s*[:\t]\s*([0-9]{1,2}(?:\.[0-9])?)", text, re.IGNORECASE)
         if bmi_match:
             bmi = bmi_match.group(1).strip()
 
@@ -223,7 +235,7 @@ class RuleBasedFieldExtractor(ClinicalFieldExtractor):
 
     def _extract_diagnosis(self, text: str) -> Optional[List[DiagnosisItemSchema]]:
         diag_section = re.search(
-            r"(?:Diagnosis|Diagnoses|Assessment|Impression|Primary\s*Diagnosis)\s*:\s*([^\n\r]+(?:\n[^\n\r]+)*?)(?=\n\s*(?:Medications|Discharge|Rx|Plan|Vitals|Orders|Procedures?|Signature|Doctor|Physician|$))",
+            r"(?:Diagnosis|Diagnoses|Assessment|Impression|Primary\s*Diagnosis)\s*[:\t]\s*([^\n\r]+(?:\n[^\n\r]+)*?)(?=\n\s*(?:Medications|Discharge|Rx|Plan|Vitals|Orders|Procedures?|Signature|Doctor|Physician|$))",
             text,
             re.IGNORECASE,
         )
@@ -246,7 +258,7 @@ class RuleBasedFieldExtractor(ClinicalFieldExtractor):
 
     def _extract_medications(self, text: str) -> Optional[List[MedicationItemSchema]]:
         med_section = re.search(
-            r"(?:Medications|Rx|Prescription|Current\s*Medications|Discharge\s*Medications)\s*:\s*([^\n\r]+(?:\n[^\n\r]+)*?)(?=\n\s*(?:Instructions|Advice|Follow\s*up|Procedures?|Signature|Doctor|Physician|Lab|Tests|$))",
+            r"(?:Medications|Rx|Prescription|Current\s*Medications|Discharge\s*Medications)\s*[:\t]\s*([^\n\r]+(?:\n[^\n\r]+)*?)(?=\n\s*(?:Instructions|Advice|Follow\s*up|Procedures?|Signature|Doctor|Physician|Lab|Tests|$))",
             text,
             re.IGNORECASE,
         )
@@ -288,30 +300,75 @@ class RuleBasedFieldExtractor(ClinicalFieldExtractor):
 
     def _extract_lab_results(self, text: str) -> Optional[List[LabResultItemSchema]]:
         lab_results = []
-        pattern = re.compile(
-            r"([A-Za-z0-9\s\-_/]+)\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*([a-zA-Z/%^0-9\-_]+)?(?:\s*\(([^)]+)\))?(?:\s*(Normal|High|Low|Abnormal|H|L))?",
+        colon_pattern = re.compile(
+            r"([A-Za-z0-9\s\-_/()]+)\s*:\s*([0-9,]+(?:\.[0-9]+)?)\s*([a-zA-Z/%^0-9\-_/μL]+)?(?:\s*\(([^)]+)\))?(?:\s*(Normal|High|Low|Abnormal|H|L))?",
             re.IGNORECASE,
         )
 
-        # Fields that look like lab results but aren't — expanded to catch
-        # phone numbers, timestamps, barcodes, and document metadata
         vitals_and_meta = {
             "date", "dob", "bp", "hr", "pulse", "temp", "rr", "spo2", "weight", "height", "bmi",
             "age", "page", "phone", "fax", "patient", "mrn", "id",
             "ph", "lab", "no", "collection", "report", "sample", "location", "barcode",
-            "reg", "email", "website", "www", "address", "pin", "zip", "code",
+            "reg", "email", "website", "www", "address", "pin", "zip", "code", "payment",
+            "registered", "reported", "referred", "test", "result", "unit", "interval", "biological",
+            "hematology", "biochemistry", "notes", "end",
         }
 
-        # Patterns that indicate the "value" is actually a phone number or time
-        phone_pattern = re.compile(r"^\d{3,4}$")  # e.g., "0484" from "Ph: 0484-4012345"
+        phone_pattern = re.compile(r"^\d{3,4}$")
         time_unit_pattern = re.compile(r"^(AM|PM|am|pm)$")
 
-        for line in text.split("\n"):
-            line = line.strip()
-            match = pattern.match(line)
+        for raw_line in text.split("\n"):
+            line = raw_line.strip()
+            if not line:
+                continue
+
+            # Check for tab-separated row: "Test Name\tValue\tUnit\tReference Range"
+            if "\t" in line:
+                parts = [p.strip() for p in line.split("\t") if p.strip()]
+                if len(parts) >= 2:
+                    test_name_cand = parts[0]
+                    test_name_lower = test_name_cand.lower().strip()
+
+                    # Skip headers and standalone metadata keywords
+                    if test_name_lower in vitals_and_meta or test_name_lower.startswith(("registered", "reported", "collection", "sample type", "payment", "barcode", "lab no")):
+                        continue
+
+                    # Check if second part or later part has numeric value
+                    val_cand = None
+                    unit_cand = None
+                    range_cand = None
+
+                    # Check if part[1] is a number (e.g. 14.2, 6,800, 92, 0.7)
+                    if re.match(r"^[0-9,]+(?:\.[0-9]+)?$", parts[1]):
+                        val_cand = parts[1]
+                        if len(parts) >= 3:
+                            unit_cand = parts[2]
+                        if len(parts) >= 4:
+                            range_cand = parts[3]
+                    elif len(parts) >= 3 and re.match(r"^[0-9,]+(?:\.[0-9]+)?$", parts[2]):
+                        val_cand = parts[2]
+                        if len(parts) >= 4:
+                            unit_cand = parts[3]
+                        if len(parts) >= 5:
+                            range_cand = parts[4]
+
+                    if test_name_cand and val_cand:
+                        # Skip if unit looks like AM/PM or phone
+                        if unit_cand and time_unit_pattern.match(unit_cand):
+                            continue
+                        lab_results.append(LabResultItemSchema(
+                            test_name=test_name_cand,
+                            value=val_cand,
+                            unit=unit_cand,
+                            reference_range=range_cand,
+                            flag=None,
+                        ))
+                        continue
+
+            # Fallback to colon pattern
+            match = colon_pattern.match(line)
             if match:
                 test_name = match.group(1).strip()
-                # Check if any metadata keyword appears in test name
                 test_name_lower = test_name.lower().strip()
                 if any(v == test_name_lower or v in test_name_lower.split() for v in vitals_and_meta):
                     continue
@@ -320,11 +377,8 @@ class RuleBasedFieldExtractor(ClinicalFieldExtractor):
                 ref_range = match.group(4).strip() if match.group(4) else None
                 flag = match.group(5).strip() if match.group(5) else None
 
-                # Skip entries where the unit looks like a phone suffix or time
                 if unit and (re.match(r"^-\d{5,}$", unit) or time_unit_pattern.match(unit)):
                     continue
-                # Skip if value looks like part of a phone number (3-4 digits followed
-                # by a dash-prefixed unit) — e.g., Ph: 0484-4012345
                 if val and unit and phone_pattern.match(val) and unit.startswith("-"):
                     continue
 
@@ -351,7 +405,7 @@ class RuleBasedFieldExtractor(ClinicalFieldExtractor):
 
     def _extract_symptoms(self, text: str) -> Optional[List[str]]:
         sym_match = re.search(
-            r"(?:Chief\s*Complaint|Symptoms|Presenting\s*Complaint)\s*:\s*([^\n\r]+(?:\n[^\n\r]+)*?)(?=\n\s*(?:Diagnosis|Assessment|Medications|Vitals|Orders|Procedures?|$))",
+            r"(?:Chief\s*Complaint|Symptoms|Presenting\s*Complaint)\s*[:\t]\s*([^\n\r]+(?:\n[^\n\r]+)*?)(?=\n\s*(?:Diagnosis|Assessment|Medications|Vitals|Orders|Procedures?|$))",
             text,
             re.IGNORECASE,
         )
@@ -364,7 +418,7 @@ class RuleBasedFieldExtractor(ClinicalFieldExtractor):
 
     def _extract_procedures(self, text: str) -> Optional[List[str]]:
         proc_match = re.search(
-            r"(?:Procedures?|Interventions?|Surgeries)\s*:\s*([^\n\r]+(?:\n[^\n\r]+)*?)(?=\n\s*(?:Diagnosis|Assessment|Medications|Discharge|Rx|Plan|Vitals|Orders|Signature|$))",
+            r"(?:Procedures?|Interventions?|Surgeries)\s*[:\t]\s*([^\n\r]+(?:\n[^\n\r]+)*?)(?=\n\s*(?:Diagnosis|Assessment|Medications|Discharge|Rx|Plan|Vitals|Orders|Signature|$))",
             text,
             re.IGNORECASE,
         )

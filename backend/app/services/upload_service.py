@@ -116,10 +116,14 @@ def process_document(db: Session, document_id: str):
         # Extract actual text from the document for classification.
         from app.services.text_extraction_service import extract_text
 
-        ocr_source = doc.processed_uri or doc.raw_uri
-        ocr_text = extract_text(ocr_source, doc.filetype)
-        if not ocr_text and doc.processed_uri and doc.raw_uri != doc.processed_uri:
+        # For PDFs, check raw_uri first for embedded digital text (fast and uses zero RAM)
+        if doc.filetype.lower() == "pdf":
             ocr_text = extract_text(doc.raw_uri, doc.filetype)
+            if not ocr_text and doc.processed_uri:
+                ocr_text = extract_text(doc.processed_uri, doc.filetype)
+        else:
+            ocr_source = doc.processed_uri or doc.raw_uri
+            ocr_text = extract_text(ocr_source, doc.filetype)
 
         if not ocr_text:
             print(f"[Epic 1.4] No text could be extracted from document {document_id}. Skipping classification.")

@@ -2,7 +2,7 @@
 Text extraction service for document classification pipeline.
 
 Extracts text from PDFs (embedded text) and images (via PaddleOCR).
-Used by the classification step to get actual document content instead of mock text.
+Used by the classification and field extraction steps to get document content.
 
 MEMORY SAFETY:
 PaddleOCR is run in an isolated subprocess to prevent memory exhaustion
@@ -18,15 +18,22 @@ compatibility (macOS, Windows, and Linux).
 import os
 import gc
 import queue
+import tempfile
 import multiprocessing
 import fitz  # PyMuPDF
 
+# Ensure threading in parent and worker processes is compatible with OpenBLAS
+# (OpenBLAS on macOS Apple Silicon requires OMP_NUM_THREADS=1 to prevent deadlocks)
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
 # Resolve backend root directory once
 _BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Timeout for OCR subprocess (seconds). PaddleOCR model loading can be slow
-# on first run; subsequent runs use cached model files.
+# Timeout for OCR subprocess (seconds).
 _OCR_SUBPROCESS_TIMEOUT = 300
 
 
@@ -102,7 +109,7 @@ def _reconstruct_spatial_layout(texts: list, boxes, scores=None) -> str:
     if heights:
         median_height = heights[len(heights) // 2]
     else:
-        median_height = 15.0  # sensible default for ~300 DPI OCR
+        median_height = 15.0  # sensible default for ~150-300 DPI OCR
 
     row_tolerance = median_height * 0.5
     col_gap_threshold = median_height * 1.5
@@ -153,32 +160,39 @@ def _paddle_ocr_worker(image_paths: list, result_queue):
     """
     results = []
     try:
-        # --- Windows Compatibility Flags ---
-        # PaddlePaddle's oneDNN (MKL-DNN) executor crashes on Windows with:
-        #   "ConvertPirAttribute2RuntimeAttribute not support
-        #    [pir::ArrayAttribute<pir::DoubleAttribute>]"
-        # Disabling oneDNN and the PIR API avoids this crash.
-        # These are safe no-ops on macOS and Linux.
-        # Set these explicitly rather than with setdefault(): a reloader or
-        # parent process may already have supplied a conflicting value.
-        # PaddlePaddle 3.x also has a separate PIR executor switch; disabling
-        # only FLAGS_enable_pir_api still leaves the Windows oneDNN/PIR crash.
+        # Cap worker CPU thread count to 1 for OpenBLAS single-thread compatibility
+        os.environ["OMP_NUM_THREADS"] = "1"
+        os.environ["OPENBLAS_NUM_THREADS"] = "1"
+        os.environ["MKL_NUM_THREADS"] = "1"
+        os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+        os.environ["NUMEXPR_NUM_THREADS"] = "1"
+
+        # --- Windows & Platform Compatibility Flags ---
         os.environ["FLAGS_use_mkldnn"] = "0"
         os.environ["FLAGS_use_onednn"] = "0"
         os.environ["FLAGS_enable_pir_api"] = "0"
         os.environ["FLAGS_enable_pir_in_executor"] = "0"
 
         from paddleocr import PaddleOCR
-        # use_angle_cls=True enables text direction detection (useful for rotated docs)
-        # lang='en' for English medical documents
-        # enable_mkldnn=False is CRITICAL for Windows: env vars alone don't reliably
-        # prevent PaddlePaddle's C++ layer from using oneDNN, which crashes with:
-        #   "ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute...]"
-        # This flag is a harmless no-op on macOS/Linux.
         ocr = PaddleOCR(use_angle_cls=True, lang='en', enable_mkldnn=False)
+
+        import cv2
+        cv2.setNumThreads(2)
 
         for image_path in image_paths:
             try:
+                # Downscale excessively large images to max 1800px dimension to avoid memory bloat
+                img = cv2.imread(image_path)
+                if img is not None:
+                    h, w = img.shape[:2]
+                    max_dim = max(h, w)
+                    if max_dim > 1800:
+                        scale = 1800.0 / max_dim
+                        resized = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+                        cv2.imwrite(image_path, resized)
+                        del resized
+                    del img
+
                 # In PaddleOCR 3.7.0 (PaddleX based), the API uses predict()
                 result = ocr.predict(image_path)
 
@@ -189,12 +203,6 @@ def _paddle_ocr_worker(image_paths: list, result_queue):
                 # result is a generator or list of dict-like objects
                 res_dict = next(iter(result))
 
-                # In PaddleOCR 3.7.0 / PaddleX, the result dict contains:
-                #   rec_texts: list of recognized text strings
-                #   rec_boxes: bounding boxes as [x_min, y_min, x_max, y_max]
-                #   rec_scores: confidence scores per fragment
-                # Using rec_boxes for spatial layout reconstruction preserves
-                # the tabular structure of documents like lab reports.
                 if hasattr(res_dict, 'keys') and 'rec_texts' in res_dict and res_dict['rec_texts']:
                     texts = res_dict['rec_texts']
                     boxes = res_dict.get('rec_boxes', None)
@@ -204,7 +212,6 @@ def _paddle_ocr_worker(image_paths: list, result_queue):
                         reconstructed = _reconstruct_spatial_layout(texts, boxes, scores)
                         results.append(reconstructed)
                     else:
-                        # Fallback if boxes unavailable or mismatched
                         results.append("\n".join(texts).strip())
                 else:
                     results.append("")
@@ -232,7 +239,7 @@ def _run_paddle_ocr_subprocess(image_paths: list, timeout: int = _OCR_SUBPROCESS
     - 'spawn' works correctly on macOS (avoids fork-safety issues with CoreFoundation)
     - 'spawn' works on Linux
 
-    The subprocess loads PaddleOCR models, processes all images, and exits.
+    The subprocess loads PaddleOCR models once, processes all images, and exits.
     All model memory is returned to the OS when the process terminates.
 
     Args:
@@ -257,17 +264,11 @@ def _run_paddle_ocr_subprocess(image_paths: list, timeout: int = _OCR_SUBPROCESS
         print(f"[Text Extraction] OCR subprocess timed out after {timeout}s. Terminating.")
         process.terminate()
         process.join(timeout=5)
-        # On Unix, if terminate() (SIGTERM) didn't work, escalate to kill (SIGKILL).
-        # On Windows, terminate() already performs a hard kill (TerminateProcess).
         if process.is_alive():
             process.kill()
             process.join(timeout=5)
         return [""] * len(image_paths)
 
-    # Do not use Queue.empty() here. It is inherently racy and is especially
-    # unreliable with multiprocessing queues on Windows: the child may have
-    # put its result on the queue while the feeder thread has not flushed it
-    # yet, causing empty() to incorrectly return True.
     try:
         results = result_queue.get(timeout=5)
         print(f"[Text Extraction] OCR subprocess completed successfully.")
@@ -325,39 +326,46 @@ def extract_text_from_image(filepath: str) -> str:
 
 def _ocr_pdf_pages(abs_path: str) -> str:
     """
-    For scanned PDFs with no embedded text, render all pages to temp images
-    and run PaddleOCR on them in a single subprocess (loads models only once).
+    For scanned PDFs with no embedded text, render pages to temp images
+    and run PaddleOCR in a single batched subprocess (loading models once).
+    Renders at 150 DPI for optimal speed, low memory, and clean OCR accuracy.
     """
     try:
-        import tempfile
+        from app.config import settings
 
         doc = fitz.open(abs_path)
+        # Limit OCR to at most first 8 pages to prevent resource explosion on large books/scans
+        page_count = min(len(doc), 8)
         temp_paths = []
 
-        # Render all pages to temp images first
-        for page_num in range(len(doc)):
-            page = doc.load_page(page_num)
-            # Render page at 300 DPI for better OCR accuracy
-            pix = page.get_pixmap(dpi=300)
-            img_bytes = pix.tobytes("png")
+        try:
+            for page_num in range(page_count):
+                page = doc.load_page(page_num)
+                # 150 DPI is ideal for OCR, consuming ~75% less RAM than 300 DPI
+                pix = page.get_pixmap(dpi=150)
+                img_bytes = pix.tobytes("png")
 
-            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-                tmp.write(img_bytes)
-                temp_paths.append(tmp.name)
+                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                    tmp.write(img_bytes)
+                    temp_paths.append(tmp.name)
+                del pix
 
-        doc.close()
+            doc.close()
 
-        # Run OCR on all pages in a single subprocess (loads models only once)
-        results = _run_paddle_ocr_subprocess(temp_paths)
+            # Batch all pages in ONE subprocess call so models load once (~2.5GB)
+            timeout = max(settings.OCR_PAGE_TIMEOUT * len(temp_paths), 60)
+            results = _run_paddle_ocr_subprocess(temp_paths, timeout=timeout)
 
-        # Clean up temp files
-        for tmp_path in temp_paths:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
+            text_parts = [r for r in results if r]
+            return "\n\n".join(text_parts).strip()
 
-        return "\n\n".join(text for text in results if text).strip()
+        finally:
+            for p in temp_paths:
+                try:
+                    os.unlink(p)
+                except OSError:
+                    pass
+
     except Exception as e:
         print(f"[Text Extraction] OCR of scanned PDF failed: {e}")
         return ""

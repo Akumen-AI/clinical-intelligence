@@ -1,6 +1,8 @@
 import requests
 import json
 from app.config import settings
+
+_CONNECT_TIMEOUT = 10
 from app.services.classification.base import DocumentClassifier, ClassificationResult
 
 class OllamaClassifier(DocumentClassifier):
@@ -9,7 +11,9 @@ class OllamaClassifier(DocumentClassifier):
         self.model = model or settings.OLLAMA_MODEL
 
     def classify(self, text: str) -> ClassificationResult:
-        prompt = self._get_prompt(text)
+        # Truncate text to 4000 characters to prevent excessive memory/context usage
+        truncated_text = text[:4000] if text else ""
+        prompt = self._get_prompt(truncated_text)
         # Disable thinking mode only for models that enable it by default (e.g. qwen3)
         if "qwen3" in self.model.lower():
             prompt = "/no_think\n" + prompt
@@ -21,9 +25,14 @@ class OllamaClassifier(DocumentClassifier):
                     "model": self.model,
                     "prompt": prompt,
                     "stream": False,
-                    "format": "json"
+                    "format": "json",
+                    "options": {
+                        "num_thread": 4,
+                        "num_ctx": 4096,
+                        "temperature": 0.0
+                    }
                 },
-                timeout=60
+                timeout=(_CONNECT_TIMEOUT, settings.OLLAMA_TIMEOUT)
             )
             response.raise_for_status()
             data = response.json()
@@ -47,4 +56,3 @@ class OllamaClassifier(DocumentClassifier):
         except Exception as e:
             print(f"Ollama classification failed: {e}")
             return ClassificationResult(document_type="Unknown", confidence=0.0)
-

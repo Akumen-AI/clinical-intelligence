@@ -1,8 +1,13 @@
 import os
 import time
+import gc
 import cv2
 import numpy as np
 import fitz  # PyMuPDF
+
+# Ensure OpenCV doesn't starve the OS by capping its thread pool
+cv2.setNumThreads(2)
+
 
 def deskew_image(image: np.ndarray) -> np.ndarray:
     """
@@ -45,22 +50,23 @@ def deskew_image(image: np.ndarray) -> np.ndarray:
     rotated = cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
     return rotated
 
+
 def denoise_image(image: np.ndarray) -> np.ndarray:
     """
-    Denoises the image using fastNlMeansDenoising (grayscale or color).
+    Denoises the image using fast bilateral filtering to preserve sharp text edges
+    while removing background noise, avoiding high CPU/memory usage on low-RAM machines.
     """
     if len(image.shape) == 2:
-        # Grayscale image
-        return cv2.fastNlMeansDenoising(image, None, h=10, templateWindowSize=7, searchWindowSize=21)
+        return cv2.bilateralFilter(image, d=5, sigmaColor=50, sigmaSpace=50)
     elif len(image.shape) == 3:
-        # Color image (BGR or BGRA)
         if image.shape[2] == 4:
             bgr = cv2.cvtColor(image, cv2.COLOR_BGRA2BGR)
-            denoised_bgr = cv2.fastNlMeansDenoisingColored(bgr, None, h=10, hColor=10, templateWindowSize=7, searchWindowSize=21)
-            return cv2.cvtColor(denoised_bgr, cv2.COLOR_BGR2BGRA)
+            denoised = cv2.bilateralFilter(bgr, d=5, sigmaColor=50, sigmaSpace=50)
+            return cv2.cvtColor(denoised, cv2.COLOR_BGR2BGRA)
         else:
-            return cv2.fastNlMeansDenoisingColored(image, None, h=10, hColor=10, templateWindowSize=7, searchWindowSize=21)
+            return cv2.bilateralFilter(image, d=5, sigmaColor=50, sigmaSpace=50)
     return image
+
 
 def correct_contrast(image: np.ndarray) -> np.ndarray:
     """
@@ -68,10 +74,8 @@ def correct_contrast(image: np.ndarray) -> np.ndarray:
     """
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     if len(image.shape) == 2:
-        # Grayscale
         return clahe.apply(image)
     elif len(image.shape) == 3:
-        # Color image: convert to LAB, apply CLAHE to L channel, convert back to BGR/BGRA
         if image.shape[2] == 4:
             bgr = cv2.cvtColor(image, cv2.COLOR_BGRA2BGR)
             lab = cv2.cvtColor(bgr, cv2.COLOR_BGR2LAB)
@@ -88,6 +92,7 @@ def correct_contrast(image: np.ndarray) -> np.ndarray:
             return cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
     return image
 
+
 def preprocess_single_image(image: np.ndarray) -> np.ndarray:
     """
     Runs deskew, denoise, and contrast correction on a single numpy image.
@@ -100,33 +105,29 @@ def preprocess_single_image(image: np.ndarray) -> np.ndarray:
     img = correct_contrast(img)
     return img
 
+
 def preprocess_document_file(raw_uri: str, filetype: str) -> tuple[str, int]:
     """
     Performs image preprocessing on the file at raw_uri and saves it separately.
     Returns: (processed_relative_path, elapsed_time_ms)
     """
-    # Resolve absolute paths
-    # Parent directory of app/services is app, parent is backend
     backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     original_abspath = os.path.abspath(os.path.join(backend_dir, raw_uri))
     
-    # Define processed filename and path
     basename = os.path.basename(original_abspath)
     processed_filename = f"processed_{basename}"
-    # Always use forward slashes for stored relative paths (cross-platform compatibility)
     processed_relative_path = "uploads/" + processed_filename
     processed_abspath = os.path.abspath(os.path.join(backend_dir, processed_relative_path))
     
     start_time = time.perf_counter()
     
     if filetype.lower() == "pdf":
-        # Load PDF pages using PyMuPDF
         doc = fitz.open(original_abspath)
         out_doc = fitz.open()
         
         for page_num in range(len(doc)):
             page = doc.load_page(page_num)
-            pix = page.get_pixmap()
+            pix = page.get_pixmap(dpi=150)
             
             # Convert pixmap to numpy array (RGB)
             img_data = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
@@ -148,18 +149,21 @@ def preprocess_document_file(raw_uri: str, filetype: str) -> tuple[str, int]:
             new_page = out_doc.new_page(width=w, height=h)
             new_page.insert_image(fitz.Rect(0, 0, w, h), stream=img_bytes)
             
+            del img, processed_img, img_data, img_bytes, pix
+            
         out_doc.save(processed_abspath)
         out_doc.close()
         doc.close()
     else:
-        # Load image file
         img = cv2.imread(original_abspath, cv2.IMREAD_UNCHANGED)
         if img is None:
             raise ValueError(f"Failed to read image file at {original_abspath}")
             
         processed_img = preprocess_single_image(img)
         cv2.imwrite(processed_abspath, processed_img)
+        del img, processed_img
         
+    gc.collect()
     elapsed_time_ms = int((time.perf_counter() - start_time) * 1000)
     
     return processed_relative_path, elapsed_time_ms

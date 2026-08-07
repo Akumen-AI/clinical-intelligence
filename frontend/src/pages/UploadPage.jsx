@@ -52,24 +52,82 @@ export default function UploadPage() {
     loadData();
   }, []);
 
-  useEffect(() => {
-    const terminalStatuses = new Set(['extracted', 'failed']);
-    const timers = documents
-      .filter((doc) => !terminalStatuses.has((doc.status || '').toLowerCase()))
-      .map((doc) => window.setInterval(async () => {
-        if (document.visibilityState !== 'visible') return;
-        try {
-          const statusData = await fetchDocumentStatus(doc.document_id);
-          setDocuments((current) => current.map((item) => item.document_id === doc.document_id
-            ? { ...item, ...statusData }
-            : item));
-        } catch (err) {
-          console.error(`Failed to poll status for ${doc.document_id}:`, err);
-        }
-      }, 1500));
+  // --- Stable polling with exponential backoff ---
+  // The previous implementation used [documents] as a dependency, which caused
+  // a feedback loop: every poll updated state → state change re-ran the effect
+  // → new intervals created → immediate new polls. This generated hundreds of
+  // redundant requests per document.
+  //
+  // Fix: use a ref to track which documents need polling, and a single
+  // setTimeout chain (not setInterval) with increasing delays.
+  const pollingRef = useRef({});  // { [docId]: { timeoutId, delay } }
 
-    return () => timers.forEach((timer) => window.clearInterval(timer));
-  }, [documents]);
+  useEffect(() => {
+    const TERMINAL = new Set(['extracted', 'failed']);
+    const MIN_DELAY = 2000;
+    const MAX_DELAY = 15000;
+    const BACKOFF_FACTOR = 1.5;
+
+    // Determine which non-terminal docs need polling
+    const activeDocs = documents.filter(
+      (doc) => !TERMINAL.has((doc.status || '').toLowerCase())
+    );
+
+    // Stop polling for docs that have reached a terminal status
+    const activeIds = new Set(activeDocs.map((d) => d.document_id));
+    for (const [docId, entry] of Object.entries(pollingRef.current)) {
+      if (!activeIds.has(docId)) {
+        clearTimeout(entry.timeoutId);
+        delete pollingRef.current[docId];
+      }
+    }
+
+    // Start polling for new non-terminal docs (skip already-polling ones)
+    for (const doc of activeDocs) {
+      if (pollingRef.current[doc.document_id]) continue;
+
+      const scheduleNext = (docId, delay) => {
+        const timeoutId = setTimeout(async () => {
+          if (document.visibilityState !== 'visible') {
+            // Tab hidden — reschedule at same delay, don't back off
+            pollingRef.current[docId] = { timeoutId: null, delay };
+            scheduleNext(docId, delay);
+            return;
+          }
+          try {
+            const statusData = await fetchDocumentStatus(docId);
+            setDocuments((current) =>
+              current.map((item) =>
+                item.document_id === docId ? { ...item, ...statusData } : item
+              )
+            );
+            // If terminal, stop polling
+            if (TERMINAL.has((statusData.status || '').toLowerCase())) {
+              delete pollingRef.current[docId];
+              return;
+            }
+          } catch (err) {
+            console.error(`Failed to poll status for ${docId}:`, err);
+          }
+          // Schedule next poll with backoff
+          const nextDelay = Math.min(delay * BACKOFF_FACTOR, MAX_DELAY);
+          pollingRef.current[docId] = { timeoutId: null, delay: nextDelay };
+          scheduleNext(docId, nextDelay);
+        }, delay);
+        pollingRef.current[docId] = { timeoutId, delay };
+      };
+
+      scheduleNext(doc.document_id, MIN_DELAY);
+    }
+
+    return () => {
+      // Cleanup all timeouts on unmount
+      for (const entry of Object.values(pollingRef.current)) {
+        clearTimeout(entry.timeoutId);
+      }
+      pollingRef.current = {};
+    };
+  }, [documents.length]);  // Only re-run when docs are added/removed, not on status changes
 
   const statusLabel = (status) => ({
     queued: 'Queued',
