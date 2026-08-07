@@ -202,6 +202,23 @@ All endpoints are prefixed with `/api/v1/documents`.
 
 ---
 
+## 🚦 Confidence Routing
+
+Story 2.5 introduces automated routing for extracted clinical fields based on confidence scores.
+
+### Routing Logic & Default Threshold
+- **Default Threshold**: `CONFIDENCE_THRESHOLD = 0.80` (configured in `app/config.py` and `.env`).
+- **Canonical Routing**: Fields with `confidence_score >= CONFIDENCE_THRESHOLD` (inclusive) flow directly to the canonical patient record (`canonical_record_service.upsert_field()`).
+- **Pending Review Queue**: Fields with `confidence_score < CONFIDENCE_THRESHOLD` are automatically routed to the mandatory human-verification queue (`pending_review` table).
+
+### Endpoints
+- `GET /api/v1/review/pending`: Retrieve paginated pending review fields (`status=PENDING`).
+- `PATCH /api/v1/review/pending/{review_id}`: Approve or reject a field in the review queue. Approving automatically writes the field to the canonical patient record.
+- `GET /api/v1/review/config/threshold`: Retrieve active confidence threshold and its source (`env` or `db`).
+- `PUT /api/v1/review/config/threshold`: Update threshold dynamically (validated $0.0 < \text{threshold} \le 1.0$) stored in the `system_config` table.
+
+---
+
 ## 🧰 Tech Stack
 
 | Layer | Technology |
