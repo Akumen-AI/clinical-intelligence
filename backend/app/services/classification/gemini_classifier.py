@@ -2,6 +2,7 @@ import json
 from google import genai
 from app.config import settings
 from app.services.classification.base import DocumentClassifier, ClassificationResult
+from app.utils.json_parser import clean_and_parse_json
 
 class GeminiClassifier(DocumentClassifier):
     def __init__(self, api_key: str = None):
@@ -23,7 +24,7 @@ class GeminiClassifier(DocumentClassifier):
                 ),
             )
             
-            result_json = json.loads(response.text)
+            result_json = clean_and_parse_json(response.text or "", default={})
             
             return ClassificationResult(
                 document_type=result_json.get("document_type", "Unknown"),

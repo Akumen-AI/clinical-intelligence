@@ -1,0 +1,13 @@
+{
+  "sample_id": 19,
+  "tier": "degraded",
+  "font": "Noteworthy.ttc",
+  "fields": {
+    "patient_name": "Rachel Thompson",
+    "drug_name": "Amlodipine",
+    "dosage": "50mg",
+    "frequency": "Before meals",
+    "doctor_name": "Dr. A. Kumar",
+    "document_date": "2026-07-01"
+  }
+}

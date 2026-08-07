@@ -1,0 +1,13 @@
+{
+  "sample_id": 10,
+  "tier": "moderate",
+  "font": "Bradley Hand Bold",
+  "fields": {
+    "patient_name": "Priya Patel",
+    "drug_name": "Clindamycin",
+    "dosage": "150mg",
+    "frequency": "Three times daily",
+    "doctor_name": "Dr. P. Garcia",
+    "document_date": "2026-05-25"
+  }
+}

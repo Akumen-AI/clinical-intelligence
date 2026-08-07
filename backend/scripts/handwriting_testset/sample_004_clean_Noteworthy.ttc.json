@@ -1,0 +1,13 @@
+{
+  "sample_id": 4,
+  "tier": "clean",
+  "font": "Noteworthy.ttc",
+  "fields": {
+    "patient_name": "Ahmed Hassan",
+    "drug_name": "Furosemide",
+    "dosage": "10mg",
+    "frequency": "Once daily",
+    "doctor_name": "Dr. R. Patel",
+    "document_date": "2026-05-25"
+  }
+}

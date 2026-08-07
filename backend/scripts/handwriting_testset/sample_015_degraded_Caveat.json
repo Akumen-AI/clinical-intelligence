@@ -1,0 +1,13 @@
+{
+  "sample_id": 15,
+  "tier": "degraded",
+  "font": "Caveat",
+  "fields": {
+    "patient_name": "James Williams",
+    "drug_name": "Omeprazole",
+    "dosage": "150mg",
+    "frequency": "Three times daily",
+    "doctor_name": "Dr. D. Kim",
+    "document_date": "2026-06-14"
+  }
+}

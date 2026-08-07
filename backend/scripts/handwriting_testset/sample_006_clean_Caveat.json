@@ -1,0 +1,13 @@
+{
+  "sample_id": 6,
+  "tier": "clean",
+  "font": "Caveat",
+  "fields": {
+    "patient_name": "Rachel Thompson",
+    "drug_name": "Azithromycin",
+    "dosage": "75mg",
+    "frequency": "TID",
+    "doctor_name": "Dr. A. Kumar",
+    "document_date": "2026-05-25"
+  }
+}

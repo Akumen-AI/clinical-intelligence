@@ -6,6 +6,7 @@ from app.config import settings
 from app.services.extraction.base import ClinicalFieldExtractor, ExtractionResult
 from app.services.extraction.rule_based_extractor import RuleBasedFieldExtractor
 from app.schemas.extracted_field import ClinicalFieldsSchema
+from app.utils.json_parser import clean_and_parse_json
 
 
 # Maximum number of attempts before falling back to rule-based extraction.
@@ -62,7 +63,7 @@ class OllamaFieldExtractor(ClinicalFieldExtractor):
                     print("[Field Extraction] Ollama returned empty response. Using rule-based fallback.")
                     return self._fallback_extractor.extract(text, document_type)
 
-                result_json = json.loads(raw_response)
+                result_json = clean_and_parse_json(raw_response, default={})
                 fields = ClinicalFieldsSchema.model_validate(result_json)
                 return ExtractionResult(
                     fields=fields,

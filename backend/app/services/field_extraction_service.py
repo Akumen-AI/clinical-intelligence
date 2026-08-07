@@ -39,22 +39,70 @@ def extract_and_persist_fields(
     db: Session,
     document: Document,
     ocr_text: Optional[str] = None,
+    pre_extracted_fields: Optional[ClinicalFieldsSchema] = None,
+    field_confidences: Optional[Dict[str, Any]] = None,
 ) -> Tuple[ClinicalFieldsSchema, List[ExtractedField]]:
     """
     Extracts key fields from document text using the configured extraction engine
-    and persists ExtractedField records into the database.
+    or directly persists pre-extracted fields (e.g. from multimodal vision model)
+    into the database.
 
     Confidence scores are computed by the ConfidenceEngine at extraction time
     and stored immutably — they are NEVER recomputed on read (AC-2).
     """
-    if ocr_text is None:
-        ocr_text = extract_text(document.raw_uri, document.filetype)
-        if not ocr_text and document.processed_uri:
-            ocr_text = extract_text(document.processed_uri, document.filetype)
+    if pre_extracted_fields is not None:
+        fields = pre_extracted_fields
+        raw_field_confidences = field_confidences or {}
+    else:
+        import os
+        from app.config import settings
+        from app.services.text_extraction_service import extract_text_with_confidence
 
-    extractor = get_field_extractor()
-    result = extractor.extract(ocr_text or "", document_type=document.document_type)
-    fields = result.fields
+        file_path = document.processed_uri or document.raw_uri
+        ocr_scores = []
+        if ocr_text is None:
+            ocr_text = extract_text(document.raw_uri, document.filetype)
+            if not ocr_text and document.processed_uri:
+                ocr_text = extract_text(document.processed_uri, document.filetype)
+
+        handwriting_handled = False
+        if settings.HANDWRITING_EXTRACTION_ENABLED and settings.GEMINI_API_KEY:
+            from app.services.handwriting.routing import should_route_to_handwriting
+
+            if not ocr_scores:
+                try:
+                    _, ocr_scores = extract_text_with_confidence(file_path, document.filetype)
+                except Exception:
+                    ocr_scores = []
+
+            if should_route_to_handwriting(
+                ocr_scores,
+                confidence_threshold=settings.HANDWRITING_OCR_CONFIDENCE_THRESHOLD,
+                proportion_threshold=settings.HANDWRITING_LOW_CONFIDENCE_PROPORTION,
+                consecutive_count_threshold=settings.HANDWRITING_CONSECUTIVE_LOW_CONFIDENCE_COUNT,
+            ):
+                try:
+                    from app.services.handwriting.factory import get_handwriting_extractor
+
+                    hw_extractor = get_handwriting_extractor()
+                    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                    image_abs_path = os.path.abspath(os.path.join(backend_dir, file_path))
+                    hw_result = hw_extractor.extract_from_image(
+                        image_abs_path,
+                        document_type=document.document_type,
+                    )
+                    if hw_result and hw_result.fields:
+                        fields = hw_result.fields
+                        raw_field_confidences = hw_result.field_confidences or {}
+                        handwriting_handled = True
+                except Exception as e:
+                    print(f"[Field Extraction] Handwriting fallback failed: {e}")
+
+        if not handwriting_handled:
+            extractor = get_field_extractor()
+            result = extractor.extract(ocr_text or "", document_type=document.document_type)
+            fields = result.fields
+            raw_field_confidences = result.field_confidences
 
     # Remove any existing field records for this document
     db.query(ExtractedField).filter(ExtractedField.document_id == document.document_id).delete(
@@ -83,12 +131,18 @@ def extract_and_persist_fields(
     records: List[ExtractedField] = []
 
     for field_name, value in field_mapping.items():
+        field_conf = raw_field_confidences.get(field_name)
+        if isinstance(field_conf, list):
+            ocr_confidences = field_conf
+        elif isinstance(field_conf, (int, float)):
+            ocr_confidences = [float(field_conf)]
+        else:
+            ocr_confidences = []
+
         score = engine.score_field(
             field_name=field_name,
             raw_value=_stringify_value(value),
-            ocr_word_confidences=result.field_confidences.get(field_name, [])
-            if isinstance(result.field_confidences.get(field_name), list)
-            else [],
+            ocr_word_confidences=ocr_confidences,
             layout_region="body",  # default; layout detection may refine this
             document_type=document.document_type or "unknown",
             field_map=field_map_for_signal_d,

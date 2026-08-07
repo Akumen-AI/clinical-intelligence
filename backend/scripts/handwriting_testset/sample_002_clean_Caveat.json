@@ -1,0 +1,13 @@
+{
+  "sample_id": 2,
+  "tier": "clean",
+  "font": "Caveat",
+  "fields": {
+    "patient_name": "Daniel Nguyen",
+    "drug_name": "Losartan",
+    "dosage": "250mg",
+    "frequency": "Once daily",
+    "doctor_name": "Dr. S. Johnson",
+    "document_date": "2026-05-10"
+  }
+}

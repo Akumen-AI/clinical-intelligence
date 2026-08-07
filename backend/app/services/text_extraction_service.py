@@ -4,6 +4,10 @@ Text extraction service for document classification pipeline.
 Extracts text from PDFs (embedded text) and images (via PaddleOCR).
 Used by the classification and field extraction steps to get document content.
 
+This module also provides a confidence-score-exposing variant
+(extract_text_with_confidence) used by the handwriting routing logic
+to decide whether to fall back to a multimodal vision model.
+
 MEMORY SAFETY:
 PaddleOCR is run in an isolated subprocess to prevent memory exhaustion
 on resource-constrained machines (e.g., M1 MacBook Air with 8GB RAM).
@@ -14,6 +18,8 @@ The subprocess loads models, extracts text, and exits — returning all
 allocated memory to the OS. Uses 'spawn' start method for cross-platform
 compatibility (macOS, Windows, and Linux).
 """
+
+from typing import List, Tuple
 
 import os
 import gc
@@ -383,6 +389,8 @@ def extract_text(filepath: str, filetype: str) -> str:
         Extracted text string, or empty string if extraction fails.
     """
     filetype_lower = filetype.lower()
+    if "/" in filetype_lower:
+        filetype_lower = filetype_lower.split("/")[-1]
 
     if filetype_lower == "pdf":
         text = extract_text_from_pdf(filepath)
@@ -398,3 +406,239 @@ def extract_text(filepath: str, filetype: str) -> str:
         print(f"[Text Extraction] No text extracted from {os.path.basename(filepath)}")
 
     return text
+
+
+# ---------------------------------------------------------------------------
+# Confidence-score-exposing variants for handwriting routing
+# ---------------------------------------------------------------------------
+
+def _paddle_ocr_worker_with_scores(image_paths: list, result_queue):
+    """
+    Like _paddle_ocr_worker, but returns (text, scores_list) tuples so
+    the handwriting routing logic can inspect per-fragment confidence.
+
+    Each result is a dict {"text": str, "scores": List[float]}.
+    """
+    results = []
+    try:
+        os.environ["OMP_NUM_THREADS"] = "1"
+        os.environ["OPENBLAS_NUM_THREADS"] = "1"
+        os.environ["MKL_NUM_THREADS"] = "1"
+        os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+        os.environ["NUMEXPR_NUM_THREADS"] = "1"
+        os.environ["FLAGS_use_mkldnn"] = "0"
+        os.environ["FLAGS_use_onednn"] = "0"
+        os.environ["FLAGS_enable_pir_api"] = "0"
+        os.environ["FLAGS_enable_pir_in_executor"] = "0"
+
+        from paddleocr import PaddleOCR
+        ocr = PaddleOCR(use_angle_cls=True, lang='en', enable_mkldnn=False)
+
+        import cv2
+        cv2.setNumThreads(2)
+
+        for image_path in image_paths:
+            try:
+                img = cv2.imread(image_path)
+                if img is not None:
+                    h, w = img.shape[:2]
+                    max_dim = max(h, w)
+                    if max_dim > 1800:
+                        scale = 1800.0 / max_dim
+                        resized = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+                        cv2.imwrite(image_path, resized)
+                        del resized
+                    del img
+
+                result = ocr.predict(image_path)
+
+                if not result:
+                    results.append({"text": "", "scores": []})
+                    continue
+
+                res_dict = next(iter(result))
+
+                if hasattr(res_dict, 'keys') and 'rec_texts' in res_dict and res_dict['rec_texts']:
+                    texts = res_dict['rec_texts']
+                    boxes = res_dict.get('rec_boxes', None)
+                    scores = res_dict.get('rec_scores', None)
+
+                    # Convert scores to plain float list
+                    score_list = []
+                    if scores is not None:
+                        for s in scores:
+                            try:
+                                score_list.append(float(s))
+                            except (ValueError, TypeError):
+                                score_list.append(0.0)
+
+                    if boxes is not None and len(boxes) == len(texts):
+                        reconstructed = _reconstruct_spatial_layout(texts, boxes, scores)
+                        results.append({"text": reconstructed, "scores": score_list})
+                    else:
+                        results.append({"text": "\n".join(texts).strip(), "scores": score_list})
+                else:
+                    results.append({"text": "", "scores": []})
+            except Exception as e:
+                print(f"[Text Extraction] PaddleOCR failed for {os.path.basename(image_path)}: {e}")
+                results.append({"text": "", "scores": []})
+
+        del ocr
+        gc.collect()
+
+    except Exception as e:
+        print(f"[Text Extraction] PaddleOCR subprocess initialization failed: {e}")
+        results = [{"text": "", "scores": []}] * len(image_paths)
+
+    result_queue.put(results)
+
+
+def _run_paddle_ocr_subprocess_with_scores(
+    image_paths: list,
+    timeout: int = _OCR_SUBPROCESS_TIMEOUT,
+) -> list:
+    """
+    Like _run_paddle_ocr_subprocess, but returns list of
+    {"text": str, "scores": List[float]} dicts.
+    """
+    if not image_paths:
+        return []
+
+    ctx = multiprocessing.get_context('spawn')
+    result_queue = ctx.Queue()
+    process = ctx.Process(
+        target=_paddle_ocr_worker_with_scores,
+        args=(image_paths, result_queue),
+    )
+
+    print(f"[Text Extraction] Starting OCR subprocess (with scores) for {len(image_paths)} image(s)...")
+    process.start()
+    process.join(timeout=timeout)
+
+    if process.is_alive():
+        print(f"[Text Extraction] OCR subprocess timed out after {timeout}s. Terminating.")
+        process.terminate()
+        process.join(timeout=5)
+        if process.is_alive():
+            process.kill()
+            process.join(timeout=5)
+        return [{"text": "", "scores": []}] * len(image_paths)
+
+    try:
+        results = result_queue.get(timeout=5)
+        print(f"[Text Extraction] OCR subprocess (with scores) completed successfully.")
+        return results
+    except queue.Empty:
+        print("[Text Extraction] OCR subprocess returned no result.")
+    except Exception as e:
+        print(f"[Text Extraction] Failed to read OCR subprocess result: {e}")
+
+    return [{"text": "", "scores": []}] * len(image_paths)
+
+
+def extract_text_with_confidence(
+    filepath: str,
+    filetype: str,
+) -> Tuple[str, List[float]]:
+    """
+    Like extract_text(), but also returns per-fragment confidence scores
+    from PaddleOCR.  Used by the handwriting routing logic to decide
+    whether to fall back to a multimodal vision model.
+
+    Args:
+        filepath: Relative path to the file (from backend root).
+        filetype: File extension (e.g. 'pdf', 'png', 'jpg').
+
+    Returns:
+        (extracted_text, confidence_scores) — the text string and a list
+        of per-fragment float scores.  For PDFs with embedded text, scores
+        will be an empty list (embedded text has no OCR confidence).
+    """
+    filetype_lower = filetype.lower()
+    if "/" in filetype_lower:
+        filetype_lower = filetype_lower.split("/")[-1]
+    abs_path = os.path.abspath(os.path.join(_BACKEND_DIR, filepath))
+
+    if filetype_lower == "pdf":
+        # Try embedded text first (fast, no OCR needed, no scores)
+        doc = fitz.open(abs_path)
+        text_parts = []
+        for page_num in range(len(doc)):
+            page = doc.load_page(page_num)
+            page_text = page.get_text("text").strip()
+            if page_text:
+                text_parts.append(page_text)
+        doc.close()
+        full_text = "\n\n".join(text_parts).strip()
+
+        if full_text:
+            # Embedded digital text — no OCR scores available
+            return full_text, []
+
+        # Scanned PDF — OCR with scores
+        return _ocr_pdf_pages_with_scores(abs_path)
+
+    elif filetype_lower in ("png", "jpg", "jpeg", "tiff"):
+        results = _run_paddle_ocr_subprocess_with_scores([abs_path])
+        if results:
+            r = results[0]
+            text = r.get("text", "")
+            scores = r.get("scores", [])
+            if text:
+                print(f"[Text Extraction] Extracted {len(text)} chars (with {len(scores)} scores) from {os.path.basename(filepath)}")
+            return text, scores
+        return "", []
+
+    else:
+        print(f"[Text Extraction] Unsupported file type: {filetype}")
+        return "", []
+
+
+def _ocr_pdf_pages_with_scores(abs_path: str) -> Tuple[str, List[float]]:
+    """
+    Like _ocr_pdf_pages, but returns aggregated (text, scores) across all pages.
+    """
+    try:
+        from app.config import settings
+
+        doc = fitz.open(abs_path)
+        page_count = min(len(doc), 8)
+        temp_paths = []
+
+        try:
+            for page_num in range(page_count):
+                page = doc.load_page(page_num)
+                pix = page.get_pixmap(dpi=150)
+                img_bytes = pix.tobytes("png")
+
+                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                    tmp.write(img_bytes)
+                    temp_paths.append(tmp.name)
+                del pix
+
+            doc.close()
+
+            timeout = max(settings.OCR_PAGE_TIMEOUT * len(temp_paths), 60)
+            results = _run_paddle_ocr_subprocess_with_scores(temp_paths, timeout=timeout)
+
+            all_text_parts = []
+            all_scores = []
+            for r in results:
+                t = r.get("text", "")
+                s = r.get("scores", [])
+                if t:
+                    all_text_parts.append(t)
+                all_scores.extend(s)
+
+            return "\n\n".join(all_text_parts).strip(), all_scores
+
+        finally:
+            for p in temp_paths:
+                try:
+                    os.unlink(p)
+                except OSError:
+                    pass
+
+    except Exception as e:
+        print(f"[Text Extraction] OCR of scanned PDF (with scores) failed: {e}")
+        return "", []

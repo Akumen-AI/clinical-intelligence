@@ -1,0 +1,13 @@
+{
+  "sample_id": 5,
+  "tier": "clean",
+  "font": "Bradley Hand Bold",
+  "fields": {
+    "patient_name": "Aisha Mohammed",
+    "drug_name": "Omeprazole",
+    "dosage": "200mg",
+    "frequency": "QID",
+    "doctor_name": "Dr. S. Johnson",
+    "document_date": "2026-07-15"
+  }
+}

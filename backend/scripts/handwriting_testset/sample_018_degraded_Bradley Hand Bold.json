@@ -1,0 +1,13 @@
+{
+  "sample_id": 18,
+  "tier": "degraded",
+  "font": "Bradley Hand Bold",
+  "fields": {
+    "patient_name": "Raj Sharma",
+    "drug_name": "Amlodipine",
+    "dosage": "50mg",
+    "frequency": "Twice daily",
+    "doctor_name": "Dr. D. Kim",
+    "document_date": "2026-08-03"
+  }
+}

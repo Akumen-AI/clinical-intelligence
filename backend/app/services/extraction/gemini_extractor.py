@@ -4,6 +4,7 @@ from google import genai
 from app.config import settings
 from app.services.extraction.base import ClinicalFieldExtractor, ExtractionResult
 from app.services.extraction.rule_based_extractor import RuleBasedFieldExtractor
+from app.utils.json_parser import clean_and_parse_json
 from app.schemas.extracted_field import ClinicalFieldsSchema
 
 
@@ -27,7 +28,7 @@ class GeminiFieldExtractor(ClinicalFieldExtractor):
                 ),
             )
             raw_text = response.text or ""
-            data = json.loads(raw_text)
+            data = clean_and_parse_json(raw_text, default={})
             fields = ClinicalFieldsSchema.model_validate(data)
             return ExtractionResult(
                 fields=fields,
