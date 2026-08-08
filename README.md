@@ -94,18 +94,29 @@ An enterprise-grade clinical document intake, computer vision preprocessing, dua
 
 ```text
 clinical-intelligence/
+├── alembic/                               # Database migration scripts (project root)
+│   └── versions/
+│       └── 003_add_pending_review_table.py # Adds pending_review & system_config tables
 ├── backend/
+│   ├── alembic/                           # Backend-scoped Alembic migrations
+│   │   └── versions/
 │   ├── app/
 │   │   ├── api/
 │   │   │   ├── upload.py                  # Document intake, status polling, audit logs, deletion
 │   │   │   ├── fields.py                  # Extracted clinical field retrieval & manual extraction
 │   │   │   └── layout.py                  # Layout region detection endpoints
+│   │   ├── routers/
+│   │   │   └── review.py                  # Confidence review queue CRUD endpoints
+│   │   ├── tasks/
+│   │   │   └── routing_tasks.py           # Celery tasks for async confidence routing
 │   │   ├── services/
 │   │   │   ├── upload_service.py          # Pipeline orchestration & background tasks
 │   │   │   ├── validation_service.py      # File validation & audit logging
 │   │   │   ├── preprocessing_service.py   # OpenCV deskewing, denoising, CLAHE contrast
 │   │   │   ├── text_extraction_service.py # PyMuPDF & PaddleOCR text extraction
 │   │   │   ├── confidence_engine.py       # Multi-factor confidence calibration
+│   │   │   ├── confidence_router.py       # Routes fields to canonical or review queue
+│   │   │   ├── canonical_record_service.py# Upserts approved fields to canonical patient record
 │   │   │   ├── field_extraction_service.py# Structured entity extraction & persistence
 │   │   │   ├── layout_detection_service.py# Layout bounding box detection
 │   │   │   ├── layout_trigger.py          # Layout pipeline hooks
@@ -129,23 +140,28 @@ clinical-intelligence/
 │   │   │   ├── document.py                # Document record model
 │   │   │   ├── extracted_field.py         # Extracted clinical field model & confidence index
 │   │   │   ├── layout_region.py           # Layout region bounding box model
+│   │   │   ├── pending_review.py          # PendingReview & SystemConfig models
 │   │   │   └── upload_log.py              # Upload audit trail model
 │   │   ├── schemas/
 │   │   │   ├── upload.py                  # Document & upload response schemas
 │   │   │   ├── extracted_field.py         # Standardized clinical fields schema
-│   │   │   └── layout.py                  # Layout response schema
+│   │   │   ├── layout.py                  # Layout response schema
+│   │   │   └── review.py                  # Review queue request/response schemas
 │   │   ├── utils/
 │   │   │   └── validators.py              # Low-level file validation & magic byte checks
 │   │   ├── static/
 │   │   │   └── index.html                 # Standalone web UI fallback
+│   │   ├── celery_app.py                  # Celery worker configuration
 │   │   ├── config.py                      # Application settings & environment variables
 │   │   ├── database.py                    # SQLite engine & session management
 │   │   └── main.py                        # FastAPI application entry point & CORS configuration
+│   ├── eval_reports/                      # Evaluation report outputs (e.g. handwriting extraction)
 │   ├── tests/                             # Pytest test suite
 │   │   ├── conftest.py
 │   │   ├── test_upload.py
 │   │   ├── test_validation.py
 │   │   ├── test_classification.py
+│   │   ├── test_confidence_router.py
 │   │   ├── test_confidence_scoring.py
 │   │   ├── test_field_extraction.py
 │   │   ├── test_handwriting_routing.py
@@ -171,6 +187,8 @@ clinical-intelligence/
 │   ├── package.json
 │   └── vite.config.js
 │
+├── tests/                                 # Root-level integration tests
+│   └── test_confidence_router.py
 ├── .gitignore
 └── README.md
 ```
@@ -188,6 +206,8 @@ clinical-intelligence/
 | **OCR Engines** | [PaddleOCR 3.7](https://github.com/PaddlePaddle/PaddleOCR), PyMuPDF (digital text) |
 | **Multimodal Vision & Handwriting** | [Google Gemini API](https://ai.google.dev/) (`google-genai`) |
 | **LLM Classification & Extraction** | [Ollama](https://ollama.com/) (Local) / [Google Gemini](https://ai.google.dev/) (Cloud) |
+| **Task Queue** | [Celery](https://docs.celeryq.dev/) (async confidence routing) |
+| **Database Migrations** | [Alembic](https://alembic.sqlalchemy.org/) |
 | **Frontend SPA** | React 18, Vite 5, Lucide Icons, Axios |
 | **Testing** | Pytest, Pytest-Mock |
 
@@ -289,6 +309,7 @@ Configure backend settings via environment variables or a `backend/.env` file:
 | `GEMINI_API_KEY` | `string` | `""` | Google Gemini API key. Required for handwriting recognition or when `AI_PROVIDER=gemini`. |
 | `OLLAMA_MODEL` | `string` | `qwen3:4b` | Ollama model identifier to use for classification and extraction. |
 | `DOCUMENT_CLASSIFICATION_THRESHOLD` | `float` | `0.80` | Confidence threshold below which documents are flagged for manual review (`needs_manual_review = true`). |
+| `CONFIDENCE_THRESHOLD` | `float` | `0.80` | Field-level confidence threshold for routing extracted fields to the canonical record vs. the pending review queue (Story 2.5). |
 | `OLLAMA_TIMEOUT` | `int` | `120` | Read timeout (in seconds) for Ollama HTTP API requests. |
 | `OCR_PAGE_TIMEOUT` | `int` | `120` | Maximum timeout (in seconds) per page for the PaddleOCR subprocess worker. |
 | `HANDWRITING_EXTRACTION_ENABLED` | `bool` | `true` | Enables or disables the multimodal handwriting extraction route. |
@@ -322,6 +343,15 @@ All document routes are served under `/api/v1/documents`.
 | `POST` | `/api/v1/documents/{document_id}/extract` | Manually trigger or re-run clinical field extraction for a document. |
 | `GET` | `/api/v1/documents/{document_id}/layout` | Retrieve detected layout bounding box regions for a document. |
 
+### Confidence Review Queue
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/v1/review/pending` | Retrieve paginated pending review fields (`status=PENDING`). |
+| `PATCH` | `/api/v1/review/pending/{review_id}` | Approve or reject a field. Approving writes the field to the canonical patient record. |
+| `GET` | `/api/v1/review/config/threshold` | Retrieve active confidence threshold and its source (`env` or `db`). |
+| `PUT` | `/api/v1/review/config/threshold` | Update threshold dynamically (validated 0.0 < threshold ≤ 1.0), stored in the `system_config` table. |
+
 ---
 
 ## 🚦 Confidence Routing
@@ -341,7 +371,7 @@ Story 2.5 introduces automated routing for extracted clinical fields based on co
 
 ---
 
-## 🧰 Tech Stack
+## 📋 Extracted Data Schema
 
 The platform structures extracted data into a unified, typed schema:
 
