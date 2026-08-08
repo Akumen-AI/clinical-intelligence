@@ -61,9 +61,10 @@ def extract_and_persist_fields(
         file_path = document.processed_uri or document.raw_uri
         ocr_scores = []
         if ocr_text is None:
-            ocr_text = extract_text(document.raw_uri, document.filetype)
+            # Prefer preprocessed file (PNG) — avoids heavy _ocr_pdf_pages on raw PDFs
+            ocr_text = extract_text(document.processed_uri or document.raw_uri, document.filetype)
             if not ocr_text and document.processed_uri:
-                ocr_text = extract_text(document.processed_uri, document.filetype)
+                ocr_text = extract_text(document.raw_uri, document.filetype)
 
         handwriting_handled = False
         if settings.HANDWRITING_EXTRACTION_ENABLED and settings.GEMINI_API_KEY:

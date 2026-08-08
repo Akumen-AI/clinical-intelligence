@@ -122,8 +122,20 @@ def preprocess_document_file(raw_uri: str, filetype: str) -> tuple[str, int]:
     start_time = time.perf_counter()
     
     if filetype.lower() == "pdf":
+        # Save preprocessed PDF pages as PNG (not back into a PDF).
+        # Re-wrapping into a PDF can create pages that report fake
+        # embedded text, causing the text extraction pipeline to skip
+        # OCR entirely.  PNG is the natural output format since
+        # preprocessing is purely image-based.
+        
+        # Override the output path to use .png extension
+        name_without_ext = os.path.splitext(processed_filename)[0]
+        processed_filename = name_without_ext + ".png"
+        processed_relative_path = "uploads/" + processed_filename
+        processed_abspath = os.path.abspath(os.path.join(backend_dir, processed_relative_path))
+        
         doc = fitz.open(original_abspath)
-        out_doc = fitz.open()
+        page_images = []
         
         for page_num in range(len(doc)):
             page = doc.load_page(page_num)
@@ -140,20 +152,33 @@ def preprocess_document_file(raw_uri: str, filetype: str) -> tuple[str, int]:
                 
             # Preprocess the page image
             processed_img = preprocess_single_image(img)
+            page_images.append(processed_img)
             
-            # Convert back to PNG bytes to insert into output PDF
-            _, img_encoded = cv2.imencode(".png", processed_img)
-            img_bytes = img_encoded.tobytes()
+            del img, img_data, pix
             
-            h, w = processed_img.shape[:2]
-            new_page = out_doc.new_page(width=w, height=h)
-            new_page.insert_image(fitz.Rect(0, 0, w, h), stream=img_bytes)
-            
-            del img, processed_img, img_data, img_bytes, pix
-            
-        out_doc.save(processed_abspath)
-        out_doc.close()
         doc.close()
+        
+        if len(page_images) == 1:
+            # Single-page PDF (most clinical documents) — save directly
+            cv2.imwrite(processed_abspath, page_images[0])
+        else:
+            # Multi-page PDF — vertically concatenate all pages into one tall image
+            # Normalize widths to the maximum width across pages
+            max_width = max(p.shape[1] for p in page_images)
+            normalized = []
+            for p in page_images:
+                if p.shape[1] < max_width:
+                    pad_width = max_width - p.shape[1]
+                    padding = np.full((p.shape[0], pad_width, p.shape[2]), 255, dtype=np.uint8)
+                    p = np.hstack([p, padding])
+                normalized.append(p)
+            combined = np.vstack(normalized)
+            cv2.imwrite(processed_abspath, combined)
+            del combined, normalized
+        
+        for p in page_images:
+            del p
+        del page_images
     else:
         img = cv2.imread(original_abspath, cv2.IMREAD_UNCHANGED)
         if img is None:

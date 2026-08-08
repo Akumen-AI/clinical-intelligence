@@ -42,6 +42,45 @@ _BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 # Timeout for OCR subprocess (seconds).
 _OCR_SUBPROCESS_TIMEOUT = 300
 
+# Minimum character count for embedded PDF text to be considered usable.
+# Below this threshold, fall through to OCR (the text layer is likely
+# garbage from a scanned/image-only PDF).
+_MIN_EMBEDDED_TEXT_LENGTH = 50
+
+
+def _infer_filetype_from_path(filepath: str) -> str:
+    """
+    Infer the actual file type from the file path extension.
+
+    This is critical because the caller-supplied `filetype` reflects the
+    *original upload* format — not the actual format of the file on disk.
+    After preprocessing, a PDF may have been saved as a PNG (or vice versa),
+    so using the caller's filetype leads to the wrong extraction strategy.
+    """
+    ext = os.path.splitext(filepath)[-1].lower().lstrip(".")
+    return ext if ext else "unknown"
+
+
+def _is_embedded_text_usable(text: str) -> bool:
+    """
+    Quality gate for embedded PDF text.
+
+    Returns False if the text is likely garbage from a scanned PDF's thin
+    OCR layer (too short, or dominated by non-alphanumeric characters).
+    """
+    if not text or len(text.strip()) < _MIN_EMBEDDED_TEXT_LENGTH:
+        return False
+
+    # Check ratio of alphanumeric characters — real text should be mostly
+    # letters, digits, and common punctuation. Garbage OCR layers often
+    # contain high proportions of control chars / symbols.
+    alnum_count = sum(1 for c in text if c.isalnum() or c.isspace())
+    ratio = alnum_count / len(text) if text else 0
+    if ratio < 0.5:
+        return False
+
+    return True
+
 
 def _reconstruct_spatial_layout(texts: list, boxes, scores=None) -> str:
     """
@@ -299,7 +338,8 @@ def _extract_text_with_paddle(image_path: str) -> str:
 def extract_text_from_pdf(filepath: str) -> str:
     """
     Extract embedded text from all pages of a PDF using PyMuPDF.
-    Falls back to OCR-based extraction if no embedded text is found.
+    Falls back to OCR-based extraction if no embedded text is found
+    or if the embedded text fails the quality gate.
     """
     abs_path = os.path.abspath(os.path.join(_BACKEND_DIR, filepath))
     doc = fitz.open(abs_path)
@@ -315,8 +355,11 @@ def extract_text_from_pdf(filepath: str) -> str:
 
     full_text = "\n\n".join(text_parts).strip()
 
-    # If PDF has no embedded text (scanned PDF), try OCR via image extraction
-    if not full_text:
+    # Quality gate: if embedded text is absent or garbage, fall through to OCR
+    if not _is_embedded_text_usable(full_text):
+        if full_text:
+            print(f"[Text Extraction] Embedded PDF text failed quality gate "
+                  f"({len(full_text)} chars). Falling back to OCR.")
         full_text = _ocr_pdf_pages(abs_path)
 
     return full_text
@@ -381,23 +424,31 @@ def extract_text(filepath: str, filetype: str) -> str:
     """
     Main entry point: extract text from a document based on its file type.
 
+    Uses the actual file extension from the path (not the caller-supplied
+    filetype) to determine extraction strategy.  This is essential because
+    preprocessing may change the file format (e.g. PDF → PNG).
+
     Args:
         filepath: Relative path to the file (from backend root), e.g. 'uploads/xxx.pdf'
-        filetype: File extension, e.g. 'pdf', 'png', 'jpg'
+        filetype: File extension hint from the original upload.  Used only as
+                  a fallback if the path has no extension.
 
     Returns:
         Extracted text string, or empty string if extraction fails.
     """
-    filetype_lower = filetype.lower()
-    if "/" in filetype_lower:
-        filetype_lower = filetype_lower.split("/")[-1]
+    # Prefer the actual file extension; fall back to the caller-supplied hint
+    actual_type = _infer_filetype_from_path(filepath)
+    if actual_type == "unknown":
+        actual_type = filetype.lower()
+        if "/" in actual_type:
+            actual_type = actual_type.split("/")[-1]
 
-    if filetype_lower == "pdf":
+    if actual_type == "pdf":
         text = extract_text_from_pdf(filepath)
-    elif filetype_lower in ("png", "jpg", "jpeg", "tiff"):
+    elif actual_type in ("png", "jpg", "jpeg", "tiff"):
         text = extract_text_from_image(filepath)
     else:
-        print(f"[Text Extraction] Unsupported file type: {filetype}")
+        print(f"[Text Extraction] Unsupported file type: {actual_type} (from {os.path.basename(filepath)})")
         text = ""
 
     if text:
@@ -545,21 +596,30 @@ def extract_text_with_confidence(
     from PaddleOCR.  Used by the handwriting routing logic to decide
     whether to fall back to a multimodal vision model.
 
+    Uses the actual file extension from the path (not the caller-supplied
+    filetype) to determine extraction strategy.  This is essential because
+    preprocessing may change the file format (e.g. PDF → PNG).
+
     Args:
         filepath: Relative path to the file (from backend root).
-        filetype: File extension (e.g. 'pdf', 'png', 'jpg').
+        filetype: File extension hint from the original upload.  Used only
+                  as a fallback if the path has no extension.
 
     Returns:
         (extracted_text, confidence_scores) — the text string and a list
-        of per-fragment float scores.  For PDFs with embedded text, scores
-        will be an empty list (embedded text has no OCR confidence).
+        of per-fragment float scores.  For PDFs with usable embedded text,
+        scores will be an empty list (embedded text has no OCR confidence).
     """
-    filetype_lower = filetype.lower()
-    if "/" in filetype_lower:
-        filetype_lower = filetype_lower.split("/")[-1]
+    # Prefer the actual file extension; fall back to the caller-supplied hint
+    actual_type = _infer_filetype_from_path(filepath)
+    if actual_type == "unknown":
+        actual_type = filetype.lower()
+        if "/" in actual_type:
+            actual_type = actual_type.split("/")[-1]
+
     abs_path = os.path.abspath(os.path.join(_BACKEND_DIR, filepath))
 
-    if filetype_lower == "pdf":
+    if actual_type == "pdf":
         # Try embedded text first (fast, no OCR needed, no scores)
         doc = fitz.open(abs_path)
         text_parts = []
@@ -571,14 +631,18 @@ def extract_text_with_confidence(
         doc.close()
         full_text = "\n\n".join(text_parts).strip()
 
-        if full_text:
-            # Embedded digital text — no OCR scores available
+        # Quality gate: only trust embedded text if it passes validation
+        if _is_embedded_text_usable(full_text):
             return full_text, []
 
-        # Scanned PDF — OCR with scores
+        if full_text:
+            print(f"[Text Extraction] Embedded PDF text failed quality gate "
+                  f"({len(full_text)} chars). Falling back to OCR.")
+
+        # Scanned / image-only PDF — OCR with scores
         return _ocr_pdf_pages_with_scores(abs_path)
 
-    elif filetype_lower in ("png", "jpg", "jpeg", "tiff"):
+    elif actual_type in ("png", "jpg", "jpeg", "tiff"):
         results = _run_paddle_ocr_subprocess_with_scores([abs_path])
         if results:
             r = results[0]
@@ -590,7 +654,7 @@ def extract_text_with_confidence(
         return "", []
 
     else:
-        print(f"[Text Extraction] Unsupported file type: {filetype}")
+        print(f"[Text Extraction] Unsupported file type: {actual_type} (from {os.path.basename(filepath)})")
         return "", []
 
 

@@ -126,14 +126,18 @@ def process_document(db: Session, document_id: str):
         handwriting_result = None
         ocr_scores = []
 
-        # For PDFs, check raw_uri first for embedded digital text (fast and uses zero RAM)
-        if doc.filetype.lower() == "pdf":
+        # Extract text from the best available source.
+        # After preprocessing, PDFs are saved as PNGs, so _infer_filetype_from_path
+        # in the text extraction service routes them correctly through OCR.
+        # Prefer the preprocessed file (denoised/deskewed) for better OCR accuracy
+        # and to avoid the heavy _ocr_pdf_pages path on the raw PDF (which would
+        # spawn a PaddleOCR subprocess alongside Ollama, risking OOM on low-RAM machines).
+        ocr_source = doc.processed_uri or doc.raw_uri
+        ocr_text, ocr_scores = extract_text_with_confidence(ocr_source, doc.filetype)
+
+        # Fallback: if preprocessed file yielded no text, try the raw file
+        if not ocr_text and doc.processed_uri:
             ocr_text, ocr_scores = extract_text_with_confidence(doc.raw_uri, doc.filetype)
-            if not ocr_text and doc.processed_uri:
-                ocr_text, ocr_scores = extract_text_with_confidence(doc.processed_uri, doc.filetype)
-        else:
-            ocr_source = doc.processed_uri or doc.raw_uri
-            ocr_text, ocr_scores = extract_text_with_confidence(ocr_source, doc.filetype)
 
         # --- Handwriting routing decision ---
         # If PaddleOCR confidence scores suggest handwriting/illegibility,
