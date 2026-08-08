@@ -1,0 +1,13 @@
+{
+  "sample_id": 12,
+  "tier": "moderate",
+  "font": "Bradley Hand Bold",
+  "fields": {
+    "patient_name": "Carlos Rivera",
+    "drug_name": "Ciprofloxacin",
+    "dosage": "500mg",
+    "frequency": "BID",
+    "doctor_name": "Dr. T. Nguyen",
+    "document_date": "2026-05-25"
+  }
+}

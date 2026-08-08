@@ -1,0 +1,13 @@
+{
+  "sample_id": 13,
+  "tier": "moderate",
+  "font": "MarkerFelt.ttc",
+  "fields": {
+    "patient_name": "Carlos Rivera",
+    "drug_name": "Gabapentin",
+    "dosage": "100mg",
+    "frequency": "TID",
+    "doctor_name": "Dr. R. Patel",
+    "document_date": "2026-05-10"
+  }
+}

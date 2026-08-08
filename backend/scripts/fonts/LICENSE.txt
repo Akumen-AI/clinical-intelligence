@@ -1,0 +1,13 @@
+These fonts are sourced from Google Fonts (https://fonts.google.com/) and are
+licensed under the SIL Open Font License, Version 1.1 (OFL-1.1).
+
+Fonts included:
+- Caveat (by Impallari Type) — https://fonts.google.com/specimen/Caveat
+- Homemade Apple (by Font Diner) — https://fonts.google.com/specimen/Homemade+Apple
+- Reenie Beanie (by James Grieshaber) — https://fonts.google.com/specimen/Reenie+Beanie
+
+The OFL license permits redistribution and use in software provided the fonts
+are not sold by themselves. Full license text: https://scripts.sil.org/OFL
+
+These fonts are used solely for generating synthetic handwriting test samples
+in the evaluation pipeline. They are not distributed to end users.

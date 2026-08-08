@@ -1,0 +1,13 @@
+{
+  "sample_id": 14,
+  "tier": "moderate",
+  "font": "MarkerFelt.ttc",
+  "fields": {
+    "patient_name": "Daniel Nguyen",
+    "drug_name": "Pantoprazole",
+    "dosage": "20mg",
+    "frequency": "BID",
+    "doctor_name": "Dr. R. Patel",
+    "document_date": "2026-08-05"
+  }
+}

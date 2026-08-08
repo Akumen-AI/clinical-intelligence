@@ -1,0 +1,13 @@
+{
+  "sample_id": 17,
+  "tier": "degraded",
+  "font": "Bradley Hand Bold",
+  "fields": {
+    "patient_name": "Li Wei",
+    "drug_name": "Atorvastatin",
+    "dosage": "10mg",
+    "frequency": "Every 8 hours",
+    "doctor_name": "Dr. R. Patel",
+    "document_date": "2026-04-20"
+  }
+}

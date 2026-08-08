@@ -1,0 +1,13 @@
+{
+  "sample_id": 11,
+  "tier": "moderate",
+  "font": "MarkerFelt.ttc",
+  "fields": {
+    "patient_name": "Aisha Mohammed",
+    "drug_name": "Doxycycline",
+    "dosage": "200mg",
+    "frequency": "At bedtime",
+    "doctor_name": "Dr. E. Brown",
+    "document_date": "2026-08-01"
+  }
+}
