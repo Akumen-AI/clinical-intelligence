@@ -167,6 +167,19 @@ def extract_and_persist_fields(
         db.refresh(target_doc)
 
     print(f"[Field Extraction] Persisted {len(records)} fields for document {document.document_id}")
+    
+    # Story 2.5: Automatically enqueue confidence routing task for extracted fields
+    try:
+        from app.tasks.routing_tasks import route_document_fields
+        route_document_fields.delay(document.document_id)
+    except Exception as exc:
+        # Fallback to direct routing execution if Celery broker unavailable
+        try:
+            from app.tasks.routing_tasks import route_document_fields
+            route_document_fields(document.document_id)
+        except Exception as e:
+            print(f"[Field Extraction] Direct routing execution error: {e}")
+
     return fields, records
 
 
