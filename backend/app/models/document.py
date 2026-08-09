@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 import enum
 from sqlalchemy import Column, String, DateTime, Integer, Float, Boolean
+from sqlalchemy.orm import synonym
 from app.database import Base
 
 class DocumentStatus(str, enum.Enum):
@@ -21,6 +22,7 @@ class Document(Base):
     __tablename__ = "documents"
 
     document_id = Column(String(36), primary_key=True, index=True)
+    id = synonym("document_id")
     patient_id = Column(String(36), nullable=True)
     filename = Column(String(255), nullable=False)
     raw_uri = Column(String(500), nullable=False)
