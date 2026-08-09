@@ -10,6 +10,7 @@ from sqlalchemy import (
     JSON,
     String,
 )
+from sqlalchemy.orm import synonym
 from app.database import Base
 
 
@@ -33,6 +34,7 @@ class ExtractedField(Base):
     )
 
     field_id = Column(String(36), primary_key=True, default=generate_uuid, index=True)
+    id = synonym("field_id")
     document_id = Column(
         String(36),
         ForeignKey("documents.document_id", ondelete="CASCADE"),

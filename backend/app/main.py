@@ -18,10 +18,13 @@ from app.models.upload_log import UploadLog
 from app.models.layout_region import LayoutRegion
 from app.models.extracted_field import ExtractedField
 from app.models.pending_review import PendingReview, SystemConfig
+from app.models.correction_log import CorrectionLog
+from app.models.user import User
 from app.api import upload
 from app.api import layout
 from app.api import fields
 from app.routers import review
+from app.api.v1.correction_logs import router as correction_logs_router
 from app.services import layout_trigger
 from app.services.upload_service import ensure_upload_directory_exists
 
@@ -100,6 +103,7 @@ app.include_router(upload.router, prefix="/api/v1")
 app.include_router(layout.router, prefix="/api/v1")
 app.include_router(fields.router, prefix="/api/v1")
 app.include_router(review.router, prefix="/api/v1")
+app.include_router(correction_logs_router, prefix="/api/v1")
 
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_dir):

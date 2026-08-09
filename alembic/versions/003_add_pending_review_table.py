@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '003_add_pending_review_table'
-down_revision = '002_add_confidence_check_and_index'
+down_revision = None
 branch_labels = None
 depends_on = None
 
