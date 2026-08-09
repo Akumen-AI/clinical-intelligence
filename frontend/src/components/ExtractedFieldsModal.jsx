@@ -16,7 +16,7 @@ import {
   CheckCircle2, 
   Sparkles 
 } from 'lucide-react';
-import { fetchDocumentFields, extractDocumentFields } from '../services/api';
+import { fetchDocumentFields, extractDocumentFields, getDocumentStaticUrl } from '../services/api';
 
 export default function ExtractedFieldsModal({ document: doc, onClose, onRefreshRequired }) {
   const [data, setData] = useState(null);
@@ -217,7 +217,52 @@ export default function ExtractedFieldsModal({ document: doc, onClose, onRefresh
               };
 
               return (
-                <div className="json-container">
+                <div className="json-review-layout">
+                  <section className="source-file-panel" aria-label="Original uploaded document">
+                    <div className="source-file-header">
+                      <div>
+                        <span className="source-file-eyebrow">Original upload</span>
+                        <strong>{doc.filename}</strong>
+                      </div>
+                      {doc.raw_uri && (
+                        <a
+                          className="source-file-open"
+                          href={getDocumentStaticUrl(doc.raw_uri)}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Open
+                        </a>
+                      )}
+                    </div>
+                    <div className="source-file-viewport">
+                      {doc.raw_uri ? (
+                        (doc.filetype || '').toLowerCase() === 'pdf' || doc.filename?.toLowerCase().endsWith('.pdf') ? (
+                          <iframe
+                            title={`Original uploaded file: ${doc.filename}`}
+                            src={getDocumentStaticUrl(doc.raw_uri)}
+                            className="source-file-pdf"
+                          />
+                        ) : (
+                          <img
+                            src={getDocumentStaticUrl(doc.raw_uri)}
+                            alt={`Original uploaded file: ${doc.filename}`}
+                            className="source-file-image"
+                          />
+                        )
+                      ) : (
+                        <div className="source-file-empty">
+                          <FileText size={30} />
+                          <span>Original file unavailable</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="source-file-caption">
+                      Compare this source with the extracted JSON →
+                    </div>
+                  </section>
+
+                  <section className="json-container" aria-label="Extracted JSON">
                   <div className="json-toolbar">
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)', fontFamily: 'monospace' }}>
                       schema: ClinicalFieldsSchema (with confidence scores)
@@ -290,12 +335,40 @@ export default function ExtractedFieldsModal({ document: doc, onClose, onRefresh
                   <pre className="json-code-block">
                     <code>{JSON.stringify(fieldsWithConfidence, null, 2)}</code>
                   </pre>
+                  </section>
                 </div>
               );
             })()
           ) : (
             /* Structured Clinical Summary View */
-            <div className="summary-cards-grid">
+            <div className="summary-review-layout">
+              <section className="source-file-panel" aria-label="Original uploaded document">
+                <div className="source-file-header">
+                  <div>
+                    <span className="source-file-eyebrow">Original upload</span>
+                    <strong>{doc.filename}</strong>
+                  </div>
+                  {doc.raw_uri && (
+                    <a className="source-file-open" href={getDocumentStaticUrl(doc.raw_uri)} target="_blank" rel="noreferrer">
+                      Open
+                    </a>
+                  )}
+                </div>
+                <div className="source-file-viewport">
+                  {doc.raw_uri ? (
+                    (doc.filetype || '').toLowerCase() === 'pdf' || doc.filename?.toLowerCase().endsWith('.pdf') ? (
+                      <iframe title={`Original uploaded file: ${doc.filename}`} src={getDocumentStaticUrl(doc.raw_uri)} className="source-file-pdf" />
+                    ) : (
+                      <img src={getDocumentStaticUrl(doc.raw_uri)} alt={`Original uploaded file: ${doc.filename}`} className="source-file-image" />
+                    )
+                  ) : (
+                    <div className="source-file-empty"><FileText size={30} /><span>Original file unavailable</span></div>
+                  )}
+                </div>
+                <div className="source-file-caption">Original uploaded document</div>
+              </section>
+
+              <div className="summary-cards-grid">
               {/* Patient Identifiers */}
               <div className="summary-card">
                 <div className="summary-card-header">
@@ -553,6 +626,7 @@ export default function ExtractedFieldsModal({ document: doc, onClose, onRefresh
                     </div>
                   )}
                 </div>
+              </div>
               </div>
             </div>
           )}

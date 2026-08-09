@@ -65,5 +65,76 @@ export const extractDocumentFields = async (documentId) => {
   return response.data;
 };
 
-export default apiClient;
+// ── Review Queue (Story 3.1) ───────────────────────────────────────────────
 
+/**
+ * Fetch paginated pending review items.
+ * @param {string|null} documentId - optional filter
+ * @param {number} page - 1-indexed
+ * @param {number} pageSize
+ */
+export const fetchPendingReviews = async (documentId = null, page = 1, pageSize = 50) => {
+  const params = { page, page_size: pageSize };
+  if (documentId) params.document_id = documentId;
+  const response = await apiClient.get('/review/pending', { params });
+  return response.data;
+};
+
+/**
+ * Fetch enriched context for one pending review item (joins document + bounding box).
+ */
+export const fetchReviewContext = async (reviewId) => {
+  const response = await apiClient.get(`/review/pending/${reviewId}/context`);
+  return response.data;
+};
+
+/**
+ * Submit an accept / reject decision.
+ * @param {string} reviewId
+ * @param {'approve'|'reject'} action
+ * @param {string|null} correctedValue - if set, writes this value to the canonical record
+ * @param {string|null} reviewerId
+ */
+export const submitReviewAction = async (reviewId, action, correctedValue = null, reviewerId = null) => {
+  const payload = { action };
+  if (correctedValue !== null) payload.corrected_value = correctedValue;
+  if (reviewerId) payload.reviewer_id = reviewerId;
+  const response = await apiClient.patch(`/review/pending/${reviewId}`, payload);
+  return response.data;
+};
+
+/**
+ * Returns the URL to stream the document image for a given review item.
+ * @param {string} reviewId
+ * @param {boolean} fullPage - request the full page instead of cropped region
+ */
+export const getReviewImageUrl = (reviewId, fullPage = false) => {
+  const base = API_BASE_URL.replace(/\/$/, '');
+  return `${base}/review/pending/${reviewId}/image${fullPage ? '?full_page=true' : ''}`;
+};
+
+/**
+ * Returns the static URL for a document upload given its raw_uri.
+ * raw_uri is typically  'uploads/<filename>'
+ */
+export const getDocumentStaticUrl = (rawUri) => {
+  if (!rawUri) return null;
+  // raw_uri = 'uploads/xyz.png' → served at /uploads/xyz.png by FastAPI StaticFiles
+  const relative = rawUri.startsWith('/') ? rawUri : `/${rawUri}`;
+  const apiOrigin = API_BASE_URL.startsWith('http')
+    ? new URL(API_BASE_URL).origin
+    : window.location.origin.replace('5173', '8000'); // dev proxy
+  return `${apiOrigin}${relative}`;
+};
+
+export const fetchThresholdConfig = async () => {
+  const response = await apiClient.get('/review/config/threshold');
+  return response.data;
+};
+
+export const updateThresholdConfig = async (threshold) => {
+  const response = await apiClient.put('/review/config/threshold', { threshold });
+  return response.data;
+};
+
+export default apiClient;
