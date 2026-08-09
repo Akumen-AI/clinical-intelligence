@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import UploadPage from './pages/UploadPage';
+import ReviewQueuePage from './pages/ReviewQueuePage';
+import { Activity, ClipboardCheck } from 'lucide-react';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -59,14 +61,43 @@ class ErrorBoundary extends React.Component {
 }
 
 function App() {
+  const [activePage, setActivePage] = useState('intake'); // 'intake' | 'review'
+
   return (
     <ErrorBoundary>
       <div className="App">
-        <UploadPage />
+        {/* Global navigation bar */}
+        <nav className="global-nav">
+          <div className="global-nav-inner">
+            <div className="global-nav-brand">
+              <Activity size={18} color="var(--primary-cyan)" />
+              <span>Clinical Intelligence Platform</span>
+            </div>
+            <div className="global-nav-tabs">
+              <button
+                id="nav-intake-tab"
+                className={`global-nav-tab ${activePage === 'intake' ? 'active' : ''}`}
+                onClick={() => setActivePage('intake')}
+              >
+                <Activity size={15} />
+                Document Intake
+              </button>
+              <button
+                id="nav-review-tab"
+                className={`global-nav-tab ${activePage === 'review' ? 'active' : ''}`}
+                onClick={() => setActivePage('review')}
+              >
+                <ClipboardCheck size={15} />
+                Review Queue
+              </button>
+            </div>
+          </div>
+        </nav>
+
+        {activePage === 'intake' ? <UploadPage /> : <ReviewQueuePage />}
       </div>
     </ErrorBoundary>
   );
 }
 
 export default App;
-
