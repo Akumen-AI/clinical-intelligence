@@ -15,6 +15,8 @@ from app.models.extracted_field import ExtractedField
 from app.models.pending_review import PendingReview, SystemConfig
 from app.models.correction_log import CorrectionLog
 from app.models.user import User
+from app.models.patient import Patient
+from app.models.clinical_record import Visit, Medication, Diagnosis, Vital, Lab, Procedure
 
 config = context.config
 if config.config_file_name:
