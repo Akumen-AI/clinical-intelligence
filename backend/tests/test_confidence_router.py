@@ -276,6 +276,7 @@ def test_patch_review_approve_and_reject(test_client):
             field_name="patient_id",
             value="PAT-12345",
             confidence=0.70,
+            human_verified=True,
             db=pytest.any if hasattr(pytest, 'any') else mock_upsert.call_args[1]['db'],
         )
 

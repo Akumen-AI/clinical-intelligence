@@ -14,6 +14,13 @@ from sqlalchemy.orm import synonym
 from app.database import Base
 
 
+class VerificationStatus:
+    PENDING = "pending"
+    AUTO_PASSED = "auto_passed"
+    HUMAN_VERIFIED = "human_verified"
+    REJECTED = "rejected"
+
+
 def generate_uuid() -> str:
     return str(uuid.uuid4())
 
@@ -52,7 +59,7 @@ class ExtractedField(Base):
     #                  reasonable confidence; requires manual entry.
     #                  When set, confidence_score will be 0.0 and the parent
     #                  Document.needs_manual_review will be True.
-    verification_status = Column(String(50), default="extracted", nullable=False)
+    verification_status = Column(String(50), default=VerificationStatus.PENDING, nullable=False, index=True)
     verified_value = Column(JSON, nullable=True)
     reviewer_id = Column(String(36), nullable=True)
     created_at = Column(

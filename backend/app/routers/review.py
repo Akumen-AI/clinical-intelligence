@@ -349,6 +349,7 @@ def review_pending_field(
             value=value_to_write,
             confidence=review_rec.confidence_score,
             db=db,
+            human_verified=True,
         )
     elif payload.action == "reject":
         review_rec.status = ReviewStatus.REJECTED

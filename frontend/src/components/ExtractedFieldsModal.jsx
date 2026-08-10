@@ -16,7 +16,7 @@ import {
   CheckCircle2, 
   Sparkles 
 } from 'lucide-react';
-import { fetchDocumentFields, extractDocumentFields, getDocumentStaticUrl } from '../services/api';
+import { fetchDocumentFields, extractDocumentFields, getDocumentFileUrl } from '../services/api';
 
 export default function ExtractedFieldsModal({ document: doc, onClose, onRefreshRequired }) {
   const [data, setData] = useState(null);
@@ -227,7 +227,7 @@ export default function ExtractedFieldsModal({ document: doc, onClose, onRefresh
                       {doc.raw_uri && (
                         <a
                           className="source-file-open"
-                          href={getDocumentStaticUrl(doc.raw_uri)}
+                          href={getDocumentFileUrl(doc.document_id)}
                           target="_blank"
                           rel="noreferrer"
                         >
@@ -240,12 +240,12 @@ export default function ExtractedFieldsModal({ document: doc, onClose, onRefresh
                         (doc.filetype || '').toLowerCase() === 'pdf' || doc.filename?.toLowerCase().endsWith('.pdf') ? (
                           <iframe
                             title={`Original uploaded file: ${doc.filename}`}
-                            src={getDocumentStaticUrl(doc.raw_uri)}
+                            src={getDocumentFileUrl(doc.document_id)}
                             className="source-file-pdf"
                           />
                         ) : (
                           <img
-                            src={getDocumentStaticUrl(doc.raw_uri)}
+                            src={getDocumentFileUrl(doc.document_id)}
                             alt={`Original uploaded file: ${doc.filename}`}
                             className="source-file-image"
                           />
@@ -349,7 +349,7 @@ export default function ExtractedFieldsModal({ document: doc, onClose, onRefresh
                     <strong>{doc.filename}</strong>
                   </div>
                   {doc.raw_uri && (
-                    <a className="source-file-open" href={getDocumentStaticUrl(doc.raw_uri)} target="_blank" rel="noreferrer">
+                    <a className="source-file-open" href={getDocumentFileUrl(doc.document_id)} target="_blank" rel="noreferrer">
                       Open
                     </a>
                   )}
@@ -357,9 +357,9 @@ export default function ExtractedFieldsModal({ document: doc, onClose, onRefresh
                 <div className="source-file-viewport">
                   {doc.raw_uri ? (
                     (doc.filetype || '').toLowerCase() === 'pdf' || doc.filename?.toLowerCase().endsWith('.pdf') ? (
-                      <iframe title={`Original uploaded file: ${doc.filename}`} src={getDocumentStaticUrl(doc.raw_uri)} className="source-file-pdf" />
+                      <iframe title={`Original uploaded file: ${doc.filename}`} src={getDocumentFileUrl(doc.document_id)} className="source-file-pdf" />
                     ) : (
-                      <img src={getDocumentStaticUrl(doc.raw_uri)} alt={`Original uploaded file: ${doc.filename}`} className="source-file-image" />
+                      <img src={getDocumentFileUrl(doc.document_id)} alt={`Original uploaded file: ${doc.filename}`} className="source-file-image" />
                     )
                   ) : (
                     <div className="source-file-empty"><FileText size={30} /><span>Original file unavailable</span></div>
