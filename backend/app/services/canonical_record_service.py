@@ -1,13 +1,70 @@
 import logging
-import uuid
-from datetime import datetime, timezone
 from typing import Any, Optional
+
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
-from app.models.extracted_field import ExtractedField
+from app.models.canonical_patient_record import CanonicalPatientRecord
+from app.models.extracted_field import ExtractedField, VerificationStatus
 
 logger = logging.getLogger("app.services.canonical_record_service")
+
+
+class CanonicalWriteRejected(ValueError):
+    """Raised when an extracted field has not passed verification."""
+
+
+def write_field_to_canonical_record(
+    field: ExtractedField,
+    db: Session,
+    value: Any = None,
+) -> CanonicalPatientRecord:
+    """The sole write boundary for extracted values entering the canonical record."""
+    status = field.verification_status
+    allowed = {VerificationStatus.AUTO_PASSED, VerificationStatus.HUMAN_VERIFIED}
+    if status not in allowed:
+        reason = f"verification status '{status}' is not allowed; required auto_passed or human_verified"
+        logger.warning(
+            "[CanonicalRecordService] Rejected canonical write: field_id=%s document_id=%s status=%s reason=%s",
+            field.field_id,
+            field.document_id,
+            status,
+            reason,
+        )
+        raise CanonicalWriteRejected(
+            f"Canonical write rejected for field '{field.field_name}': {reason}"
+        )
+
+    canonical = (
+        db.query(CanonicalPatientRecord)
+        .filter(
+            CanonicalPatientRecord.document_id == field.document_id,
+            CanonicalPatientRecord.field_name == field.field_name,
+        )
+        .first()
+    )
+    if canonical is None:
+        canonical = CanonicalPatientRecord(
+            document_id=field.document_id,
+            field_name=field.field_name,
+            value=field.verified_value if value is None and field.verified_value is not None else (field.raw_value if value is None else value),
+            source_field_id=field.field_id,
+        )
+        db.add(canonical)
+    else:
+        canonical.value = field.verified_value if value is None and field.verified_value is not None else (field.raw_value if value is None else value)
+        canonical.source_field_id = field.field_id
+
+    db.commit()
+    db.refresh(canonical)
+    logger.info(
+        "[CanonicalRecordService] Canonical write succeeded: field_id=%s document_id=%s status=%s record_id=%s",
+        field.field_id,
+        field.document_id,
+        status,
+        canonical.record_id,
+    )
+    return canonical
 
 
 def upsert_field(
@@ -16,58 +73,36 @@ def upsert_field(
     value: Any,
     confidence: float,
     db: Optional[Session] = None,
-) -> ExtractedField:
-    """
-    Upserts a high-confidence or human-verified field into the canonical patient record.
-    Ensures that verified data enters the canonical store.
-    """
+    human_verified: bool = False,
+) -> CanonicalPatientRecord:
+    """Compatibility adapter; all persistence delegates to the verification gate."""
     close_db = False
     if db is None:
         db = SessionLocal()
         close_db = True
-
     try:
-        field_rec = (
+        field = (
             db.query(ExtractedField)
-            .filter(
-                ExtractedField.document_id == document_id,
-                ExtractedField.field_name == field_name,
-            )
+            .filter(ExtractedField.document_id == document_id, ExtractedField.field_name == field_name)
             .first()
         )
-
-        if field_rec:
-            field_rec.verified_value = value
-            field_rec.verification_status = "canonical_committed"
-            field_rec.confidence_score = confidence
-        else:
-            field_rec = ExtractedField(
-                field_id=str(uuid.uuid4()),
+        if field is None:
+            field = ExtractedField(
                 document_id=document_id,
                 field_name=field_name,
                 raw_value=value,
-                verified_value=value,
                 confidence_score=confidence,
-                verification_status="canonical_committed",
-                created_at=datetime.now(timezone.utc),
+                verification_status=VerificationStatus.HUMAN_VERIFIED if human_verified else VerificationStatus.AUTO_PASSED,
             )
-            db.add(field_rec)
-
-        db.commit()
-        db.refresh(field_rec)
-
-        logger.info(
-            f"[CanonicalRecordService] Upserted canonical field '{field_name}' "
-            f"for document '{document_id}' with confidence {confidence:.2f}"
-        )
-        return field_rec
-    except Exception as e:
+            db.add(field)
+            db.flush()
+        elif human_verified:
+            field.verified_value = value
+            field.verification_status = VerificationStatus.HUMAN_VERIFIED
+        return write_field_to_canonical_record(field, db, value=value)
+    except Exception:
         db.rollback()
-        logger.error(
-            f"[CanonicalRecordService] Failed to upsert field '{field_name}' "
-            f"for document '{document_id}': {e}"
-        )
-        raise e
+        raise
     finally:
         if close_db:
             db.close()

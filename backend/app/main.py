@@ -17,6 +17,7 @@ from app.models.document import Document
 from app.models.upload_log import UploadLog
 from app.models.layout_region import LayoutRegion
 from app.models.extracted_field import ExtractedField
+from app.models.canonical_patient_record import CanonicalPatientRecord
 from app.models.pending_review import PendingReview, SystemConfig
 from app.api import upload
 from app.api import layout

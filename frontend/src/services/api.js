@@ -127,6 +127,13 @@ export const getDocumentStaticUrl = (rawUri) => {
   return `${apiOrigin}${relative}`;
 };
 
+/** Returns the browser-accessible URL for the original uploaded document. */
+export const getDocumentFileUrl = (documentId) => {
+  if (!documentId) return null;
+  const base = API_BASE_URL.replace(/\/$/, '');
+  return `${base}/documents/${documentId}/file`;
+};
+
 export const fetchThresholdConfig = async () => {
   const response = await apiClient.get('/review/config/threshold');
   return response.data;
