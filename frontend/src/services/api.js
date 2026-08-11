@@ -144,4 +144,57 @@ export const updateThresholdConfig = async (threshold) => {
   return response.data;
 };
 
+// ── Patient Timeline (Story 4.2) ───────────────────────────────────────────
+
+export const fetchTimeline = async (patientId = null) => {
+  const params = {};
+  if (patientId) params.patient_id = patientId;
+  const response = await apiClient.get('/timeline', { params });
+  return response.data;
+};
+
+export const fetchTimelineEvent = async (documentId) => {
+  const response = await apiClient.get(`/timeline/${documentId}`);
+  return response.data;
+};
+
+// ── Canonical Patient Records ──────────────────────────────────────────────
+
+/**
+ * Fetch paginated canonical patient records.
+ * @param {Object} params - Query filters
+ * @param {string|null} params.document_id
+ * @param {string|null} params.patient_id
+ * @param {string|null} params.field_name
+ * @param {string|null} params.search
+ * @param {number} params.page - 1-indexed
+ * @param {number} params.page_size
+ */
+export const fetchCanonicalRecords = async ({
+  document_id = null,
+  patient_id = null,
+  field_name = null,
+  search = null,
+  page = 1,
+  page_size = 50,
+} = {}) => {
+  const params = { page, page_size };
+  if (document_id) params.document_id = document_id;
+  if (patient_id) params.patient_id = patient_id;
+  if (field_name) params.field_name = field_name;
+  if (search) params.search = search;
+  const response = await apiClient.get('/canonical-records', { params });
+  return response.data;
+};
+
+/**
+ * Fetch a single canonical record by ID.
+ * @param {string} recordId
+ */
+export const fetchCanonicalRecord = async (recordId) => {
+  const response = await apiClient.get(`/canonical-records/${recordId}`);
+  return response.data;
+};
+
 export default apiClient;
+
