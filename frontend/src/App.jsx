@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import UploadPage from './pages/UploadPage';
 import ReviewQueuePage from './pages/ReviewQueuePage';
-import { Activity, ClipboardCheck } from 'lucide-react';
+import CanonicalRecordPage from './pages/CanonicalRecordPage';
+import TimelinePage from './pages/TimelinePage';
+import { Activity, ClipboardCheck, Database, Clock } from 'lucide-react';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -61,7 +63,7 @@ class ErrorBoundary extends React.Component {
 }
 
 function App() {
-  const [activePage, setActivePage] = useState('intake'); // 'intake' | 'review'
+  const [activePage, setActivePage] = useState('intake'); // 'intake' | 'review' | 'canonical' | 'timeline'
 
   return (
     <ErrorBoundary>
@@ -90,11 +92,30 @@ function App() {
                 <ClipboardCheck size={15} />
                 Review Queue
               </button>
+              <button
+                id="nav-canonical-tab"
+                className={`global-nav-tab ${activePage === 'canonical' ? 'active' : ''}`}
+                onClick={() => setActivePage('canonical')}
+              >
+                <Database size={15} />
+                Canonical Records
+              </button>
+              <button
+                id="nav-timeline-tab"
+                className={`global-nav-tab ${activePage === 'timeline' ? 'active' : ''}`}
+                onClick={() => setActivePage('timeline')}
+              >
+                <Clock size={15} />
+                Patient Timeline
+              </button>
             </div>
           </div>
         </nav>
 
-        {activePage === 'intake' ? <UploadPage /> : <ReviewQueuePage />}
+        {activePage === 'intake' && <UploadPage />}
+        {activePage === 'review' && <ReviewQueuePage />}
+        {activePage === 'canonical' && <CanonicalRecordPage />}
+        {activePage === 'timeline' && <TimelinePage />}
       </div>
     </ErrorBoundary>
   );

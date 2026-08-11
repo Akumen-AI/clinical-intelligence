@@ -24,6 +24,8 @@ from app.models.user import User
 from app.api import upload
 from app.api import layout
 from app.api import fields
+from app.api import timeline
+from app.api import canonical_records
 from app.routers import review
 from app.api.v1.correction_logs import router as correction_logs_router
 from app.services import layout_trigger
@@ -103,6 +105,8 @@ app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
 app.include_router(upload.router, prefix="/api/v1")
 app.include_router(layout.router, prefix="/api/v1")
 app.include_router(fields.router, prefix="/api/v1")
+app.include_router(timeline.router, prefix="/api/v1")
+app.include_router(canonical_records.router, prefix="/api/v1")
 app.include_router(review.router, prefix="/api/v1")
 app.include_router(correction_logs_router, prefix="/api/v1")
 
