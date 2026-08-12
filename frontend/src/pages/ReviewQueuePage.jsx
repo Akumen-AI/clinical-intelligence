@@ -308,6 +308,28 @@ export default function ReviewQueuePage() {
             );
           })}
         </div>
+        {selectedDocId !== 'ALL' && (
+          <button 
+            className="btn btn-secondary" 
+            style={{ marginLeft: '1rem', whiteSpace: 'nowrap' }}
+            onClick={async () => {
+              const pid = window.prompt("Enter Patient ID to link this document:");
+              if (pid) {
+                try {
+                  const { linkDocumentToPatient } = await import('../services/api');
+                  await linkDocumentToPatient(selectedDocId, pid);
+                  setToastMsg({ msg: `Document linked to patient ${pid}`, type: 'success' });
+                  setTimeout(() => setToastMsg(null), 2500);
+                } catch (err) {
+                  setToastMsg({ msg: err.response?.data?.detail || 'Link failed', type: 'error' });
+                  setTimeout(() => setToastMsg(null), 2500);
+                }
+              }
+            }}
+          >
+            Link to Patient
+          </button>
+        )}
       </div>
 
       {/* ── Split pane ── */}

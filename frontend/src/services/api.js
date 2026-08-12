@@ -144,6 +144,11 @@ export const updateThresholdConfig = async (threshold) => {
   return response.data;
 };
 
+export const linkDocumentToPatient = async (documentId, patientId) => {
+  const response = await apiClient.post(`/documents/${documentId}/link-patient`, { patient_id: patientId });
+  return response.data;
+};
+
 // ── Patient Timeline (Story 4.2) ───────────────────────────────────────────
 
 export const fetchTimeline = async (patientId = null) => {

@@ -12,7 +12,8 @@ from app.schemas.upload import (
     RejectedUploadItem,
     UploadSummaryResponse,
     UploadLogResponse,
-    ErrorResponseSchema
+    ErrorResponseSchema,
+    PatientLinkRequest
 )
 from app.services import upload_service
 from app.services.validation_service import ValidationService
@@ -252,4 +253,38 @@ async def delete_all_documents(db: Session = Depends(get_db)):
     """
     count = upload_service.delete_all_documents(db)
     return {"message": f"Deleted {count} document(s) successfully.", "count": count}
+
+@router.post("/{document_id}/link-patient", status_code=status.HTTP_200_OK)
+async def link_patient(
+    document_id: str,
+    request: PatientLinkRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    POST /api/v1/documents/{document_id}/link-patient
+    
+    Link a document to a specific patient.
+    """
+    from app.models.patient import Patient
+    
+    doc = upload_service.get_document_by_id(db, document_id)
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document with ID '{document_id}' not found."
+        )
+        
+    patient = db.query(Patient).filter(Patient.patient_id == request.patient_id).first()
+    if not patient:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Patient with ID '{request.patient_id}' not found."
+        )
+        
+    doc.patient_id = request.patient_id
+    db.commit()
+    db.refresh(doc)
+    
+    return {"message": f"Document '{document_id}' linked to patient '{request.patient_id}' successfully."}
+
 

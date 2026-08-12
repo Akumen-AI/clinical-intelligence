@@ -5,6 +5,7 @@ import logging
 import pytest
 
 from app.models.extracted_field import ExtractedField
+from app.models.canonical_patient_record import CanonicalPatientRecord
 from app.services import canonical_record_service
 from app.services.canonical_record_service import CanonicalWriteRejected
 from tests.conftest import TestingSessionLocal
@@ -21,8 +22,10 @@ def test_high_confidence_extracted_field_passes_through():
         db=db,
     )
 
-    assert record.verification_status == "canonical_committed"
-    assert record.verified_value == "PAT-100"
+    assert record.value == "PAT-100"
+    
+    extracted = db.query(ExtractedField).filter(ExtractedField.field_id == record.source_field_id).first()
+    assert extracted.verification_status == "auto_passed"
     db.close()
 
 
@@ -85,14 +88,11 @@ def test_failed_field_is_blocked_even_with_high_confidence(caplog):
 
 def test_low_confidence_cannot_overwrite_existing_canonical_field():
     db = TestingSessionLocal()
-    canonical = ExtractedField(
-        field_id="canonical-field-1",
+    canonical = CanonicalPatientRecord(
         document_id="test-doc-123",
         field_name="patient_id",
-        raw_value="PAT-ORIGINAL",
-        verified_value="PAT-ORIGINAL",
-        confidence_score=0.95,
-        verification_status="canonical_committed",
+        value="PAT-ORIGINAL",
+        source_field_id="canonical-field-1",
     )
     db.add(canonical)
     db.commit()
@@ -107,8 +107,7 @@ def test_low_confidence_cannot_overwrite_existing_canonical_field():
         )
 
     db.refresh(canonical)
-    assert canonical.verified_value == "PAT-ORIGINAL"
-    assert canonical.verification_status == "canonical_committed"
+    assert canonical.value == "PAT-ORIGINAL"
     db.close()
 
 
@@ -124,6 +123,7 @@ def test_human_verified_low_confidence_field_can_pass():
         human_verified=True,
     )
 
-    assert record.verification_status == "canonical_committed"
-    assert record.verified_value == "Clinician confirmed"
+    assert record.value == "Clinician confirmed"
+    extracted = db.query(ExtractedField).filter(ExtractedField.field_id == record.source_field_id).first()
+    assert extracted.verification_status == "human_verified"
     db.close()

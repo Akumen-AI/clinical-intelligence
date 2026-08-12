@@ -48,3 +48,6 @@ class UploadLogResponse(BaseModel):
 
 class ErrorResponseSchema(BaseModel):
     detail: str
+
+class PatientLinkRequest(BaseModel):
+    patient_id: str

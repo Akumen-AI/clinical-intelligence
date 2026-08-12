@@ -21,12 +21,16 @@ from app.models.canonical_patient_record import CanonicalPatientRecord
 from app.models.pending_review import PendingReview, SystemConfig
 from app.models.correction_log import CorrectionLog
 from app.models.user import User
+from app.models.patient import Patient
+from app.models.visit import Visit
+from app.models.clinical_entities import Medication, Diagnosis, LabResult, Vital, Procedure
 from app.api import upload
 from app.api import layout
 from app.api import fields
 from app.api import timeline
 from app.api import canonical_records
 from app.routers import review
+from app.api.v1.patients import router as patients_router
 from app.api.v1.correction_logs import router as correction_logs_router
 from app.services import layout_trigger
 from app.services.upload_service import ensure_upload_directory_exists
@@ -109,6 +113,7 @@ app.include_router(timeline.router, prefix="/api/v1")
 app.include_router(canonical_records.router, prefix="/api/v1")
 app.include_router(review.router, prefix="/api/v1")
 app.include_router(correction_logs_router, prefix="/api/v1")
+app.include_router(patients_router, prefix="/api/v1")
 
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_dir):
