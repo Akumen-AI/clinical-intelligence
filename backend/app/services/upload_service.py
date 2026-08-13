@@ -273,7 +273,7 @@ def process_document(db: Session, document_id: str):
                     )
 
         except Exception as e:
-            print(f"[Epic 2.2 Extraction Warning] Field extraction encountered an issue: {e}")
+            import traceback; traceback.print_exc(); print(f"[Epic 2.2 Extraction Warning] Field extraction encountered an issue: {e}")
 
         # Reclaim any residual memory from preprocessing
         gc.collect()

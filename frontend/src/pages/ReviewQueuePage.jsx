@@ -13,6 +13,7 @@ import {
   InboxIcon,
 } from 'lucide-react';
 import ReviewFieldCard from '../components/ReviewFieldCard';
+import LinkPatientModal from '../components/LinkPatientModal';
 import {
   fetchPendingReviews,
   fetchReviewContext,
@@ -47,6 +48,10 @@ export default function ReviewQueuePage() {
   // Action state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toastMsg, setToastMsg] = useState(null);
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  
+  // Try to find if an MRN/patient_identifier was extracted for the current document
+  const extractedMrn = allItems.find(i => i.document_id === selectedDocId && i.field_name === 'patient_identifier')?.extracted_value || '';
 
   // Stats
   const [reviewedToday, setReviewedToday] = useState(0);
@@ -312,25 +317,31 @@ export default function ReviewQueuePage() {
           <button 
             className="btn btn-secondary" 
             style={{ marginLeft: '1rem', whiteSpace: 'nowrap' }}
-            onClick={async () => {
-              const pid = window.prompt("Enter Patient ID to link this document:");
-              if (pid) {
-                try {
-                  const { linkDocumentToPatient } = await import('../services/api');
-                  await linkDocumentToPatient(selectedDocId, pid);
-                  setToastMsg({ msg: `Document linked to patient ${pid}`, type: 'success' });
-                  setTimeout(() => setToastMsg(null), 2500);
-                } catch (err) {
-                  setToastMsg({ msg: err.response?.data?.detail || 'Link failed', type: 'error' });
-                  setTimeout(() => setToastMsg(null), 2500);
-                }
-              }
-            }}
+            onClick={() => setIsLinkModalOpen(true)}
           >
             Link to Patient
           </button>
         )}
       </div>
+
+      <LinkPatientModal 
+        isOpen={isLinkModalOpen}
+        onClose={() => setIsLinkModalOpen(false)}
+        documentId={selectedDocId}
+        suggestedMrn={extractedMrn}
+        onLink={async (payload) => {
+          setIsLinkModalOpen(false);
+          try {
+            const { default: api } = await import('../services/api');
+            const res = await api.post(`/documents/${selectedDocId}/link-patient`, payload);
+            setToastMsg({ msg: `Document linked to patient successfully!`, type: 'success' });
+            setTimeout(() => setToastMsg(null), 2500);
+          } catch (err) {
+            setToastMsg({ msg: err.response?.data?.detail || 'Link failed', type: 'error' });
+            setTimeout(() => setToastMsg(null), 2500);
+          }
+        }}
+      />
 
       {/* ── Split pane ── */}
       <div className="rq-split-pane">

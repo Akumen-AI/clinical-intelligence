@@ -20,6 +20,7 @@ from app.models.clinical_entities import Medication, Diagnosis, LabResult, Vital
 from app.models.canonical_patient_record import CanonicalPatientRecord
 from app.models.upload_log import UploadLog
 from app.models.layout_region import LayoutRegion
+from app.models.rag_chunk import PatientRAGChunk
 
 config = context.config
 if config.config_file_name:

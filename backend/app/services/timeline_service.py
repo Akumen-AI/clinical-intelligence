@@ -120,6 +120,52 @@ def build_patient_timeline(
             )
         )
 
+    # 5. LabResults
+    from app.models.clinical_entities import LabResult
+    lab_query = db.query(LabResult, Document, ExtractedField).join(ExtractedField, LabResult.source_field_id == ExtractedField.field_id).join(Document, ExtractedField.document_id == Document.document_id).filter(Document.status == DocumentStatus.COMMITTED.value)
+    if patient_id: lab_query = lab_query.filter(LabResult.patient_id == patient_id)
+    for lab, doc, field in lab_query.all():
+        doc_date_record = db.query(CanonicalPatientRecord).filter(CanonicalPatientRecord.document_id == doc.document_id, CanonicalPatientRecord.field_name == "document_date").first()
+        event_date = str(doc_date_record.value).strip() if doc_date_record and doc_date_record.value else "Unknown"
+        events.append(
+            TimelineEventSchema(
+                event_id=f"lab:{lab.id}",
+                patient_id=lab.patient_id,
+                event_date=event_date,
+                event_type="LabResult",
+                summary=f"Lab: {lab.raw_text}",
+                document_id=doc.document_id,
+                filename=doc.filename,
+                document_type=doc.document_type,
+                source_field_name="lab_results",
+                confidence_score=field.confidence_score if field and field.confidence_score is not None else 1.0,
+                verification_status=field.verification_status if field and field.verification_status else "auto_passed",
+            )
+        )
+
+    # 6. Vitals
+    from app.models.clinical_entities import Vital
+    vital_query = db.query(Vital, Document, ExtractedField).join(ExtractedField, Vital.source_field_id == ExtractedField.field_id).join(Document, ExtractedField.document_id == Document.document_id).filter(Document.status == DocumentStatus.COMMITTED.value)
+    if patient_id: vital_query = vital_query.filter(Vital.patient_id == patient_id)
+    for vital, doc, field in vital_query.all():
+        doc_date_record = db.query(CanonicalPatientRecord).filter(CanonicalPatientRecord.document_id == doc.document_id, CanonicalPatientRecord.field_name == "document_date").first()
+        event_date = str(vital.recorded_at) if vital.recorded_at else (str(doc_date_record.value).strip() if doc_date_record and doc_date_record.value else "Unknown")
+        events.append(
+            TimelineEventSchema(
+                event_id=f"vital:{vital.id}",
+                patient_id=vital.patient_id,
+                event_date=event_date,
+                event_type="Vital",
+                summary=f"Vital: {vital.raw_text}",
+                document_id=doc.document_id,
+                filename=doc.filename,
+                document_type=doc.document_type,
+                source_field_name="vitals",
+                confidence_score=field.confidence_score if field and field.confidence_score is not None else 1.0,
+                verification_status=field.verification_status if field and field.verification_status else "auto_passed",
+            )
+        )
+
     events.sort(key=lambda e: e.event_date if e.event_date != "Unknown" else "9999-99-99")
 
     return PatientTimelineResponse(

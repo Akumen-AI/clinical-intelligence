@@ -50,4 +50,9 @@ class ErrorResponseSchema(BaseModel):
     detail: str
 
 class PatientLinkRequest(BaseModel):
-    patient_id: str
+    patient_id: Optional[str] = None
+    create_new: Optional[bool] = False
+    mrn: Optional[str] = None
+    name: Optional[str] = None
+    dob: Optional[str] = None
+    sex: Optional[str] = None

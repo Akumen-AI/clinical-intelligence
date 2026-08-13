@@ -17,6 +17,70 @@ class CanonicalWriteRejected(ValueError):
     """Raised when an extracted field has not passed verification."""
 
 
+def route_to_normalized_tables(
+    db: Session,
+    patient_id: str,
+    field_name: str,
+    field_id: str,
+    final_value: Any
+):
+    """Helper to route a structured value to its normalized clinical entity table."""
+    if final_value and isinstance(final_value, list):
+        if field_name == "medications":
+            from app.models.clinical_entities import Medication
+            db.query(Medication).filter(Medication.source_field_id == field_id).delete()
+            for item in final_value:
+                if isinstance(item, dict):
+                    db.add(Medication(
+                        patient_id=patient_id,
+                        source_field_id=field_id,
+                        raw_text=item.get("medication_name", str(item))
+                    ))
+        elif field_name == "diagnoses":
+            from app.models.clinical_entities import Diagnosis
+            db.query(Diagnosis).filter(Diagnosis.source_field_id == field_id).delete()
+            for item in final_value:
+                if isinstance(item, dict):
+                    db.add(Diagnosis(
+                        patient_id=patient_id,
+                        source_field_id=field_id,
+                        raw_text=item.get("condition_name", str(item)),
+                        icd10_code=item.get("icd10_code")
+                    ))
+        elif field_name == "lab_results":
+            from app.models.clinical_entities import LabResult
+            db.query(LabResult).filter(LabResult.source_field_id == field_id).delete()
+            for item in final_value:
+                if isinstance(item, dict):
+                    db.add(LabResult(
+                        patient_id=patient_id,
+                        source_field_id=field_id,
+                        raw_text=str(item)
+                    ))
+        elif field_name == "procedures":
+            from app.models.clinical_entities import Procedure
+            db.query(Procedure).filter(Procedure.source_field_id == field_id).delete()
+            for item in final_value:
+                if isinstance(item, str):
+                    db.add(Procedure(
+                        patient_id=patient_id,
+                        source_field_id=field_id,
+                        raw_text=item
+                    ))
+    elif final_value and isinstance(final_value, dict):
+        if field_name == "vitals":
+            from app.models.clinical_entities import Vital
+            db.query(Vital).filter(Vital.source_field_id == field_id).delete()
+            for v_type, v_val in final_value.items():
+                if v_val:
+                    db.add(Vital(
+                        patient_id=patient_id,
+                        source_field_id=field_id,
+                        raw_text=f"{v_type}: {v_val}",
+                        type=v_type,
+                        value=str(v_val)
+                    ))
+
 def write_field_to_canonical_record(
     field: ExtractedField,
     db: Session,
@@ -46,6 +110,8 @@ def write_field_to_canonical_record(
     doc = db.query(Document).filter(Document.document_id == field.document_id).first()
     patient_id = doc.patient_id if doc else None
 
+    final_value = field.verified_value if value is None and field.verified_value is not None else (field.raw_value if value is None else value)
+
     # Fallback/un-normalized fields or if no patient is linked yet
     if not patient_id or field.field_name not in {"medications", "diagnoses", "lab_results", "vitals", "procedures"}:
         canonical = (
@@ -60,12 +126,12 @@ def write_field_to_canonical_record(
             canonical = CanonicalPatientRecord(
                 document_id=field.document_id,
                 field_name=field.field_name,
-                value=field.verified_value if value is None and field.verified_value is not None else (field.raw_value if value is None else value),
+                value=final_value,
                 source_field_id=field.field_id,
             )
             db.add(canonical)
         else:
-            canonical.value = field.verified_value if value is None and field.verified_value is not None else (field.raw_value if value is None else value)
+            canonical.value = final_value
             canonical.source_field_id = field.field_id
 
         db.commit()
@@ -80,62 +146,7 @@ def write_field_to_canonical_record(
         return canonical
 
     # Route to normalized entities
-    final_value = field.verified_value if value is None and field.verified_value is not None else (field.raw_value if value is None else value)
-    if final_value and isinstance(final_value, list):
-        if field.field_name == "medications":
-            from app.models.clinical_entities import Medication
-            db.query(Medication).filter(Medication.source_field_id == field.field_id).delete()
-            for item in final_value:
-                if isinstance(item, dict):
-                    db.add(Medication(
-                        patient_id=patient_id,
-                        source_field_id=field.field_id,
-                        raw_text=item.get("medication_name", str(item))
-                    ))
-        elif field.field_name == "diagnoses":
-            from app.models.clinical_entities import Diagnosis
-            db.query(Diagnosis).filter(Diagnosis.source_field_id == field.field_id).delete()
-            for item in final_value:
-                if isinstance(item, dict):
-                    db.add(Diagnosis(
-                        patient_id=patient_id,
-                        source_field_id=field.field_id,
-                        raw_text=item.get("condition_name", str(item)),
-                        icd10_code=item.get("icd10_code")
-                    ))
-        elif field.field_name == "lab_results":
-            from app.models.clinical_entities import LabResult
-            db.query(LabResult).filter(LabResult.source_field_id == field.field_id).delete()
-            for item in final_value:
-                if isinstance(item, dict):
-                    db.add(LabResult(
-                        patient_id=patient_id,
-                        source_field_id=field.field_id,
-                        raw_text=str(item)
-                    ))
-        elif field.field_name == "procedures":
-            from app.models.clinical_entities import Procedure
-            db.query(Procedure).filter(Procedure.source_field_id == field.field_id).delete()
-            for item in final_value:
-                if isinstance(item, str):
-                    db.add(Procedure(
-                        patient_id=patient_id,
-                        source_field_id=field.field_id,
-                        raw_text=item
-                    ))
-    elif final_value and isinstance(final_value, dict):
-        if field.field_name == "vitals":
-            from app.models.clinical_entities import Vital
-            db.query(Vital).filter(Vital.source_field_id == field.field_id).delete()
-            for v_type, v_val in final_value.items():
-                if v_val:
-                    db.add(Vital(
-                        patient_id=patient_id,
-                        source_field_id=field.field_id,
-                        raw_text=f"{v_type}: {v_val}",
-                        type=v_type,
-                        value=str(v_val)
-                    ))
+    route_to_normalized_tables(db, patient_id, field.field_name, field.field_id, final_value)
 
     db.commit()
     logger.info(
