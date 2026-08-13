@@ -150,9 +150,13 @@ def retrieve_relevant_chunks(db: Session, patient_id: str, query: str, top_k: in
     return scored_chunks[:top_k]
 
 
-def generate_answer(db: Session, patient_id: str, question: str) -> Tuple[str, List[str]]:
+def generate_answer(db: Session, patient_id: str, question: str) -> Tuple[str, List[Dict[str, Any]]]:
     """
     Generate an answer to a user's question based on the patient's retrieved document chunks.
+    Returns (answer_text, citations), where citations is a list of structured objects containing:
+      - document_id: str
+      - snippet: str
+      - location: Optional[str]
     """
     from google import genai
     from app.config import settings
@@ -168,14 +172,37 @@ def generate_answer(db: Session, patient_id: str, question: str) -> Tuple[str, L
     if not top_chunks:
         return "I could not find any relevant information in the patient's documents to answer your question.", []
         
-    # Build context string
+    # Build context string and citations list
     context_parts = []
-    source_documents = set()
+    citations = []
+    seen = set()
     
     for i, (chunk, score) in enumerate(top_chunks):
-        source_documents.add(chunk.source_document_id)
         doc_type = chunk.metadata_json.get("document_type", "Unknown") if chunk.metadata_json else "Unknown"
         context_parts.append(f"--- Document {chunk.source_document_id} ({doc_type}) ---\n{chunk.content}")
+        
+        # Build location identifier from metadata if available
+        location = None
+        if chunk.metadata_json and isinstance(chunk.metadata_json, dict):
+            if "section" in chunk.metadata_json and chunk.metadata_json["section"]:
+                location = str(chunk.metadata_json["section"])
+            elif "page_number" in chunk.metadata_json and chunk.metadata_json["page_number"]:
+                location = f"Page {chunk.metadata_json['page_number']}"
+            elif "page" in chunk.metadata_json and chunk.metadata_json["page"]:
+                location = f"Page {chunk.metadata_json['page']}"
+            elif "chunk_index" in chunk.metadata_json:
+                location = f"Chunk {chunk.metadata_json['chunk_index']}"
+            elif doc_type != "Unknown":
+                location = doc_type
+
+        chunk_key = (chunk.source_document_id, chunk.content)
+        if chunk_key not in seen:
+            seen.add(chunk_key)
+            citations.append({
+                "document_id": chunk.source_document_id,
+                "snippet": chunk.content,
+                "location": location,
+            })
         
     context_str = "\n\n".join(context_parts)
     
@@ -195,4 +222,5 @@ Answer:"""
         contents=prompt,
     )
     
-    return response.text, list(source_documents)
+    return response.text, citations
+

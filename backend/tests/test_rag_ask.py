@@ -61,9 +61,74 @@ def test_ask_patient_question(mock_genai_client):
     assert response.status_code == 200
     data = response.json()
     assert data["answer"] == "The patient has a history of asthma."
-    assert "doc1" in data["source_documents"]
+    assert len(data["source_documents"]) > 0
+    assert data["source_documents"][0]["document_id"] == "doc1"
+    assert data["source_documents"][0]["snippet"] == "Patient has a history of asthma."
+    assert data["source_documents"][0]["location"] == "Discharge Summary"
     
     app.dependency_overrides.pop(get_current_user, None)
+
+
+@patch("app.config.settings.GEMINI_API_KEY", "dummy_key")
+@patch("google.genai.Client")
+def test_rag_citation_object_structure(mock_genai_client):
+    """
+    Confirm that a chat response's citation object includes both a non-null document_id
+    and a non-empty snippet string.
+    """
+    app.dependency_overrides[get_current_user] = override_get_current_user
+    
+    db = TestingSessionLocal()
+    try:
+        patient = Patient(patient_id="patient_citation_test", mrn="MRN-CIT", name="Citation Test Patient")
+        db.add(patient)
+        
+        chunk = PatientRAGChunk(
+            patient_id="patient_citation_test",
+            source_document_id="doc_synth_999",
+            content="Synthetic patient was prescribed Amoxicillin 500mg daily.",
+            embedding=[0.1, 0.2, 0.3], 
+            metadata_json={"page_number": 1, "document_type": "Prescription"}
+        )
+        db.add(chunk)
+        db.commit()
+    finally:
+        db.close()
+        
+    mock_client_instance = mock_genai_client.return_value
+    mock_embed_response = MagicMock()
+    mock_embed_response.embeddings = [MagicMock(values=[0.1, 0.2, 0.3])]
+    mock_client_instance.models.embed_content.return_value = mock_embed_response
+    
+    mock_generate_response = MagicMock()
+    mock_generate_response.text = "The patient was prescribed Amoxicillin 500mg daily."
+    mock_client_instance.models.generate_content.return_value = mock_generate_response
+    
+    response = client.post(
+        "/api/v1/patients/patient_citation_test/ask",
+        json={"question": "What medication was prescribed?"}
+    )
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert "source_documents" in data
+    assert len(data["source_documents"]) > 0
+    
+    citation = data["source_documents"][0]
+    assert citation["document_id"] is not None
+    assert isinstance(citation["document_id"], str)
+    assert len(citation["document_id"]) > 0
+    assert citation["document_id"] == "doc_synth_999"
+    
+    assert citation["snippet"] is not None
+    assert isinstance(citation["snippet"], str)
+    assert len(citation["snippet"]) > 0
+    assert "Amoxicillin" in citation["snippet"]
+    
+    assert citation["location"] == "Page 1"
+    
+    app.dependency_overrides.pop(get_current_user, None)
+
 
 
 @patch("app.config.settings.GEMINI_API_KEY", "dummy_key")
