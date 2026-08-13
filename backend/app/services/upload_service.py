@@ -273,7 +273,7 @@ def process_document(db: Session, document_id: str):
                     )
 
         except Exception as e:
-            print(f"[Epic 2.2 Extraction Warning] Field extraction encountered an issue: {e}")
+            import traceback; traceback.print_exc(); print(f"[Epic 2.2 Extraction Warning] Field extraction encountered an issue: {e}")
 
         # Reclaim any residual memory from preprocessing
         gc.collect()
@@ -358,6 +358,40 @@ def delete_document(db: Session, document_id: str) -> bool:
                     except Exception as e:
                         print(f"[Delete Document] Failed to remove associated file {full_path}: {e}")
 
+    # Manually cascade delete associated database records
+    try:
+        from app.models.extracted_field import ExtractedField
+        from app.models.pending_review import PendingReview
+        from app.models.canonical_patient_record import CanonicalPatientRecord
+        from app.models.clinical_entities import Medication, Diagnosis, LabResult, Vital, Procedure
+        from app.models.visit import Visit
+        from app.models.rag_chunk import PatientRagChunk
+        from app.models.upload_log import UploadLog
+        from app.models.correction_log import CorrectionLog
+        from app.models.layout_region import LayoutRegion
+
+        # Delete clinical entities linked to extracted fields
+        field_ids = [fid[0] for fid in db.query(ExtractedField.field_id).filter(ExtractedField.document_id == document_id).all()]
+        if field_ids:
+            db.query(Medication).filter(Medication.source_field_id.in_(field_ids)).delete(synchronize_session=False)
+            db.query(Diagnosis).filter(Diagnosis.source_field_id.in_(field_ids)).delete(synchronize_session=False)
+            db.query(LabResult).filter(LabResult.source_field_id.in_(field_ids)).delete(synchronize_session=False)
+            db.query(Vital).filter(Vital.source_field_id.in_(field_ids)).delete(synchronize_session=False)
+            db.query(Procedure).filter(Procedure.source_field_id.in_(field_ids)).delete(synchronize_session=False)
+
+        # Delete canonical records, pending reviews, layout regions, correction logs
+        db.query(CanonicalPatientRecord).filter(CanonicalPatientRecord.document_id == document_id).delete(synchronize_session=False)
+        db.query(PendingReview).filter(PendingReview.document_id == document_id).delete(synchronize_session=False)
+        db.query(ExtractedField).filter(ExtractedField.document_id == document_id).delete(synchronize_session=False)
+        db.query(Visit).filter(Visit.document_id == document_id).delete(synchronize_session=False)
+        db.query(PatientRagChunk).filter(PatientRagChunk.source_document_id == document_id).delete(synchronize_session=False)
+        db.query(CorrectionLog).filter(CorrectionLog.document_id == document_id).delete(synchronize_session=False)
+        db.query(LayoutRegion).filter(LayoutRegion.document_id == document_id).delete(synchronize_session=False)
+        if doc.filename:
+            db.query(UploadLog).filter(UploadLog.filename == doc.filename).delete(synchronize_session=False)
+    except Exception as e:
+        print(f"[Delete Document] Failed to cascade delete related records: {e}")
+
     db.delete(doc)
     db.commit()
     return True
@@ -395,6 +429,34 @@ def delete_all_documents(db: Session) -> int:
                     os.remove(full_path)
                 except Exception as e:
                     print(f"[Delete All Documents] Failed to remove orphaned file {full_path}: {e}")
+
+    # Cascade delete all related database records
+    try:
+        from app.models.extracted_field import ExtractedField
+        from app.models.pending_review import PendingReview
+        from app.models.canonical_patient_record import CanonicalPatientRecord
+        from app.models.clinical_entities import Medication, Diagnosis, LabResult, Vital, Procedure
+        from app.models.visit import Visit
+        from app.models.rag_chunk import PatientRagChunk
+        from app.models.upload_log import UploadLog
+        from app.models.correction_log import CorrectionLog
+        from app.models.layout_region import LayoutRegion
+
+        db.query(Medication).delete()
+        db.query(Diagnosis).delete()
+        db.query(LabResult).delete()
+        db.query(Vital).delete()
+        db.query(Procedure).delete()
+        db.query(CanonicalPatientRecord).delete()
+        db.query(PendingReview).delete()
+        db.query(ExtractedField).delete()
+        db.query(Visit).delete()
+        db.query(PatientRagChunk).delete()
+        db.query(CorrectionLog).delete()
+        db.query(LayoutRegion).delete()
+        db.query(UploadLog).delete()
+    except Exception as e:
+        print(f"[Delete All Documents] Failed to cascade delete related records: {e}")
 
     db.query(Document).delete()
     db.commit()

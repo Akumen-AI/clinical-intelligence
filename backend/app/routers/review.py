@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from PIL import Image
@@ -314,6 +314,7 @@ def get_review_image(
 def review_pending_field(
     review_id: str,
     payload: ReviewActionRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     """
@@ -337,20 +338,40 @@ def review_pending_field(
 
     if payload.action == "approve":
         review_rec.status = ReviewStatus.APPROVED
-        # Use corrected value when reviewer edited, otherwise fall back to extracted
-        value_to_write = (
-            payload.corrected_value
-            if payload.corrected_value is not None
-            else review_rec.extracted_value
-        )
-        canonical_record_service.upsert_field(
-            document_id=review_rec.document_id,
-            field_name=review_rec.field_name,
-            value=value_to_write,
-            confidence=review_rec.confidence_score,
-            db=db,
-            human_verified=True,
-        )
+        
+        if review_rec.field_name == "patient_assignment":
+            if not payload.corrected_value:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="patient_id must be provided as corrected_value to approve patient_assignment."
+                )
+            doc = db.query(Document).filter(Document.document_id == review_rec.document_id).first()
+            if doc:
+                doc.patient_id = payload.corrected_value
+                from app.models.document import DocumentStatus
+                if doc.status == DocumentStatus.UNLINKED.value:
+                    doc.status = DocumentStatus.EXTRACTED.value
+                db.commit()
+                canonical_record_service.migrate_generic_records_to_normalized(
+                    document_id=doc.document_id,
+                    patient_id=doc.patient_id,
+                    db=db
+                )
+        else:
+            # Use corrected value when reviewer edited, otherwise fall back to extracted
+            value_to_write = (
+                payload.corrected_value
+                if payload.corrected_value is not None
+                else review_rec.extracted_value
+            )
+            canonical_record_service.upsert_field(
+                document_id=review_rec.document_id,
+                field_name=review_rec.field_name,
+                value=value_to_write,
+                confidence=review_rec.confidence_score,
+                db=db,
+                human_verified=True,
+            )
     elif payload.action == "reject":
         review_rec.status = ReviewStatus.REJECTED
 
@@ -360,6 +381,12 @@ def review_pending_field(
     review_rec.reviewed_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(review_rec)
+
+    # Trigger background indexing if document is already linked to a patient
+    doc = db.query(Document).filter(Document.document_id == review_rec.document_id).first()
+    if doc and doc.patient_id:
+        from app.tasks.rag_tasks import index_document_task
+        background_tasks.add_task(index_document_task, doc.document_id)
 
     return PendingReviewResponse.model_validate(review_rec)
 

@@ -423,7 +423,7 @@ export default function UploadPage() {
                       <td>{doc.document_type || '-'}</td>
                       <td>{doc.classification_confidence !== null && doc.classification_confidence !== undefined ? doc.classification_confidence.toFixed(2) : '-'}</td>
                       <td>
-                        {doc.needs_manual_review === true ? (
+                        {doc.needs_manual_review === true || (doc.status || '').toUpperCase() === 'UNLINKED' ? (
                           <span style={{ color: 'var(--accent-rose)', fontWeight: 'bold' }}>Yes</span>
                         ) : doc.needs_manual_review === false ? (
                           <span style={{ color: '#10b981' }}>No</span>
@@ -431,7 +431,7 @@ export default function UploadPage() {
                       </td>
                       <td>
                         {(() => {
-                          const isExtracted = ['EXTRACTED', 'PENDING_REVIEW', 'COMMITTED', 'VERIFIED'].includes((doc.status || '').toUpperCase());
+                          const isExtracted = ['EXTRACTED', 'PENDING_REVIEW', 'COMMITTED', 'VERIFIED', 'UNLINKED'].includes((doc.status || '').toUpperCase());
                           return (
                             <button
                               className="btn-view-fields"

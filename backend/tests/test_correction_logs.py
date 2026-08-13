@@ -43,11 +43,15 @@ async def async_client(db_session):
     async def override_get_async_db():
         yield db_session
 
+    old_override = app.dependency_overrides.get(get_async_db)
     app.dependency_overrides[get_async_db] = override_get_async_db
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         yield client
-    app.dependency_overrides.clear()
+    if old_override:
+        app.dependency_overrides[get_async_db] = old_override
+    else:
+        del app.dependency_overrides[get_async_db]
 
 @pytest.fixture
 def reviewer_id():

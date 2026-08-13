@@ -3,9 +3,12 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
+from app.config import settings
+
 from app.database import SessionLocal
 from app.models.canonical_patient_record import CanonicalPatientRecord
 from app.models.extracted_field import ExtractedField, VerificationStatus
+from app.models.document import Document
 
 logger = logging.getLogger("app.services.canonical_record_service")
 
@@ -13,6 +16,70 @@ logger = logging.getLogger("app.services.canonical_record_service")
 class CanonicalWriteRejected(ValueError):
     """Raised when an extracted field has not passed verification."""
 
+
+def route_to_normalized_tables(
+    db: Session,
+    patient_id: str,
+    field_name: str,
+    field_id: str,
+    final_value: Any
+):
+    """Helper to route a structured value to its normalized clinical entity table."""
+    if final_value and isinstance(final_value, list):
+        if field_name == "medications":
+            from app.models.clinical_entities import Medication
+            db.query(Medication).filter(Medication.source_field_id == field_id).delete()
+            for item in final_value:
+                if isinstance(item, dict):
+                    db.add(Medication(
+                        patient_id=patient_id,
+                        source_field_id=field_id,
+                        raw_text=item.get("medication_name", str(item))
+                    ))
+        elif field_name == "diagnoses":
+            from app.models.clinical_entities import Diagnosis
+            db.query(Diagnosis).filter(Diagnosis.source_field_id == field_id).delete()
+            for item in final_value:
+                if isinstance(item, dict):
+                    db.add(Diagnosis(
+                        patient_id=patient_id,
+                        source_field_id=field_id,
+                        raw_text=item.get("condition_name", str(item)),
+                        icd10_code=item.get("icd10_code")
+                    ))
+        elif field_name == "lab_results":
+            from app.models.clinical_entities import LabResult
+            db.query(LabResult).filter(LabResult.source_field_id == field_id).delete()
+            for item in final_value:
+                if isinstance(item, dict):
+                    db.add(LabResult(
+                        patient_id=patient_id,
+                        source_field_id=field_id,
+                        raw_text=str(item)
+                    ))
+        elif field_name == "procedures":
+            from app.models.clinical_entities import Procedure
+            db.query(Procedure).filter(Procedure.source_field_id == field_id).delete()
+            for item in final_value:
+                if isinstance(item, str):
+                    db.add(Procedure(
+                        patient_id=patient_id,
+                        source_field_id=field_id,
+                        raw_text=item
+                    ))
+    elif final_value and isinstance(final_value, dict):
+        if field_name == "vitals":
+            from app.models.clinical_entities import Vital
+            db.query(Vital).filter(Vital.source_field_id == field_id).delete()
+            for v_type, v_val in final_value.items():
+                if v_val:
+                    db.add(Vital(
+                        patient_id=patient_id,
+                        source_field_id=field_id,
+                        raw_text=f"{v_type}: {v_val}",
+                        type=v_type,
+                        value=str(v_val)
+                    ))
 
 def write_field_to_canonical_record(
     field: ExtractedField,
@@ -23,11 +90,16 @@ def write_field_to_canonical_record(
     status = field.verification_status
     allowed = {VerificationStatus.AUTO_PASSED, VerificationStatus.HUMAN_VERIFIED}
     if status not in allowed:
-        reason = f"verification status '{status}' is not allowed; required auto_passed or human_verified"
+        if status == "failed":
+            reason = f"field status '{status}' is not writable"
+        else:
+            reason = f"confidence score below threshold; status '{status}' is not writable"
+            
         logger.warning(
-            "[CanonicalRecordService] Rejected canonical write: field_id=%s document_id=%s status=%s reason=%s",
+            "[CanonicalRecordService] Rejected canonical write: field_id=%s document_id=%s field_name=%s status=%s reason=%s",
             field.field_id,
             field.document_id,
+            field.field_name,
             status,
             reason,
         )
@@ -35,36 +107,55 @@ def write_field_to_canonical_record(
             f"Canonical write rejected for field '{field.field_name}': {reason}"
         )
 
-    canonical = (
-        db.query(CanonicalPatientRecord)
-        .filter(
-            CanonicalPatientRecord.document_id == field.document_id,
-            CanonicalPatientRecord.field_name == field.field_name,
+    doc = db.query(Document).filter(Document.document_id == field.document_id).first()
+    patient_id = doc.patient_id if doc else None
+
+    final_value = field.verified_value if value is None and field.verified_value is not None else (field.raw_value if value is None else value)
+
+    # Fallback/un-normalized fields or if no patient is linked yet
+    if not patient_id or field.field_name not in {"medications", "diagnoses", "lab_results", "vitals", "procedures"}:
+        canonical = (
+            db.query(CanonicalPatientRecord)
+            .filter(
+                CanonicalPatientRecord.document_id == field.document_id,
+                CanonicalPatientRecord.field_name == field.field_name,
+            )
+            .first()
         )
-        .first()
-    )
-    if canonical is None:
-        canonical = CanonicalPatientRecord(
-            document_id=field.document_id,
-            field_name=field.field_name,
-            value=field.verified_value if value is None and field.verified_value is not None else (field.raw_value if value is None else value),
-            source_field_id=field.field_id,
+        if canonical is None:
+            canonical = CanonicalPatientRecord(
+                document_id=field.document_id,
+                field_name=field.field_name,
+                value=final_value,
+                source_field_id=field.field_id,
+            )
+            db.add(canonical)
+        else:
+            canonical.value = final_value
+            canonical.source_field_id = field.field_id
+
+        db.commit()
+        db.refresh(canonical)
+        logger.info(
+            "[CanonicalRecordService] Canonical write succeeded (generic): field_id=%s document_id=%s status=%s record_id=%s",
+            field.field_id,
+            field.document_id,
+            status,
+            canonical.record_id,
         )
-        db.add(canonical)
-    else:
-        canonical.value = field.verified_value if value is None and field.verified_value is not None else (field.raw_value if value is None else value)
-        canonical.source_field_id = field.field_id
+        return canonical
+
+    # Route to normalized entities
+    route_to_normalized_tables(db, patient_id, field.field_name, field.field_id, final_value)
 
     db.commit()
-    db.refresh(canonical)
     logger.info(
-        "[CanonicalRecordService] Canonical write succeeded: field_id=%s document_id=%s status=%s record_id=%s",
+        "[CanonicalRecordService] Canonical write succeeded (normalized): field_id=%s document_id=%s field_name=%s",
         field.field_id,
         field.document_id,
-        status,
-        canonical.record_id,
+        field.field_name,
     )
-    return canonical
+    return None
 
 
 def upsert_field(
@@ -87,18 +178,30 @@ def upsert_field(
             .first()
         )
         if field is None:
+            if human_verified:
+                status = VerificationStatus.HUMAN_VERIFIED
+            elif confidence >= settings.CONFIDENCE_THRESHOLD:
+                status = VerificationStatus.AUTO_PASSED
+            else:
+                status = VerificationStatus.PENDING
+
             field = ExtractedField(
                 document_id=document_id,
                 field_name=field_name,
                 raw_value=value,
                 confidence_score=confidence,
-                verification_status=VerificationStatus.HUMAN_VERIFIED if human_verified else VerificationStatus.AUTO_PASSED,
+                verification_status=status,
             )
             db.add(field)
             db.flush()
         elif human_verified:
             field.verified_value = value
             field.verification_status = VerificationStatus.HUMAN_VERIFIED
+        else:
+            if confidence >= settings.CONFIDENCE_THRESHOLD:
+                field.verification_status = VerificationStatus.AUTO_PASSED
+            else:
+                field.verification_status = VerificationStatus.PENDING
         return write_field_to_canonical_record(field, db, value=value)
     except Exception:
         db.rollback()
@@ -106,3 +209,25 @@ def upsert_field(
     finally:
         if close_db:
             db.close()
+
+def migrate_generic_records_to_normalized(document_id: str, patient_id: str, db: Session):
+    """
+    Migrates fields from the generic canonical_patient_records table to normalized
+    clinical entity tables (e.g. medications, diagnoses) for a newly assigned patient.
+    """
+    records = db.query(CanonicalPatientRecord).filter(
+        CanonicalPatientRecord.document_id == document_id
+    ).all()
+
+    for record in records:
+        if record.field_name in {"medications", "diagnoses", "lab_results", "vitals", "procedures"}:
+            route_to_normalized_tables(
+                db=db,
+                patient_id=patient_id,
+                field_name=record.field_name,
+                field_id=record.source_field_id,
+                final_value=record.value,
+            )
+            logger.info(f"[CanonicalRecordService] Migrated generic record {record.field_name} to normalized table for patient {patient_id}")
+    
+    db.commit()

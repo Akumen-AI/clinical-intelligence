@@ -12,7 +12,8 @@ from app.schemas.upload import (
     RejectedUploadItem,
     UploadSummaryResponse,
     UploadLogResponse,
-    ErrorResponseSchema
+    ErrorResponseSchema,
+    PatientLinkRequest
 )
 from app.services import upload_service
 from app.services.validation_service import ValidationService
@@ -252,4 +253,118 @@ async def delete_all_documents(db: Session = Depends(get_db)):
     """
     count = upload_service.delete_all_documents(db)
     return {"message": f"Deleted {count} document(s) successfully.", "count": count}
+
+@router.post("/{document_id}/link-patient", status_code=status.HTTP_200_OK)
+async def link_patient(
+    document_id: str,
+    request: PatientLinkRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    """
+    POST /api/v1/documents/{document_id}/link-patient
+    
+    Link a document to a specific patient.
+    """
+    import uuid
+    from datetime import datetime, timezone
+    from app.models.patient import Patient
+    from app.models.visit import Visit
+    from app.models.canonical_patient_record import CanonicalPatientRecord
+    from app.services.canonical_record_service import route_to_normalized_tables
+    
+    doc = upload_service.get_document_by_id(db, document_id)
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document with ID '{document_id}' not found."
+        )
+        
+    patient_id = None
+    if request.create_new:
+        if not request.mrn or not request.name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="MRN and Name are required to create a new patient."
+            )
+        patient_id = str(uuid.uuid4())
+        new_patient = Patient(
+            patient_id=patient_id,
+            mrn=request.mrn,
+            name=request.name,
+            dob=request.dob,
+            sex=request.sex
+        )
+        db.add(new_patient)
+        db.commit()
+    else:
+        if not request.patient_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="patient_id is required if not creating new."
+            )
+        patient = db.query(Patient).filter(Patient.patient_id == request.patient_id).first()
+        if not patient:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Patient with ID '{request.patient_id}' not found."
+            )
+        patient_id = request.patient_id
+        
+    doc.patient_id = patient_id
+
+    # Create a Visit row for this document
+    visit_id = str(uuid.uuid4())
+    doc_date = None
+    # Attempt to find document_date from CanonicalPatientRecord if it was extracted
+    doc_date_record = db.query(CanonicalPatientRecord).filter(
+        CanonicalPatientRecord.document_id == document_id,
+        CanonicalPatientRecord.field_name == "document_date"
+    ).first()
+    
+    if doc_date_record and doc_date_record.value:
+        from dateutil.parser import parse
+        try:
+            doc_date = parse(str(doc_date_record.value))
+        except (ValueError, TypeError):
+            doc_date = datetime.now(timezone.utc)
+    else:
+        doc_date = datetime.now(timezone.utc)
+        
+    new_visit = Visit(
+        visit_id=visit_id,
+        patient_id=patient_id,
+        document_id=document_id,
+        visit_date=doc_date,
+        visit_type="Unknown", # Or map from doc.document_type if appropriate
+        provider_name=None
+    )
+    db.add(new_visit)
+
+    # Migrate flat clinical entities to normalized tables
+    migratable_fields = {"medications", "diagnoses", "lab_results", "vitals", "procedures"}
+    flat_records = db.query(CanonicalPatientRecord).filter(
+        CanonicalPatientRecord.document_id == document_id,
+        CanonicalPatientRecord.field_name.in_(migratable_fields)
+    ).all()
+
+    for record in flat_records:
+        route_to_normalized_tables(
+            db=db,
+            patient_id=patient_id,
+            field_name=record.field_name,
+            field_id=record.source_field_id,
+            final_value=record.value
+        )
+        db.delete(record)
+
+    db.commit()
+    db.refresh(doc)
+    
+    # Trigger RAG Indexing in the background
+    from app.tasks.rag_tasks import index_document_task
+    background_tasks.add_task(index_document_task, doc.document_id)
+    
+    return {"message": f"Document '{document_id}' linked to patient '{patient_id}' successfully.", "patient_id": patient_id}
+
 

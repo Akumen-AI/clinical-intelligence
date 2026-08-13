@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     DOCUMENT_CLASSIFICATION_THRESHOLD: float = 0.80
     CONFIDENCE_THRESHOLD: float = 0.80  # Default confidence threshold for routing extracted fields (Story 2.5: default 0.80)
+    RAG_SIMILARITY_THRESHOLD: float = 0.5  # Similarity threshold for RAG chunks
     OLLAMA_TIMEOUT: int = 120  # seconds — read timeout for Ollama API calls
     OCR_PAGE_TIMEOUT: int = 120  # seconds — per-page timeout for OCR subprocess
 

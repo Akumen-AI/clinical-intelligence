@@ -9,6 +9,14 @@ import {
   FileText,
   Zap,
 } from 'lucide-react';
+import LinkPatientModal from './LinkPatientModal';
+import DynamicJSONEditor from './DynamicJSONEditor';
+import apiClient from '../services/api';
+
+const COMPLEX_FIELDS = [
+  'vitals', 'diagnosis', 'medications', 'lab_results',
+  'patient_identifier', 'ordering_physician', 'symptoms', 'procedures', 'patient_assignment'
+];
 
 /**
  * ReviewFieldCard – right-panel component for the side-by-side review UI.
@@ -35,6 +43,7 @@ export default function ReviewFieldCard({
 }) {
   const [editMode, setEditMode] = useState(false);
   const [editValue, setEditValue] = useState('');
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const editRef = useRef(null);
 
   // Reset edit state when item changes
@@ -106,6 +115,30 @@ export default function ReviewFieldCard({
     setEditMode(false);
   };
 
+  const handleLinkPatient = async (payload) => {
+    if (payload.create_new) {
+      try {
+        const res = await apiClient.post('/patients', {
+          mrn: payload.mrn,
+          name: payload.name,
+          dob: payload.dob,
+          sex: payload.sex
+        });
+        onAccept(res.data.patient_id);
+      } catch (err) {
+        alert(err.response?.data?.detail || 'Failed to create patient');
+      }
+    } else {
+      onAccept(payload.patient_id);
+    }
+  };
+
+  const isPatientAssignment = item.field_name === 'patient_assignment';
+  let parsedAssignment = null;
+  if (isPatientAssignment && item.extracted_value) {
+    try { parsedAssignment = JSON.parse(item.extracted_value); } catch(e) {}
+  }
+
   return (
     <div className="rfc-root">
       {/* ── Document reference ── */}
@@ -144,28 +177,73 @@ export default function ReviewFieldCard({
       {/* ── Extracted value / edit ── */}
       <div className="rfc-value-section">
         <label className="rfc-value-label">
-          {editMode ? 'Corrected Value' : 'Extracted Value'}
+          {editMode ? 'Corrected Value' : (isPatientAssignment ? 'Extracted Patient Info' : 'Extracted Value')}
         </label>
 
-        {editMode ? (
-          <textarea
-            ref={editRef}
-            className="rfc-edit-input"
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleEditSubmit();
-              }
-              if (e.key === 'Escape') {
+        {isPatientAssignment ? (
+          <div className="rfc-value-display">
+            {parsedAssignment ? (
+              <div>
+                <div><strong>Name:</strong> {parsedAssignment.name || 'N/A'}</div>
+                <div><strong>DOB:</strong> {parsedAssignment.dob || 'N/A'}</div>
+                <div><strong>Gender:</strong> {parsedAssignment.gender || 'N/A'}</div>
+              </div>
+            ) : (
+              <em style={{ color: 'var(--text-dim)' }}>No patient info extracted</em>
+            )}
+            <button 
+              className="btn btn-primary" 
+              style={{ marginTop: '1rem', width: '100%' }}
+              onClick={() => setIsLinkModalOpen(true)}
+              disabled={isSubmitting}
+            >
+              Assign Patient
+            </button>
+            <LinkPatientModal 
+              isOpen={isLinkModalOpen}
+              onClose={() => setIsLinkModalOpen(false)}
+              documentId={item.document_id}
+              suggestedPatientData={{
+                name: parsedAssignment?.name || '',
+                dob: parsedAssignment?.dob || '',
+                sex: parsedAssignment?.gender || '',
+                mrn: parsedAssignment?.patient_id || ''
+              }}
+              onLink={handleLinkPatient}
+            />
+          </div>
+        ) : editMode ? (
+          COMPLEX_FIELDS.includes(item.field_name) ? (
+            <DynamicJSONEditor
+              initialValue={item.extracted_value ?? ''}
+              fieldName={item.field_name}
+              onChange={setEditValue}
+              onSubmit={handleEditSubmit}
+              onCancel={() => {
                 setEditMode(false);
                 setEditValue(item.extracted_value ?? '');
-              }
-            }}
-            rows={3}
-            placeholder="Enter corrected value…"
-          />
+              }}
+            />
+          ) : (
+            <textarea
+              ref={editRef}
+              className="rfc-edit-input"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleEditSubmit();
+                }
+                if (e.key === 'Escape') {
+                  setEditMode(false);
+                  setEditValue(item.extracted_value ?? '');
+                }
+              }}
+              rows={3}
+              placeholder="Enter corrected value…"
+            />
+          )
         ) : (
           <div className="rfc-value-display">
             {item.extracted_value ?? <em style={{ color: 'var(--text-dim)' }}>null / not extracted</em>}
@@ -182,7 +260,7 @@ export default function ReviewFieldCard({
       )}
 
       {/* ── Action buttons ── */}
-      {editMode ? (
+      {isPatientAssignment ? null : editMode ? (
         <div className="rfc-actions">
           <button
             id="review-submit-edit-btn"
