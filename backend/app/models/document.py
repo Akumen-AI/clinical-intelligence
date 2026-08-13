@@ -14,6 +14,7 @@ class DocumentStatus(str, enum.Enum):
     PREPROCESSED = "preprocessed"
     CLASSIFIED = "classified"
     EXTRACTED = "extracted"
+    UNLINKED = "unlinked"
     PENDING_REVIEW = "pending_review"
     COMMITTED = "committed"
     FAILED = "failed"

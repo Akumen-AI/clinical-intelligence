@@ -197,6 +197,11 @@ def upsert_field(
         elif human_verified:
             field.verified_value = value
             field.verification_status = VerificationStatus.HUMAN_VERIFIED
+        else:
+            if confidence >= settings.CONFIDENCE_THRESHOLD:
+                field.verification_status = VerificationStatus.AUTO_PASSED
+            else:
+                field.verification_status = VerificationStatus.PENDING
         return write_field_to_canonical_record(field, db, value=value)
     except Exception:
         db.rollback()
@@ -204,3 +209,25 @@ def upsert_field(
     finally:
         if close_db:
             db.close()
+
+def migrate_generic_records_to_normalized(document_id: str, patient_id: str, db: Session):
+    """
+    Migrates fields from the generic canonical_patient_records table to normalized
+    clinical entity tables (e.g. medications, diagnoses) for a newly assigned patient.
+    """
+    records = db.query(CanonicalPatientRecord).filter(
+        CanonicalPatientRecord.document_id == document_id
+    ).all()
+
+    for record in records:
+        if record.field_name in {"medications", "diagnoses", "lab_results", "vitals", "procedures"}:
+            route_to_normalized_tables(
+                db=db,
+                patient_id=patient_id,
+                field_name=record.field_name,
+                field_id=record.source_field_id,
+                final_value=record.value,
+            )
+            logger.info(f"[CanonicalRecordService] Migrated generic record {record.field_name} to normalized table for patient {patient_id}")
+    
+    db.commit()

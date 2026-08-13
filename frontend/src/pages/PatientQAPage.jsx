@@ -8,7 +8,7 @@ import {
   AlertTriangle,
   Info
 } from 'lucide-react';
-import { askPatientQuestion, getDocumentFileUrl } from '../services/api';
+import { askPatientQuestion, getDocumentFileUrl, fetchPatient } from '../services/api';
 
 export default function PatientQAPage() {
   const [patientIdInput, setPatientIdInput] = useState('');
@@ -27,14 +27,26 @@ export default function PatientQAPage() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [history, loading, error]);
 
-  const handleLoadPatient = (e) => {
+  const handleLoadPatient = async (e) => {
     e.preventDefault();
     if (!patientIdInput.trim()) return;
-    setActivePatientId(patientIdInput.trim());
-    setHistory([]);
-    setQuestion('');
+    
+    setLoading(true);
     setError(null);
     setErrorType(null);
+    
+    try {
+      await fetchPatient(patientIdInput.trim());
+      setActivePatientId(patientIdInput.trim());
+      setHistory([]);
+      setQuestion('');
+    } catch (err) {
+      setError(`Patient '${patientIdInput.trim()}' not found. Please verify the ID/MRN.`);
+      setErrorType('not_found');
+      setActivePatientId('');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleClearPatient = () => {
@@ -138,8 +150,9 @@ export default function PatientQAPage() {
           </div>
 
           {!activePatientId ? (
-            <button type="submit" className="btn btn-primary" style={{ padding: '0.6rem 1.25rem', fontSize: '0.85rem', background: 'linear-gradient(135deg, var(--primary-violet), var(--primary-blue))' }}>
-              Load Patient
+            <button type="submit" className="btn btn-primary" disabled={loading} style={{ padding: '0.6rem 1.25rem', fontSize: '0.85rem', background: 'linear-gradient(135deg, var(--primary-violet), var(--primary-blue))', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {loading && <RefreshCw size={14} className="spin" />}
+              {loading ? 'Loading...' : 'Load Patient'}
             </button>
           ) : (
             <button type="button" className="btn btn-secondary" onClick={handleClearPatient} style={{ padding: '0.6rem 1rem', fontSize: '0.85rem' }}>
@@ -148,6 +161,24 @@ export default function PatientQAPage() {
           )}
         </form>
       </div>
+
+      {/* Global Error Banner for Patient Loading */}
+      {error && !activePatientId && (
+        <div 
+          className={`alert-banner ${errorType === 'server_error' ? 'error' : ''}`} 
+          style={{ 
+            marginBottom: '1.5rem',
+            ...(errorType !== 'server_error' ? { 
+              background: 'rgba(245, 158, 11, 0.12)', 
+              border: '1px solid rgba(245, 158, 11, 0.3)', 
+              color: '#FCD34D' 
+            } : {})
+          }}
+        >
+          {errorType === 'server_error' ? <AlertTriangle size={18} style={{ flexShrink: 0 }} /> : <Info size={18} style={{ flexShrink: 0 }} />}
+          <span style={{ marginLeft: '0.75rem' }}>{error}</span>
+        </div>
+      )}
 
       {/* Main Chat Area */}
       {!activePatientId ? (

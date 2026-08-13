@@ -13,6 +13,7 @@ class Patient(Base):
     __tablename__ = "patients"
 
     patient_id = Column(String(36), primary_key=True, default=generate_uuid, index=True)
+    patient_number = Column(String(50), nullable=True, unique=True, index=True)
     mrn = Column(String(50), nullable=True, index=True)
     name = Column(String(255), nullable=True)
     dob = Column(String(50), nullable=True)

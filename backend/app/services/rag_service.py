@@ -66,7 +66,10 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVE
         if chunk:
             chunks.append(chunk)
             
-        start = end - overlap
+        next_start = end - overlap
+        if next_start <= start:
+            break
+        start = next_start
         
     return chunks
 
@@ -188,7 +191,7 @@ Question: {question}
 Answer:"""
 
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-3.5-flash",
         contents=prompt,
     )
     

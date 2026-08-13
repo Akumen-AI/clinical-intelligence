@@ -178,6 +178,16 @@ export const fetchPatients = async () => {
   return response.data;
 };
 
+export const fetchPatient = async (patientId) => {
+  const response = await apiClient.get(`/patients/${patientId}`);
+  return response.data;
+};
+
+export const fetchPatientRecords = async (patientId) => {
+  const response = await apiClient.get(`/patients/${patientId}/records`);
+  return response.data;
+};
+
 // ── Canonical Patient Records ──────────────────────────────────────────────
 
 /**

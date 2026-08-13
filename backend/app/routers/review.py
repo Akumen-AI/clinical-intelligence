@@ -338,20 +338,40 @@ def review_pending_field(
 
     if payload.action == "approve":
         review_rec.status = ReviewStatus.APPROVED
-        # Use corrected value when reviewer edited, otherwise fall back to extracted
-        value_to_write = (
-            payload.corrected_value
-            if payload.corrected_value is not None
-            else review_rec.extracted_value
-        )
-        canonical_record_service.upsert_field(
-            document_id=review_rec.document_id,
-            field_name=review_rec.field_name,
-            value=value_to_write,
-            confidence=review_rec.confidence_score,
-            db=db,
-            human_verified=True,
-        )
+        
+        if review_rec.field_name == "patient_assignment":
+            if not payload.corrected_value:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="patient_id must be provided as corrected_value to approve patient_assignment."
+                )
+            doc = db.query(Document).filter(Document.document_id == review_rec.document_id).first()
+            if doc:
+                doc.patient_id = payload.corrected_value
+                from app.models.document import DocumentStatus
+                if doc.status == DocumentStatus.UNLINKED.value:
+                    doc.status = DocumentStatus.EXTRACTED.value
+                db.commit()
+                canonical_record_service.migrate_generic_records_to_normalized(
+                    document_id=doc.document_id,
+                    patient_id=doc.patient_id,
+                    db=db
+                )
+        else:
+            # Use corrected value when reviewer edited, otherwise fall back to extracted
+            value_to_write = (
+                payload.corrected_value
+                if payload.corrected_value is not None
+                else review_rec.extracted_value
+            )
+            canonical_record_service.upsert_field(
+                document_id=review_rec.document_id,
+                field_name=review_rec.field_name,
+                value=value_to_write,
+                confidence=review_rec.confidence_score,
+                db=db,
+                human_verified=True,
+            )
     elif payload.action == "reject":
         review_rec.status = ReviewStatus.REJECTED
 

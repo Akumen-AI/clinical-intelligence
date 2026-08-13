@@ -184,8 +184,10 @@ def extract_and_persist_fields(
     except Exception as exc:
         # Fallback to direct routing execution if Celery broker unavailable
         try:
-            from app.tasks.routing_tasks import route_document_fields
-            route_document_fields(document.document_id)
+            from app.services.confidence_router import route_extraction_result
+            field_dict = {f.field_name: {"value": f.raw_value, "confidence": f.confidence_score} for f in records}
+            extraction_result = {"document_id": document.document_id, "fields": field_dict}
+            route_extraction_result(extraction_result, db=db)
         except Exception as e:
             print(f"[Field Extraction] Direct routing execution error: {e}")
 

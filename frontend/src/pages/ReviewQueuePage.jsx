@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   ClipboardCheck,
   RefreshCw,
@@ -20,18 +20,20 @@ import {
   submitReviewAction,
   getReviewImageUrl,
   getDocumentStaticUrl,
+  fetchDocuments,
 } from '../services/api';
 
 export default function ReviewQueuePage() {
+  const [viewMode, setViewMode] = useState('list'); // 'list' or 'review'
+  const [documents, setDocuments] = useState([]);
   const [allItems, setAllItems] = useState([]);      // all PENDING review items
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
   // Current document filter
-  const [selectedDocId, setSelectedDocId] = useState('ALL');
+  const [selectedDocId, setSelectedDocId] = useState(null);
 
-  // Items for the selected document (or all docs)
-  const [docItems, setDocItems] = useState([]);
+  // ── No useState for docItems; we will compute it directly ──
   const [currentIndex, setCurrentIndex] = useState(0);
 
   // Context for the currently focused item (enriched with doc info + bbox)
@@ -51,19 +53,48 @@ export default function ReviewQueuePage() {
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   
   // Try to find if an MRN/patient_identifier was extracted for the current document
-  const extractedMrn = allItems.find(i => i.document_id === selectedDocId && i.field_name === 'patient_identifier')?.extracted_value || '';
+  const patientAssignmentStr = allItems.find(i => i.document_id === selectedDocId && i.field_name === 'patient_assignment')?.extracted_value;
+  const patientIdStr = allItems.find(i => i.document_id === selectedDocId && i.field_name === 'patient_identifier')?.extracted_value;
+
+  const suggestedPatientData = useMemo(() => {
+    let data = { name: '', mrn: '', dob: '', sex: '' };
+    if (patientAssignmentStr) {
+      try {
+        const parsed = JSON.parse(patientAssignmentStr);
+        if (parsed.name) data.name = parsed.name;
+        if (parsed.dob) data.dob = parsed.dob;
+        if (parsed.gender) data.sex = parsed.gender;
+        if (parsed.patient_id) data.mrn = parsed.patient_id;
+      } catch (e) {
+        // ignore
+      }
+    } else if (patientIdStr) {
+      try {
+        const parsed = JSON.parse(patientIdStr);
+        if (parsed.patient_id) data.mrn = parsed.patient_id;
+        if (parsed.name) data.name = parsed.name;
+      } catch (e) {
+        data.name = patientIdStr; // If it's a raw string, it was likely mis-extracted as a name
+      }
+    }
+    return data;
+  }, [patientAssignmentStr, patientIdStr]);
 
   // Stats
   const [reviewedToday, setReviewedToday] = useState(0);
   const startTimeRef = useRef(Date.now());
 
-  // ── Load all pending items ──────────────────────────────────────────────
+  // ── Load all pending items and documents ────────────────────────────────
   const loadQueue = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await fetchPendingReviews(null, 1, 100);
-      setAllItems(data.items || []);
+      const [reviewsData, docsData] = await Promise.all([
+        fetchPendingReviews(null, 1, 100),
+        fetchDocuments()
+      ]);
+      setAllItems(reviewsData.items || []);
+      setDocuments(docsData || []);
     } catch (err) {
       // Safely convert error detail to string — it can be an array (Pydantic) or object
       const raw = err.response?.data?.detail;
@@ -82,20 +113,39 @@ export default function ReviewQueuePage() {
     loadQueue();
   }, [loadQueue]);
 
-  // ── Recompute docItems when allItems or selectedDocId changes ──────────
-  useEffect(() => {
-    const filtered =
-      selectedDocId === 'ALL'
-        ? allItems
-        : allItems.filter((i) => i.document_id === selectedDocId);
-    setDocItems(filtered);
-    setCurrentIndex((index) => Math.min(index, Math.max(0, filtered.length - 1)));
+  // ── Compute docItems synchronously during render ──────────
+  const docItems = useMemo(() => {
+    if (selectedDocId === 'ALL') return allItems;
+    if (!selectedDocId) return [];
+    return allItems.filter((i) => i.document_id === selectedDocId);
   }, [allItems, selectedDocId]);
+
+  useEffect(() => {
+    setCurrentIndex((index) => Math.min(index, Math.max(0, docItems.length - 1)));
+  }, [docItems.length]);
 
   // ── Unique documents in the queue ──────────────────────────────────────
   const uniqueDocs = [...new Map(allItems.map((i) => [i.document_id, i])).entries()].map(
-    ([docId, item]) => ({ docId, count: allItems.filter((x) => x.document_id === docId).length })
+    ([docId, item]) => {
+      const docItems = allItems.filter((x) => x.document_id === docId);
+      const isPatientAssignment = docItems.some(x => x.field_name === 'patient_assignment');
+      return { 
+        docId, 
+        count: docItems.length,
+        isPatientAssignment
+      };
+    }
   );
+
+  // Transition back to list if all items for the selected document are reviewed
+  useEffect(() => {
+    if (viewMode === 'review' && selectedDocId && docItems.length === 0) {
+      setViewMode('list');
+      setSelectedDocId(null);
+      setToastMsg({ msg: '🎉 All fields for this document have been reviewed!', type: 'success' });
+      setTimeout(() => setToastMsg(null), 2500);
+    }
+  }, [docItems.length, viewMode, selectedDocId]);
 
   // ── Load context whenever the current item changes ──────────────────────
   const currentItem = docItems[currentIndex] || null;
@@ -286,194 +336,217 @@ export default function ReviewQueuePage() {
         </div>
       </div>
 
-      {/* ── Document selector ── */}
-      <div className="rq-doc-selector-wrap">
-        <div className="rq-doc-selector-label">Filter by document:</div>
-        <div className="rq-doc-selector-scroll">
-          <button
-            className={`rq-doc-chip ${selectedDocId === 'ALL' ? 'active' : ''}`}
-            onClick={() => setSelectedDocId('ALL')}
-          >
-            All Documents
-            <span className="rq-doc-chip-count">{allItems.length}</span>
-          </button>
-          {uniqueDocs.map(({ docId, count }) => {
-            const sample = allItems.find((i) => i.document_id === docId);
-            const label = docId.slice(0, 8) + '…';
+      {viewMode === 'list' ? (
+        <div className="rq-doc-list" style={{ marginTop: '1.5rem', display: 'grid', gap: '1rem' }}>
+          {uniqueDocs.map(({ docId, count, isPatientAssignment }) => {
+            const doc = documents.find(d => d.document_id === docId);
+            const filename = doc ? doc.filename : (docId.slice(0, 8) + '…');
             return (
-              <button
-                key={docId}
-                className={`rq-doc-chip ${selectedDocId === docId ? 'active' : ''}`}
-                onClick={() => setSelectedDocId(docId)}
-                title={docId}
-              >
-                {label}
-                <span className="rq-doc-chip-count">{count}</span>
-              </button>
+              <div key={docId} style={{ 
+                background: 'var(--surface-color)', 
+                border: '1px solid var(--border-color)', 
+                borderRadius: '8px', 
+                padding: '1.5rem', 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center' 
+              }}>
+                <div>
+                  <h3 style={{ margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <FileTextIcon size={18} />
+                    {filename}
+                  </h3>
+                  <div style={{ display: 'flex', gap: '1rem', fontSize: '0.9rem' }}>
+                    {isPatientAssignment ? (
+                      <span style={{ color: '#f43f5e', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <AlertTriangle size={14} /> Needs Patient Assignment
+                      </span>
+                    ) : (
+                      <span style={{ color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <ZoomIn size={14} /> Low Confidence Data ({count} fields)
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <button 
+                    className="btn btn-primary"
+                    onClick={() => {
+                      setSelectedDocId(docId);
+                      setViewMode('review');
+                    }}
+                  >
+                    Start Review
+                  </button>
+                </div>
+              </div>
             );
           })}
         </div>
-        {selectedDocId !== 'ALL' && (
-          <button 
-            className="btn btn-secondary" 
-            style={{ marginLeft: '1rem', whiteSpace: 'nowrap' }}
-            onClick={() => setIsLinkModalOpen(true)}
-          >
-            Link to Patient
-          </button>
-        )}
-      </div>
-
-      <LinkPatientModal 
-        isOpen={isLinkModalOpen}
-        onClose={() => setIsLinkModalOpen(false)}
-        documentId={selectedDocId}
-        suggestedMrn={extractedMrn}
-        onLink={async (payload) => {
-          setIsLinkModalOpen(false);
-          try {
-            const { default: api } = await import('../services/api');
-            const res = await api.post(`/documents/${selectedDocId}/link-patient`, payload);
-            setToastMsg({ msg: `Document linked to patient successfully!`, type: 'success' });
-            setTimeout(() => setToastMsg(null), 2500);
-          } catch (err) {
-            setToastMsg({ msg: err.response?.data?.detail || 'Link failed', type: 'error' });
-            setTimeout(() => setToastMsg(null), 2500);
-          }
-        }}
-      />
-
-      {/* ── Split pane ── */}
-      <div className="rq-split-pane">
-        {/* ── Left: Document Image Viewer ── */}
-        <div className="rq-image-panel">
-          <div className="rq-image-toolbar">
-            <span className="rq-image-toolbar-label">
-              {showFullPage ? 'Full Page View' : 'Field Region'}
-            </span>
-            <div className="rq-image-toolbar-actions">
-              <button
-                className="rq-img-btn"
-                onClick={() => setShowFullPage((v) => !v)}
-                title={showFullPage ? 'Show cropped field region' : 'Show full document page'}
-              >
-                <Maximize2 size={14} />
-                {showFullPage ? 'Crop to Field' : 'Full Page'}
-              </button>
-              <button
-                className="rq-img-btn"
-                onClick={() => setZoom((z) => Math.min(3, z + 0.25))}
-                title="Zoom in"
-                disabled={zoom >= 3}
-              >
-                <ZoomIn size={14} />
-              </button>
-              <button
-                className="rq-img-btn"
-                onClick={() => setZoom((z) => Math.max(0.5, z - 0.25))}
-                title="Zoom out"
-                disabled={zoom <= 0.5}
-              >
-                <ZoomOut size={14} />
-              </button>
-              <button
-                className="rq-img-btn"
-                onClick={() => setZoom(1.0)}
-                title="Reset zoom"
-              >
-                <RotateCcw size={13} />
-              </button>
-            </div>
+      ) : (
+        <>
+          <div style={{ margin: '1rem 0' }}>
+            <button 
+              className="btn btn-secondary" 
+              onClick={() => { setViewMode('list'); setSelectedDocId(null); }}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            >
+              <RotateCcw size={14} style={{ transform: 'rotate(-45deg)' }} /> Back to Queue
+            </button>
           </div>
 
-          <div className="rq-image-viewport">
-            {isLoadingContext && (
-              <div className="rq-image-loader">
-                <RefreshCw size={24} className="spin" color="var(--primary-cyan)" />
-                <span>Loading image…</span>
-              </div>
-            )}
+          <LinkPatientModal 
+            isOpen={isLinkModalOpen}
+            onClose={() => setIsLinkModalOpen(false)}
+            documentId={selectedDocId}
+            suggestedPatientData={suggestedPatientData}
+            onLink={async (payload) => {
+              setIsLinkModalOpen(false);
+              try {
+                const { default: api } = await import('../services/api');
+                const res = await api.post(`/documents/${selectedDocId}/link-patient`, payload);
+                setToastMsg({ msg: `Document linked to patient successfully!`, type: 'success' });
+                setTimeout(() => setToastMsg(null), 2500);
+              } catch (err) {
+                setToastMsg({ msg: err.response?.data?.detail || 'Link failed', type: 'error' });
+                setTimeout(() => setToastMsg(null), 2500);
+              }
+            }}
+          />
 
-            {imgSrc && (
-              <div
-                className="rq-image-zoom-wrap"
-                style={{ transform: `scale(${zoom})`, transformOrigin: 'top center' }}
-              >
-                <div className="rq-image-container" style={{ position: 'relative', display: 'inline-block' }}>
-                  <img
-                    key={imgSrc}
-                    src={imgSrc}
-                    alt="Document region"
-                    className={`rq-document-image ${imgLoaded ? 'loaded' : ''}`}
-                    onLoad={() => { setImgLoaded(true); setImgError(false); }}
-                    onError={() => { setImgError(true); setImgLoaded(true); }}
-                    draggable={false}
-                  />
-
-                  {/* Bounding box highlight overlay — shown only on full-page view with a valid bbox */}
-                  {showFullPage && bbox && imgLoaded && (
-                    <div
-                      className="rq-bbox-overlay"
-                      style={{
-                        left: `${bbox.x * 100}%`,
-                        top: `${bbox.y * 100}%`,
-                        width: `${bbox.width * 100}%`,
-                        height: `${bbox.height * 100}%`,
-                      }}
-                    />
-                  )}
+          {/* ── Split pane ── */}
+          <div className="rq-split-pane">
+            {/* ── Left: Document Image Viewer ── */}
+            <div className="rq-image-panel">
+              <div className="rq-image-toolbar">
+                <span className="rq-image-toolbar-label">
+                  {showFullPage ? 'Full Page View' : 'Field Region'}
+                </span>
+                <div className="rq-image-toolbar-actions">
+                  <button
+                    className="rq-img-btn"
+                    onClick={() => setShowFullPage((v) => !v)}
+                    title={showFullPage ? 'Show cropped field region' : 'Show full document page'}
+                  >
+                    <Maximize2 size={14} />
+                    {showFullPage ? 'Crop to Field' : 'Full Page'}
+                  </button>
+                  <button
+                    className="rq-img-btn"
+                    onClick={() => setZoom((z) => Math.min(3, z + 0.25))}
+                    title="Zoom in"
+                    disabled={zoom >= 3}
+                  >
+                    <ZoomIn size={14} />
+                  </button>
+                  <button
+                    className="rq-img-btn"
+                    onClick={() => setZoom((z) => Math.max(0.5, z - 0.25))}
+                    title="Zoom out"
+                    disabled={zoom <= 0.5}
+                  >
+                    <ZoomOut size={14} />
+                  </button>
+                  <button
+                    className="rq-img-btn"
+                    onClick={() => setZoom(1.0)}
+                    title="Reset zoom"
+                  >
+                    <RotateCcw size={13} />
+                  </button>
                 </div>
+              </div>
 
-                {imgError && (
-                  <div className="rq-image-error">
-                    <AlertTriangle size={20} color="#f59e0b" />
-                    <span>Could not load document image. The file may still be processing.</span>
+              <div className="rq-image-viewport">
+                {isLoadingContext && (
+                  <div className="rq-image-loader">
+                    <RefreshCw size={24} className="spin" color="var(--primary-cyan)" />
+                    <span>Loading image…</span>
+                  </div>
+                )}
+
+                {imgSrc && (
+                  <div
+                    className="rq-image-zoom-wrap"
+                    style={{ transform: `scale(${zoom})`, transformOrigin: 'top center' }}
+                  >
+                    <div className="rq-image-container" style={{ position: 'relative', display: 'inline-block' }}>
+                      <img
+                        key={imgSrc}
+                        src={imgSrc}
+                        alt="Document region"
+                        className={`rq-document-image ${imgLoaded ? 'loaded' : ''}`}
+                        onLoad={() => { setImgLoaded(true); setImgError(false); }}
+                        onError={() => { setImgError(true); setImgLoaded(true); }}
+                        draggable={false}
+                      />
+
+                      {/* Bounding box highlight overlay — shown only on full-page view with a valid bbox */}
+                      {showFullPage && bbox && imgLoaded && (
+                        <div
+                          className="rq-bbox-overlay"
+                          style={{
+                            left: `${bbox.x * 100}%`,
+                            top: `${bbox.y * 100}%`,
+                            width: `${bbox.width * 100}%`,
+                            height: `${bbox.height * 100}%`,
+                          }}
+                        />
+                      )}
+                    </div>
+
+                    {imgError && (
+                      <div className="rq-image-error">
+                        <AlertTriangle size={20} color="#f59e0b" />
+                        <span>Could not load document image. The file may still be processing.</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {!imgSrc && !isLoadingContext && (
+                  <div className="rq-image-placeholder">
+                    <FileTextIcon size={40} style={{ opacity: 0.3 }} />
+                    <span>No image available</span>
                   </div>
                 )}
               </div>
-            )}
 
-            {!imgSrc && !isLoadingContext && (
-              <div className="rq-image-placeholder">
-                <FileTextIcon size={40} style={{ opacity: 0.3 }} />
-                <span>No image available</span>
-              </div>
-            )}
-          </div>
-
-          {/* Field label overlay at bottom of image panel */}
-          {context && (
-            <div className="rq-image-field-label">
-              <span className="rq-image-field-tag">Field:</span>
-              <span>{context.field_name}</span>
-              {context.document_filename && (
-                <span className="rq-image-doc-name">· {context.document_filename}</span>
+              {/* Field label overlay at bottom of image panel */}
+              {context && (
+                <div className="rq-image-field-label">
+                  <span className="rq-image-field-tag">Field:</span>
+                  <span>{context.field_name}</span>
+                  {context.document_filename && (
+                    <span className="rq-image-doc-name">· {context.document_filename}</span>
+                  )}
+                </div>
               )}
             </div>
-          )}
-        </div>
 
-        {/* ── Right: Field Review Panel ── */}
-        <div className="rq-review-panel">
-          {docItems.length === 0 ? (
-            <div className="rq-review-empty">
-              <CheckCircle2 size={32} color="#10b981" />
-              <p>All fields in this document are reviewed!</p>
+            {/* ── Right: Field Review Panel ── */}
+            <div className="rq-review-panel">
+              {docItems.length === 0 ? (
+                <div className="rq-review-empty">
+                  <CheckCircle2 size={32} color="#10b981" />
+                  <p>All fields in this document are reviewed!</p>
+                </div>
+              ) : (
+                <ReviewFieldCard
+                  item={context || currentItem}
+                  index={currentIndex}
+                  total={docItems.length}
+                  onAccept={handleAccept}
+                  onReject={handleReject}
+                  onPrev={handlePrev}
+                  onNext={handleNext}
+                  isSubmitting={isSubmitting}
+                />
+              )}
             </div>
-          ) : (
-            <ReviewFieldCard
-              item={context || currentItem}
-              index={currentIndex}
-              total={docItems.length}
-              onAccept={handleAccept}
-              onReject={handleReject}
-              onPrev={handlePrev}
-              onNext={handleNext}
-              isSubmitting={isSubmitting}
-            />
-          )}
-        </div>
-      </div>
+          </div>
+        </>
+      )}
 
       {/* ── Toast notification ── */}
       {toastMsg && (

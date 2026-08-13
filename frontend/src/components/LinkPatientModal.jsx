@@ -2,19 +2,38 @@ import React, { useState, useEffect } from 'react';
 import { X, Search, UserPlus } from 'lucide-react';
 import apiClient from '../services/api';
 
-export default function LinkPatientModal({ isOpen, onClose, onLink, documentId, suggestedMrn = '' }) {
+export default function LinkPatientModal({ isOpen, onClose, onLink, documentId, suggestedPatientData = {} }) {
+  const generateMRN = () => {
+    const d = new Date();
+    const dateStr = d.toISOString().split('T')[0].replace(/-/g, '');
+    const rand = Math.floor(1000 + Math.random() * 9000);
+    return `MRN-${dateStr}-${rand}`;
+  };
+
   const [tab, setTab] = useState('search');
-  const [searchQuery, setSearchQuery] = useState(suggestedMrn);
+  const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
 
   // Create form state
   const [formData, setFormData] = useState({
-    mrn: suggestedMrn,
+    mrn: '',
     name: '',
     dob: '',
     sex: ''
   });
+
+  useEffect(() => {
+    if (isOpen) {
+      setSearchQuery(suggestedPatientData.mrn || suggestedPatientData.name || '');
+      setFormData({
+        mrn: generateMRN(),
+        name: suggestedPatientData.name || '',
+        dob: suggestedPatientData.dob || '',
+        sex: suggestedPatientData.sex || ''
+      });
+    }
+  }, [isOpen]); // Only run once when modal opens
 
   useEffect(() => {
     if (isOpen && tab === 'search' && searchQuery) {
@@ -79,7 +98,7 @@ export default function LinkPatientModal({ isOpen, onClose, onLink, documentId, 
                   type="text" 
                   className="input-field" 
                   style={{ flex: 1 }}
-                  placeholder="Search MRN or Name..." 
+                  placeholder="Search by MRN (or Name)..." 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
