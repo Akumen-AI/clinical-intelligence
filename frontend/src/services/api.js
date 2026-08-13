@@ -163,6 +163,21 @@ export const fetchTimelineEvent = async (documentId) => {
   return response.data;
 };
 
+export const askPatientQuestion = async (patientId, question) => {
+  // Note: if auth is added, attach bearer token here (Story 5.2+)
+  const response = await apiClient.post(`/patients/${patientId}/ask`, { question }, {
+    headers: {
+      Authorization: `Bearer dev-token-for-testing-123`
+    }
+  });
+  return response.data;
+};
+
+export const fetchPatients = async () => {
+  const response = await apiClient.get('/patients');
+  return response.data;
+};
+
 // ── Canonical Patient Records ──────────────────────────────────────────────
 
 /**

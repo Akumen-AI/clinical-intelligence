@@ -24,6 +24,7 @@ from app.models.user import User
 from app.models.patient import Patient
 from app.models.visit import Visit
 from app.models.clinical_entities import Medication, Diagnosis, LabResult, Vital, Procedure
+from app.models.rag_chunk import PatientRAGChunk
 from app.api import upload
 from app.api import layout
 from app.api import fields

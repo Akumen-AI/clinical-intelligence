@@ -6,6 +6,8 @@ from sqlalchemy import or_
 from app.database import get_db
 from app.models.patient import Patient
 from app.schemas.patient import PatientCreate, PatientUpdate, PatientResponse, AskRequest, AskResponse
+from app.core.security import get_current_user
+from app.models.user import User
 
 router = APIRouter(
     prefix="/patients",
@@ -91,10 +93,16 @@ def update_patient(patient_id: str, patient_in: PatientUpdate, db: Session = Dep
 
 
 @router.post("/{patient_id}/ask", response_model=AskResponse)
-def ask_patient_question(patient_id: str, request: AskRequest, db: Session = Depends(get_db)):
+def ask_patient_question(
+    patient_id: str, 
+    request: AskRequest, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """
     Ask a natural-language question about a specific patient's documents using RAG.
     Retrieval is strictly scoped to this patient's indexed documents.
+    Note: Patient-level RBAC scoping is deferred to Epic 5 Story 5.3.
     """
     patient = db.query(Patient).filter(Patient.patient_id == patient_id).first()
     if not patient:

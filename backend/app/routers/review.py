@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from PIL import Image
@@ -314,6 +314,7 @@ def get_review_image(
 def review_pending_field(
     review_id: str,
     payload: ReviewActionRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     """
@@ -360,6 +361,12 @@ def review_pending_field(
     review_rec.reviewed_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(review_rec)
+
+    # Trigger background indexing if document is already linked to a patient
+    doc = db.query(Document).filter(Document.document_id == review_rec.document_id).first()
+    if doc and doc.patient_id:
+        from app.tasks.rag_tasks import index_document_task
+        background_tasks.add_task(index_document_task, doc.document_id)
 
     return PendingReviewResponse.model_validate(review_rec)
 

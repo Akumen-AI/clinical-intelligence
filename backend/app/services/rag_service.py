@@ -21,20 +21,19 @@ def get_embedding(text: str) -> List[float]:
     from app.config import settings
 
     if not settings.GEMINI_API_KEY:
-        logger.warning("[RAG] GEMINI_API_KEY is not set. Cannot generate embeddings.")
-        return []
+        raise ValueError("[RAG] GEMINI_API_KEY is not set. Cannot generate embeddings.")
 
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
     
     try:
         response = client.models.embed_content(
-            model="text-embedding-004",
+            model="gemini-embedding-2",
             contents=text,
         )
         return response.embeddings[0].values
     except Exception as e:
         logger.error(f"[RAG] Failed to generate embedding: {e}")
-        return []
+        raise RuntimeError(f"Failed to generate embedding: {e}") from e
 
 
 def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> List[str]:
@@ -131,13 +130,15 @@ def retrieve_relevant_chunks(db: Session, patient_id: str, query: str, top_k: in
     # Get all chunks for this patient
     all_chunks = db.query(PatientRAGChunk).filter(PatientRAGChunk.patient_id == patient_id).all()
     
+    from app.config import settings
     scored_chunks = []
     for chunk in all_chunks:
         try:
             # SQLAlchemy JSON column deserializes automatically
             chunk_embedding = chunk.embedding
             score = cosine_similarity(query_embedding, chunk_embedding)
-            scored_chunks.append((chunk, score))
+            if score >= settings.RAG_SIMILARITY_THRESHOLD:
+                scored_chunks.append((chunk, score))
         except Exception as e:
             logger.warning(f"[RAG] Error processing chunk {chunk.id}: {e}")
             

@@ -3,7 +3,9 @@ import UploadPage from './pages/UploadPage';
 import ReviewQueuePage from './pages/ReviewQueuePage';
 import CanonicalRecordPage from './pages/CanonicalRecordPage';
 import TimelinePage from './pages/TimelinePage';
-import { Activity, ClipboardCheck, Database, Clock } from 'lucide-react';
+import PatientQAPage from './pages/PatientQAPage';
+import PatientsPage from './pages/PatientsPage';
+import { Activity, ClipboardCheck, Database, Clock, MessageCircleQuestion, Users } from 'lucide-react';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -108,6 +110,22 @@ function App() {
                 <Clock size={15} />
                 Patient Timeline
               </button>
+              <button
+                id="nav-ask-tab"
+                className={`global-nav-tab ${activePage === 'ask' ? 'active' : ''}`}
+                onClick={() => setActivePage('ask')}
+              >
+                <MessageCircleQuestion size={15} />
+                Patient Q&A
+              </button>
+              <button
+                id="nav-patients-tab"
+                className={`global-nav-tab ${activePage === 'patients' ? 'active' : ''}`}
+                onClick={() => setActivePage('patients')}
+              >
+                <Users size={15} />
+                Patients
+              </button>
             </div>
           </div>
         </nav>
@@ -116,6 +134,8 @@ function App() {
         {activePage === 'review' && <ReviewQueuePage />}
         {activePage === 'canonical' && <CanonicalRecordPage />}
         {activePage === 'timeline' && <TimelinePage />}
+        {activePage === 'ask' && <PatientQAPage />}
+        {activePage === 'patients' && <PatientsPage />}
       </div>
     </ErrorBoundary>
   );
