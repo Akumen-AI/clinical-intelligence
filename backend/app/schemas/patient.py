@@ -75,6 +75,15 @@ class AskRequest(BaseModel):
     question: str
 
 
+class CitationSchema(BaseModel):
+    document_id: str
+    snippet: str
+    location: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
 class AskResponse(BaseModel):
     answer: str
-    source_documents: List[str]
+    source_documents: List[CitationSchema] = []
+    citations: List[CitationSchema] = []
+

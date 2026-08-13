@@ -157,10 +157,11 @@ def ask_patient_question(
         
     from app.services.rag_service import generate_answer
     try:
-        answer, source_docs = generate_answer(db, patient.patient_id, request.question)
+        answer, citations = generate_answer(db, patient.patient_id, request.question)
         return AskResponse(
             answer=answer,
-            source_documents=source_docs
+            source_documents=citations,
+            citations=citations
         )
     except Exception as e:
         raise HTTPException(
