@@ -52,3 +52,21 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+CLINICAL_READ_ROLES = {"doctor", "nurse", "hospital_admin", "department_head"}
+
+
+def require_clinical_read(current_user: User = Depends(get_current_user)) -> User:
+    """
+    FastAPI dependency that gates any endpoint on clinical-read roles.
+    Raises HTTP 403 for authenticated users whose role is not in CLINICAL_READ_ROLES.
+    FR-20: access-scoped RAG responses.
+    """
+    if current_user.role not in CLINICAL_READ_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: insufficient role",
+        )
+    return current_user
+
