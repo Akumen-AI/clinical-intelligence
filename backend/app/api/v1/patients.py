@@ -8,8 +8,7 @@ from app.models.patient import Patient
 from app.models.document import Document
 from app.models.clinical_entities import Diagnosis, Medication, LabResult
 from app.schemas.patient import PatientCreate, PatientUpdate, PatientResponse, PatientProfileResponse, AskRequest, AskResponse
-from app.core.security import get_current_user
-from app.models.user import User
+from app.core.security import get_current_user, require_clinical_read, User
 
 router = APIRouter(
     prefix="/patients",
@@ -47,7 +46,11 @@ def create_patient(patient_in: PatientCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/{patient_id}/records", response_model=PatientProfileResponse)
-def get_patient_records(patient_id: str, db: Session = Depends(get_db)):
+def get_patient_records(
+    patient_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_clinical_read)
+):
     """Get a full patient profile including related clinical records."""
     patient = db.query(Patient).filter(Patient.patient_id == patient_id).first()
     if not patient:
@@ -71,7 +74,11 @@ def get_patient_records(patient_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("", response_model=List[PatientResponse])
-def list_patients(search: Optional[str] = None, db: Session = Depends(get_db)):
+def list_patients(
+    search: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_clinical_read)
+):
     """List all patients with optional search by name or MRN."""
     query = db.query(Patient)
     if search:
@@ -86,7 +93,11 @@ def list_patients(search: Optional[str] = None, db: Session = Depends(get_db)):
 
 
 @router.get("/{patient_id}", response_model=PatientResponse)
-def get_patient(patient_id: str, db: Session = Depends(get_db)):
+def get_patient(
+    patient_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_clinical_read)
+):
     """Get a patient by ID, MRN, or OP ID."""
     patient = db.query(Patient).filter(
         or_(
@@ -135,12 +146,11 @@ def ask_patient_question(
     patient_id: str, 
     request: AskRequest, 
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_clinical_read)
 ):
     """
     Ask a natural-language question about a specific patient's documents using RAG.
     Retrieval is strictly scoped to this patient's indexed documents.
-    Note: Patient-level RBAC scoping is deferred to Epic 5 Story 5.3.
     """
     patient = db.query(Patient).filter(
         or_(

@@ -150,7 +150,12 @@ def retrieve_relevant_chunks(db: Session, patient_id: str, query: str, top_k: in
     return scored_chunks[:top_k]
 
 
+# RBAC NOTE (FR-20): caller is responsible for verifying role before invoking.
+# This function performs only patient-scoped retrieval (patient_id filter on
+# PatientRAGChunk.patient_id). Role enforcement lives in the router layer via
+# require_clinical_read — do not add role checks here.
 def generate_answer(db: Session, patient_id: str, question: str) -> Tuple[str, List[Dict[str, Any]]]:
+
     """
     Generate an answer to a user's question based on the patient's retrieved document chunks.
     Returns (answer_text, citations), where citations is a list of structured objects containing:
