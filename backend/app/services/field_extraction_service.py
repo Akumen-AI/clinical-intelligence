@@ -41,6 +41,7 @@ def extract_and_persist_fields(
     ocr_text: Optional[str] = None,
     pre_extracted_fields: Optional[ClinicalFieldsSchema] = None,
     field_confidences: Optional[Dict[str, Any]] = None,
+    actor_user_id: Optional[uuid.UUID] = None,
 ) -> Tuple[ClinicalFieldsSchema, List[ExtractedField]]:
     """
     Extracts key fields from document text using the configured extraction engine
@@ -180,14 +181,14 @@ def extract_and_persist_fields(
     # Story 2.5: Automatically enqueue confidence routing task for extracted fields
     try:
         from app.tasks.routing_tasks import route_document_fields
-        route_document_fields.delay(document.document_id)
+        route_document_fields.delay(document.document_id, actor_user_id=str(actor_user_id) if actor_user_id else None)
     except Exception as exc:
         # Fallback to direct routing execution if Celery broker unavailable
         try:
             from app.services.confidence_router import route_extraction_result
             field_dict = {f.field_name: {"value": f.raw_value, "confidence": f.confidence_score} for f in records}
             extraction_result = {"document_id": document.document_id, "fields": field_dict}
-            route_extraction_result(extraction_result, db=db)
+            route_extraction_result(extraction_result, db=db, actor_user_id=actor_user_id)
         except Exception as e:
             print(f"[Field Extraction] Direct routing execution error: {e}")
 

@@ -21,7 +21,7 @@ from app.schemas.review import (
     ThresholdConfigRequest,
     ThresholdConfigResponse,
 )
-from app.services import canonical_record_service
+from app.services import canonical_record_service, audit_service
 from app.services.confidence_router import (
     get_confidence_threshold_info,
     set_confidence_threshold,
@@ -405,6 +405,7 @@ def review_pending_field(
                 confidence=review_rec.confidence_score,
                 db=db,
                 human_verified=True,
+                actor_user_id=http_request.state.user.id,
             )
     elif payload.action == "reject":
         review_rec.status = ReviewStatus.REJECTED
@@ -415,6 +416,14 @@ def review_pending_field(
     review_rec.reviewed_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(review_rec)
+
+    audit_service.write_entry(
+        db=db,
+        actor_user_id=http_request.state.user.id,
+        action_type=f"review_{payload.action}",
+        target_entity=f"pending_review:{review_rec.id}",
+        rationale=f"Reviewer {payload.action}ed field '{review_rec.field_name}'"
+    )
 
     # Trigger background indexing if document is already linked to a patient
     if doc and doc.patient_id:

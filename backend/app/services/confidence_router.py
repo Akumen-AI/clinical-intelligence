@@ -105,6 +105,7 @@ def set_confidence_threshold(threshold: float, db: Optional[Session] = None) -> 
 def route_extraction_result(
     extraction_result: dict,
     db: Optional[Session] = None,
+    actor_user_id: Optional[uuid.UUID] = None,
 ) -> RoutingResult:
     """
     Iterates over all fields in extraction_result:
@@ -184,6 +185,7 @@ def route_extraction_result(
                     value=value,
                     confidence=confidence,
                     db=db,
+                    actor_user_id=actor_user_id,
                 )
                 routed_to_canonical.append(field_name)
             else:

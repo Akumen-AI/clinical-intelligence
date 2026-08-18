@@ -18,6 +18,7 @@ RBAC_MATRIX: Dict[str, Set[UserRole]] = {
     
     # Audit Logs (correction-logs)
     "/api/v1/correction-logs": {UserRole.HOSPITAL_ADMIN, UserRole.COMPLIANCE},
+    "/api/v1/audit-log": {UserRole.COMPLIANCE},
 }
 
 def check_rbac(request: Request, current_user: User = Depends(get_current_user)):

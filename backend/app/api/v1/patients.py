@@ -207,8 +207,19 @@ def ask_patient_question(
         )
         
     from app.services.rag_service import generate_answer
+    from app.services import audit_service
     try:
         answer, citations = generate_answer(db, patient.patient_id, request.question)
+        
+        has_answer = len(citations) > 0
+        audit_service.write_entry(
+            db=db,
+            actor_user_id=current_user.id,
+            action_type="rag_query",
+            target_entity=f"patient:{patient.patient_id}",
+            rationale=f"Asked: '{request.question}'. Grounded answer found: {has_answer}"
+        )
+        
         return AskResponse(
             answer=answer,
             source_documents=citations,
