@@ -27,6 +27,7 @@ from app.api import fields
 from app.api import timeline
 from app.api import canonical_records
 from app.routers import review
+from app.routers.policy_chatbot import router as policy_chatbot_router
 from app.api.v1.correction_logs import router as correction_logs_router
 from app.services import layout_trigger
 from app.services.upload_service import ensure_upload_directory_exists
@@ -109,6 +110,7 @@ app.include_router(timeline.router, prefix="/api/v1")
 app.include_router(canonical_records.router, prefix="/api/v1")
 app.include_router(review.router, prefix="/api/v1")
 app.include_router(correction_logs_router, prefix="/api/v1")
+app.include_router(policy_chatbot_router)
 
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_dir):
