@@ -31,6 +31,7 @@ from app.api import fields
 from app.api import timeline
 from app.api import canonical_records
 from app.routers import review
+from app.routers.policy_chatbot import router as policy_chatbot_router
 from app.api.v1.patients import router as patients_router
 from app.api.v1.correction_logs import router as correction_logs_router
 from app.api.v1.audit_log import router as audit_log_router
@@ -109,6 +110,14 @@ app.add_middleware(
 app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
 
 # Include routers
+app.include_router(upload.router, prefix="/api/v1")
+app.include_router(layout.router, prefix="/api/v1")
+app.include_router(fields.router, prefix="/api/v1")
+app.include_router(timeline.router, prefix="/api/v1")
+app.include_router(canonical_records.router, prefix="/api/v1")
+app.include_router(review.router, prefix="/api/v1")
+app.include_router(correction_logs_router, prefix="/api/v1")
+app.include_router(policy_chatbot_router)
 app.include_router(upload.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 app.include_router(layout.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 app.include_router(fields.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])

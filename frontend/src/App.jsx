@@ -3,6 +3,9 @@ import UploadPage from './pages/UploadPage';
 import ReviewQueuePage from './pages/ReviewQueuePage';
 import CanonicalRecordPage from './pages/CanonicalRecordPage';
 import TimelinePage from './pages/TimelinePage';
+import PolicyChatbot from './components/PolicyChatbot';
+import PolicyDocumentUploader from './components/PolicyDocumentUploader';
+import { Activity, ClipboardCheck, Database, Clock } from 'lucide-react';
 import PatientQAPage from './pages/PatientQAPage';
 import PatientsPage from './pages/PatientsPage';
 import { Activity, ClipboardCheck, Database, Clock, MessageCircleQuestion, Users } from 'lucide-react';
@@ -70,6 +73,7 @@ function App() {
   return (
     <ErrorBoundary>
       <div className="App">
+        <PolicyDocumentUploader />
         {/* Global navigation bar */}
         <nav className="global-nav">
           <div className="global-nav-inner">
@@ -134,6 +138,7 @@ function App() {
         {activePage === 'review' && <ReviewQueuePage />}
         {activePage === 'canonical' && <CanonicalRecordPage />}
         {activePage === 'timeline' && <TimelinePage />}
+        <PolicyChatbot />
         {activePage === 'ask' && <PatientQAPage />}
         {activePage === 'patients' && <PatientsPage />}
       </div>
