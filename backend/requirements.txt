@@ -23,3 +23,6 @@ google-genai>=0.2.0
 layoutparser>=0.3.4
 aiosqlite>=0.19.0
 python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+bcrypt<4.0.0
+email-validator>=2.0.0
