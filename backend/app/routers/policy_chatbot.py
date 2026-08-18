@@ -3,13 +3,17 @@
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, HTTPException, UploadFile, status, Depends
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from app.services.policy_ingestion_service import DEFAULT_POLICY_DOCUMENTS_DIR, ingest_policy_documents
 from app.services.policy_rag_service import generate_policy_answer, retrieve_relevant_policy_chunks
-
+from app.services import audit_service
+from app.core.rbac import check_rbac
+from app.core.security import User
+from app.database import get_db
 
 class PolicyChatRequest(BaseModel):
     question: str = Field(min_length=1)
@@ -29,10 +33,27 @@ router = APIRouter(tags=["Hospital Policy Chatbot"])
 
 
 @router.post("/api/v1/policy-chat", response_model=PolicyChatResponse)
-def policy_chat(request: PolicyChatRequest) -> PolicyChatResponse:
+def policy_chat(
+    request: PolicyChatRequest,
+    current_user: User = Depends(check_rbac),
+    db: Session = Depends(get_db)
+) -> PolicyChatResponse:
     matches = retrieve_relevant_policy_chunks(request.question)
+    answer_text = generate_policy_answer(request.question)
+    
+    from app.services.policy_rag_service import POLICY_NO_GROUNDED_ANSWER
+    has_answer = POLICY_NO_GROUNDED_ANSWER.lower() not in answer_text.lower()
+    
+    audit_service.write_entry(
+        db=db,
+        actor_user_id=current_user.id,
+        action_type="policy_rag_query",
+        target_entity="policy_index",
+        rationale=f"Asked: '{request.question}'. Grounded answer found: {has_answer}"
+    )
+
     return PolicyChatResponse(
-        answer=generate_policy_answer(request.question),
+        answer=answer_text,
         citations=[
             {
                 "document_id": match.chunk.source_document_id,
@@ -49,7 +70,7 @@ def policy_chat(request: PolicyChatRequest) -> PolicyChatResponse:
 
 
 @router.get("/api/v1/policy-chat/source/{filename}", include_in_schema=False)
-def get_policy_source(filename: str) -> FileResponse:
+def get_policy_source(filename: str, current_user: User = Depends(check_rbac)) -> FileResponse:
     """Serve only an ingested policy file as the citation target."""
     documents_dir = Path(DEFAULT_POLICY_DOCUMENTS_DIR).resolve()
     source_path = (documents_dir / Path(filename).name).resolve()
@@ -71,6 +92,8 @@ def get_policy_source(filename: str) -> FileResponse:
 )
 async def upload_policy_documents(
     files: list[UploadFile] = File(..., description="Markdown or text policy documents"),
+    current_user: User = Depends(check_rbac),
+    db: Session = Depends(get_db),
 ) -> PolicyUploadResponse:
     """Store policy files in the policy-only directory and rebuild its index."""
     if not files:
@@ -96,7 +119,18 @@ async def upload_policy_documents(
         (documents_dir / filename).write_text(text, encoding="utf-8")
         uploaded_documents.append(filename)
 
+    chunks_ingested = ingest_policy_documents(documents_dir)
+    
+    for filename in uploaded_documents:
+        audit_service.write_entry(
+            db=db,
+            actor_user_id=current_user.id,
+            action_type="policy_document_ingested",
+            target_entity=f"policy_document:{filename}",
+            rationale=f"Policy document '{filename}' was uploaded and ingested."
+        )
+
     return PolicyUploadResponse(
         uploaded_documents=uploaded_documents,
-        chunks_ingested=ingest_policy_documents(documents_dir),
+        chunks_ingested=chunks_ingested,
     )

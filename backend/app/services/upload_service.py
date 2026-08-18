@@ -386,7 +386,7 @@ def delete_document(db: Session, document_id: str) -> bool:
         from app.models.canonical_patient_record import CanonicalPatientRecord
         from app.models.clinical_entities import Medication, Diagnosis, LabResult, Vital, Procedure
         from app.models.visit import Visit
-        from app.models.rag_chunk import PatientRagChunk
+        from app.models.rag_chunk import PatientRAGChunk
         from app.models.upload_log import UploadLog
         from app.models.correction_log import CorrectionLog
         from app.models.layout_region import LayoutRegion
@@ -405,7 +405,7 @@ def delete_document(db: Session, document_id: str) -> bool:
         db.query(PendingReview).filter(PendingReview.document_id == document_id).delete(synchronize_session=False)
         db.query(ExtractedField).filter(ExtractedField.document_id == document_id).delete(synchronize_session=False)
         db.query(Visit).filter(Visit.document_id == document_id).delete(synchronize_session=False)
-        db.query(PatientRagChunk).filter(PatientRagChunk.source_document_id == document_id).delete(synchronize_session=False)
+        db.query(PatientRAGChunk).filter(PatientRAGChunk.source_document_id == document_id).delete(synchronize_session=False)
         db.query(CorrectionLog).filter(CorrectionLog.document_id == document_id).delete(synchronize_session=False)
         db.query(LayoutRegion).filter(LayoutRegion.document_id == document_id).delete(synchronize_session=False)
         if doc.filename:
@@ -458,7 +458,7 @@ def delete_all_documents(db: Session) -> int:
         from app.models.canonical_patient_record import CanonicalPatientRecord
         from app.models.clinical_entities import Medication, Diagnosis, LabResult, Vital, Procedure
         from app.models.visit import Visit
-        from app.models.rag_chunk import PatientRagChunk
+        from app.models.rag_chunk import PatientRAGChunk
         from app.models.upload_log import UploadLog
         from app.models.correction_log import CorrectionLog
         from app.models.layout_region import LayoutRegion
@@ -472,7 +472,7 @@ def delete_all_documents(db: Session) -> int:
         db.query(PendingReview).delete()
         db.query(ExtractedField).delete()
         db.query(Visit).delete()
-        db.query(PatientRagChunk).delete()
+        db.query(PatientRAGChunk).delete()
         db.query(CorrectionLog).delete()
         db.query(LayoutRegion).delete()
         db.query(UploadLog).delete()

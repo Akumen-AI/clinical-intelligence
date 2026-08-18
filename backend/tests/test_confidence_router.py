@@ -268,13 +268,15 @@ def test_patch_review_approve_and_reject(client):
         data = resp.json()
         assert data["status"] == "APPROVED"
         assert data["reviewer_id"] == "user-uuid-1"
+        from unittest.mock import ANY
         mock_upsert.assert_called_once_with(
             document_id="test-doc-123",
             field_name="patient_id",
             value="PAT-12345",
             confidence=0.70,
             human_verified=True,
-            db=pytest.any if hasattr(pytest, 'any') else mock_upsert.call_args[1]['db'],
+            actor_user_id=ANY,
+            db=ANY,
         )
 
         # Reject rec2

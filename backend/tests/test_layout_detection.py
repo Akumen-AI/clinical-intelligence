@@ -35,6 +35,8 @@ def _wait_for_layout(client, document_id: str, timeout: float = 5.0):
         response = client.get(f"/api/v1/documents/{document_id}/layout")
         if response.status_code == 200 and response.json():
             return response.json()
+        elif response.status_code != 200:
+            print(f"DEBUG _wait_for_layout status_code={response.status_code} detail={response.text}")
         time.sleep(0.05)
     raise AssertionError("layout detection did not persist regions")
 

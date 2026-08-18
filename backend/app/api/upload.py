@@ -63,6 +63,8 @@ async def upload_documents(
         file = files[0]
         try:
             actor_id = request.state.user.id
+            print(f"DEBUG ACTOR ID: {actor_id} TYPE: {type(actor_id)}")
+            print(f"DEBUG ACTOR ID: {actor_id} TYPE: {type(actor_id)}")
             doc = await upload_service.process_single_upload(db, file, actor_id, client_ip)
             background_tasks.add_task(upload_service.process_document, db, doc.document_id, actor_id)
             
@@ -92,6 +94,8 @@ async def upload_documents(
     for file in files:
         try:
             actor_id = request.state.user.id
+            print(f"DEBUG ACTOR ID: {actor_id} TYPE: {type(actor_id)}")
+            print(f"DEBUG ACTOR ID: {actor_id} TYPE: {type(actor_id)}")
             doc = await upload_service.process_single_upload(db, file, actor_id, client_ip)
             background_tasks.add_task(upload_service.process_document, db, doc.document_id, actor_id)
             accepted_items.append(

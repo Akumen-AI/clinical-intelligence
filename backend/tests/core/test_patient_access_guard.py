@@ -2,7 +2,7 @@ import pytest
 from uuid import uuid4
 from unittest.mock import MagicMock
 from app.models.user import User, UserRole
-from app.services.rag.rbac_access_guard import RbacAccessGuard, AccessDeniedError
+from app.core.patient_access_guard import RbacAccessGuard, AccessDeniedError
 
 PATIENT_ID = uuid4()
 

@@ -17,6 +17,7 @@ def _capture_preprocessed_documents(session: Session) -> None:
 @event.listens_for(Session, "after_commit")
 def _detect_layout_after_commit(session: Session) -> None:
     document_ids = session.info.pop("layout_preprocessed_document_ids", set())
+    print(f"DEBUG _detect_layout_after_commit: {document_ids}")
     if document_ids:
         # The preprocessing commit happens immediately before the existing
         # upload pipeline starts OCR. Complete layout detection here so OCR

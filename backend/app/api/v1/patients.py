@@ -10,7 +10,7 @@ from app.models.clinical_entities import Diagnosis, Medication, LabResult
 from app.schemas.patient import PatientCreate, PatientUpdate, PatientResponse, PatientProfileResponse, AskRequest, AskResponse
 from app.core.security import User
 from app.models.user import UserRole
-from app.services.rag.rbac_access_guard import RbacAccessGuard, AccessDeniedError
+from app.core.patient_access_guard import RbacAccessGuard, AccessDeniedError
 from fastapi import Request
 
 router = APIRouter(
