@@ -1,3 +1,4 @@
+# Ad-hoc script to list available Gemini API models
 import sys
 import os
 import google.genai as genai

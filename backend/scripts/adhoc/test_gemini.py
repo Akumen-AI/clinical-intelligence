@@ -1,3 +1,4 @@
+# Ad-hoc script to test Gemini classification behavior
 import sys
 import os
 from app.services.classification.gemini_classifier import GeminiClassifier

@@ -3,8 +3,9 @@
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from sqlalchemy.orm import Session
+from app.services.rag.rbac_access_guard import RbacAccessGuard, AccessDeniedError
 
 from app.database import get_db
 from app.models.canonical_patient_record import CanonicalPatientRecord
@@ -54,6 +55,7 @@ def list_canonical_records(
     search: Optional[str] = Query(default=None, description="Free-text search across field names and string values"),
     page: int = Query(default=1, ge=1, description="Page number (1-indexed)"),
     page_size: int = Query(default=50, ge=1, le=200, description="Items per page"),
+    http_request: Request = None,
     db: Session = Depends(get_db),
 ):
     """
@@ -62,6 +64,11 @@ def list_canonical_records(
     Returns a paginated list of all canonical patient records, joined with
     their source document and extracted field metadata.
     """
+    try:
+        RbacAccessGuard().assert_can_query_patient(http_request.state.user, patient_id)
+    except AccessDeniedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+
     query = (
         db.query(CanonicalPatientRecord, Document, ExtractedField)
         .join(Document, CanonicalPatientRecord.document_id == Document.document_id)
@@ -111,6 +118,7 @@ def list_canonical_records(
 )
 def get_canonical_record(
     record_id: str,
+    http_request: Request,
     db: Session = Depends(get_db),
 ):
     """
@@ -133,4 +141,10 @@ def get_canonical_record(
         )
 
     canonical, doc, field = result
+    
+    try:
+        RbacAccessGuard().assert_can_query_patient(http_request.state.user, doc.patient_id if doc else None)
+    except AccessDeniedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+        
     return _build_response(canonical, doc, field)

@@ -62,8 +62,9 @@ async def upload_documents(
     if len(files) == 1:
         file = files[0]
         try:
-            doc = await upload_service.process_single_upload(db, file, client_ip)
-            background_tasks.add_task(upload_service.process_document, db, doc.document_id)
+            actor_id = request.state.user.id
+            doc = await upload_service.process_single_upload(db, file, actor_id, client_ip)
+            background_tasks.add_task(upload_service.process_document, db, doc.document_id, actor_id)
             
             accepted_item = DocumentUploadItem(
                 document_id=doc.document_id,
@@ -90,8 +91,9 @@ async def upload_documents(
 
     for file in files:
         try:
-            doc = await upload_service.process_single_upload(db, file, client_ip)
-            background_tasks.add_task(upload_service.process_document, db, doc.document_id)
+            actor_id = request.state.user.id
+            doc = await upload_service.process_single_upload(db, file, actor_id, client_ip)
+            background_tasks.add_task(upload_service.process_document, db, doc.document_id, actor_id)
             accepted_items.append(
                 DocumentUploadItem(
                     document_id=doc.document_id,

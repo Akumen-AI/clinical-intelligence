@@ -260,6 +260,23 @@ clinical-intelligence/
    uvicorn app.main:app --reload --port 8000
    ```
 
+### Demo Accounts
+
+The platform includes a script to generate synthetic demo accounts for testing role-based access. **These are synthetic demo accounts only and should not be used in a production environment.**
+
+Run the seed script in dev mode:
+```bash
+DEV_MODE=true python scripts/seed_users.py
+```
+
+The generated accounts are:
+- `doctor@demo.com` (Password: `doctorPassword123!`) - Role: `doctor`
+- `nurse@demo.com` (Password: `nursePassword123!`) - Role: `nurse`
+- `admin@demo.com` (Password: `adminPassword123!`) - Role: `hospital_admin`
+- `head@demo.com` (Password: `headPassword123!`) - Role: `department_head`
+- `it@demo.com` (Password: `itPassword123!`) - Role: `it`
+- `compliance@demo.com` (Password: `compliancePassword123!`) - Role: `compliance`
+
 The backend will be available at **http://localhost:8000**.
 
 | URL | Description |

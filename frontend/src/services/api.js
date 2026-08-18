@@ -165,9 +165,10 @@ export const fetchTimelineEvent = async (documentId) => {
 
 export const askPatientQuestion = async (patientId, question) => {
   // Note: if auth is added, attach bearer token here (Story 5.2+)
+  const token = localStorage.getItem('token') || '';
   const response = await apiClient.post(`/patients/${patientId}/ask`, { question }, {
     headers: {
-      Authorization: `Bearer dev-token-for-testing-123`
+      Authorization: `Bearer ${token}`
     }
   });
   return response.data;

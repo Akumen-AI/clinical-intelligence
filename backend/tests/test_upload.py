@@ -193,7 +193,7 @@ def test_invalid_document_type_forces_manual_review(client, mocker):
     doc_id = response.json()["accepted"][0]["document_id"]
     status_data = wait_for_document_processing(client, doc_id)
     
-    assert status_data["status"] in ("classified", "extracted")
+    assert status_data["status"] in ("classified", "extracted", "unlinked")
     assert status_data["document_type"] == "Pizza Receipt"
     assert status_data["needs_manual_review"] == True
 

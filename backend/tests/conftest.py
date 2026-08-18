@@ -63,7 +63,13 @@ def setup_db():
                 except Exception:
                     pass
 
+from app.core.security import create_access_token
+import uuid
+
 @pytest.fixture
 def client():
-    return TestClient(app)
+    token = create_access_token({"sub": str(uuid.uuid4()), "role": "hospital_admin", "email": "test@clinic.org"})
+    c = TestClient(app)
+    c.headers.update({"Authorization": f"Bearer {token}"})
+    return c
 

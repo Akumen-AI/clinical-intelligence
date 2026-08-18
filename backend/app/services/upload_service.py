@@ -70,7 +70,7 @@ def create_document(
     db.refresh(doc)
     return doc
 
-def process_document(db: Session, document_id: str):
+def process_document(db: Session, document_id: str, actor_user_id: Optional[uuid.UUID] = None):
     """
     Extension point hook for document processing pipeline.
     Handles Preprocessing, Classification, and Field Extraction.
@@ -81,6 +81,16 @@ def process_document(db: Session, document_id: str):
     (Gemini) that can read handwriting directly from the image.
     """
     try:
+        from app.services import audit_service
+        if actor_user_id:
+            audit_service.write_entry(
+                db=db,
+                actor_user_id=actor_user_id,
+                action_type="document_extracted",
+                target_entity=f"document:{document_id}",
+                rationale="Started preprocessing and extraction"
+            )
+            
         print(f"[Epic 1.2 Hook Triggered] Document ID '{document_id}' is queued for preprocessing.")
         from app.services.preprocessing_service import preprocess_document_file
 
@@ -240,6 +250,7 @@ def process_document(db: Session, document_id: str):
                 ocr_text=ocr_text,
                 pre_extracted_fields=pre_extracted,
                 field_confidences=hw_confidences,
+                actor_user_id=actor_user_id,
             )
             print(f"[Epic 2.2 Hook Success] Key fields extracted and persisted for {doc.document_id}")
 
@@ -284,6 +295,7 @@ def process_document(db: Session, document_id: str):
 async def process_single_upload(
     db: Session,
     file: UploadFile,
+    actor_user_id: uuid.UUID,
     client_ip: Optional[str] = None
 ) -> Document:
     """
@@ -308,6 +320,15 @@ async def process_single_upload(
     
     # Log accepted attempt
     ValidationService.log_acceptance(db, file.filename, client_ip)
+    
+    from app.services import audit_service
+    audit_service.write_entry(
+        db=db,
+        actor_user_id=actor_user_id,
+        action_type="document_uploaded",
+        target_entity=f"document:{doc.document_id}",
+        rationale=f"Uploaded document {file.filename}"
+    )
     
     # process_document should be called via BackgroundTasks in the router, not here synchronously.
     

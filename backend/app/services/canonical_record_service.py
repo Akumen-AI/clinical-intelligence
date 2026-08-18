@@ -1,4 +1,5 @@
 import logging
+import uuid
 from typing import Any, Optional
 
 from sqlalchemy.orm import Session
@@ -9,6 +10,7 @@ from app.database import SessionLocal
 from app.models.canonical_patient_record import CanonicalPatientRecord
 from app.models.extracted_field import ExtractedField, VerificationStatus
 from app.models.document import Document
+from app.services import audit_service
 
 logger = logging.getLogger("app.services.canonical_record_service")
 
@@ -85,6 +87,7 @@ def write_field_to_canonical_record(
     field: ExtractedField,
     db: Session,
     value: Any = None,
+    actor_user_id: Optional[uuid.UUID] = None,
 ) -> CanonicalPatientRecord:
     """The sole write boundary for extracted values entering the canonical record."""
     status = field.verification_status
@@ -136,6 +139,16 @@ def write_field_to_canonical_record(
 
         db.commit()
         db.refresh(canonical)
+        
+        if actor_user_id:
+            audit_service.write_entry(
+                db=db,
+                actor_user_id=actor_user_id,
+                action_type="canonical_record_write",
+                target_entity=f"canonical_record:{canonical.record_id}",
+                rationale=f"Wrote field '{field.field_name}' to generic canonical record."
+            )
+            
         logger.info(
             "[CanonicalRecordService] Canonical write succeeded (generic): field_id=%s document_id=%s status=%s record_id=%s",
             field.field_id,
@@ -149,6 +162,16 @@ def write_field_to_canonical_record(
     route_to_normalized_tables(db, patient_id, field.field_name, field.field_id, final_value)
 
     db.commit()
+    
+    if actor_user_id:
+        audit_service.write_entry(
+            db=db,
+            actor_user_id=actor_user_id,
+            action_type="canonical_record_write",
+            target_entity=f"canonical_record_normalized:{field.field_name}",
+            rationale=f"Wrote field '{field.field_name}' to normalized clinical entities."
+        )
+        
     logger.info(
         "[CanonicalRecordService] Canonical write succeeded (normalized): field_id=%s document_id=%s field_name=%s",
         field.field_id,
@@ -165,6 +188,7 @@ def upsert_field(
     confidence: float,
     db: Optional[Session] = None,
     human_verified: bool = False,
+    actor_user_id: Optional[uuid.UUID] = None,
 ) -> CanonicalPatientRecord:
     """Compatibility adapter; all persistence delegates to the verification gate."""
     close_db = False
@@ -202,7 +226,7 @@ def upsert_field(
                 field.verification_status = VerificationStatus.AUTO_PASSED
             else:
                 field.verification_status = VerificationStatus.PENDING
-        return write_field_to_canonical_record(field, db, value=value)
+        return write_field_to_canonical_record(field, db, value=value, actor_user_id=actor_user_id)
     except Exception:
         db.rollback()
         raise
