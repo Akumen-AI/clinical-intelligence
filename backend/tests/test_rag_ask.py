@@ -1,4 +1,5 @@
 import pytest
+import uuid
 from fastapi.testclient import TestClient
 from app.main import app
 from app.models.patient import Patient
@@ -11,11 +12,17 @@ from app.models.user import User, UserRole
 client = TestClient(app)
 
 def override_get_current_user():
-    u = User(email="test@test.com", role=UserRole.DOCTOR)
+    u = User(id=uuid.uuid4(), email="test@test.com", role=UserRole.DOCTOR)
     u.patient_access = [
         "test_rag_patient", "patient_citation_test", "patient_a", "patient_b", "patient_zero", "patient_no_key", "test_patient", "any_patient", "nonexistent_patient"
     ]
     return u
+
+@pytest.fixture(autouse=True)
+def setup_rag_auth():
+    app.dependency_overrides[get_current_user] = override_get_current_user
+    yield
+    app.dependency_overrides.pop(get_current_user, None)
 
 def test_ask_unauthorized():
     """Test that /ask returns 401 without a valid bearer token."""

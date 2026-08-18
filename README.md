@@ -104,101 +104,73 @@ An enterprise-grade clinical document intake, computer vision preprocessing, dua
 ```text
 clinical-intelligence/
 ├── alembic/                               # Database migration scripts (project root)
-│   └── versions/
-│       └── 003_add_pending_review_table.py # Adds pending_review & system_config tables
 ├── backend/
 │   ├── alembic/                           # Backend-scoped Alembic migrations
-│   │   └── versions/
 │   ├── app/
-│   │   ├── api/
-│   │   │   ├── upload.py                  # Document intake, status polling, audit logs, deletion
-│   │   │   ├── fields.py                  # Extracted clinical field retrieval & manual extraction
-│   │   │   └── layout.py                  # Layout region detection endpoints
+│   │   ├── api/                           # API Route Definitions
+│   │   │   ├── v1/                        # V1 endpoints (Auth, Audit, Patients, etc.)
+│   │   │   │   ├── auth.py                # JWT authentication & login
+│   │   │   │   ├── audit_log.py           # Comprehensive system audit trails
+│   │   │   │   ├── patients.py            # Patient record access with RBAC
+│   │   │   │   └── correction_logs.py     # Manual field correction history
+│   │   │   ├── upload.py                  # Document intake & status
+│   │   │   ├── fields.py                  # Clinical field extraction
+│   │   │   ├── layout.py                  # Layout region detection
+│   │   │   ├── timeline.py                # Patient clinical timeline endpoints
+│   │   │   └── canonical_records.py       # Canonical patient record management
+│   │   ├── core/                          # Core application logic
+│   │   │   ├── security.py                # Password hashing & JWT token generation
+│   │   │   ├── rbac.py                    # Role-Based Access Control logic
+│   │   │   └── patient_access_guard.py    # Strict role-based patient data filtering
+│   │   ├── db/                            # Database setup
+│   │   │   ├── base.py                    # SQLAlchemy declarative base
+│   │   │   └── session.py                 # Database session dependency
 │   │   ├── routers/
-│   │   │   └── review.py                  # Confidence review queue CRUD endpoints
-│   │   ├── tasks/
-│   │   │   └── routing_tasks.py           # Celery tasks for async confidence routing
-│   │   ├── services/
-│   │   │   ├── upload_service.py          # Pipeline orchestration & background tasks
-│   │   │   ├── validation_service.py      # File validation & audit logging
-│   │   │   ├── preprocessing_service.py   # OpenCV deskewing, denoising, CLAHE contrast
-│   │   │   ├── text_extraction_service.py # PyMuPDF & PaddleOCR text extraction
-│   │   │   ├── confidence_engine.py       # Multi-factor confidence calibration
-│   │   │   ├── confidence_router.py       # Routes fields to canonical or review queue
-│   │   │   ├── canonical_record_service.py# Upserts approved fields to canonical patient record
-│   │   │   ├── field_extraction_service.py# Structured entity extraction & persistence
-│   │   │   ├── layout_detection_service.py# Layout bounding box detection
-│   │   │   ├── layout_trigger.py          # Layout pipeline hooks
-│   │   │   ├── classification/
-│   │   │   │   ├── base.py                # Classifier interface & prompts
-│   │   │   │   ├── factory.py             # LLM provider factory with auto-fallback
-│   │   │   │   ├── ollama_classifier.py   # Local Ollama classification
-│   │   │   │   └── gemini_classifier.py   # Cloud Gemini classification
-│   │   │   ├── extraction/
-│   │   │   │   ├── base.py                # Base entity extractor
-│   │   │   │   ├── factory.py             # Extraction engine factory
-│   │   │   │   ├── rule_based_extractor.py# Deterministic regex & pattern extractors
-│   │   │   │   ├── ollama_extractor.py    # LLM-based field extractor (Ollama)
-│   │   │   │   └── gemini_extractor.py    # LLM-based field extractor (Gemini)
-│   │   │   └── handwriting/
-│   │   │       ├── base.py                # Handwriting extractor interface
-│   │   │       ├── factory.py             # Handwriting provider factory
-│   │   │       ├── gemini_handwriting_extractor.py # Multimodal vision handwriting engine
-│   │   │       └── routing.py             # Heuristic routing based on OCR confidence
-│   │   ├── models/
-│   │   │   ├── document.py                # Document record model
-│   │   │   ├── extracted_field.py         # Extracted clinical field model & confidence index
-│   │   │   ├── layout_region.py           # Layout region bounding box model
-│   │   │   ├── pending_review.py          # PendingReview & SystemConfig models
-│   │   │   └── upload_log.py              # Upload audit trail model
-│   │   ├── schemas/
-│   │   │   ├── upload.py                  # Document & upload response schemas
-│   │   │   ├── extracted_field.py         # Standardized clinical fields schema
-│   │   │   ├── layout.py                  # Layout response schema
-│   │   │   └── review.py                  # Review queue request/response schemas
-│   │   ├── utils/
-│   │   │   └── validators.py              # Low-level file validation & magic byte checks
-│   │   ├── static/
-│   │   │   └── index.html                 # Standalone web UI fallback
+│   │   │   ├── review.py                  # Confidence review queue CRUD endpoints
+│   │   │   └── policy_chatbot.py          # RAG-powered clinical policy chatbot
+│   │   ├── tasks/                         # Celery background tasks
+│   │   │   ├── routing_tasks.py           # Async confidence routing
+│   │   │   ├── rag_tasks.py               # RAG chunk ingestion background task
+│   │   │   └── correction_export.py       # Correction log periodic exports
+│   │   ├── services/                      # Business logic layer
+│   │   │   ├── audit_service.py           # Centralized audit logging
+│   │   │   ├── policy_rag_service.py      # Vector similarity & RAG querying
+│   │   │   ├── policy_ingestion_service.py# Policy PDF chunking & embeddings
+│   │   │   ├── classification/            # Document classification engines
+│   │   │   ├── extraction/                # Structured data extraction engines
+│   │   │   └── handwriting/               # Multimodal handwriting recognition
+│   │   ├── models/                        # SQLAlchemy database models
+│   │   │   ├── user.py                    # User identity & roles
+│   │   │   ├── patient.py                 # Core patient demographic model
+│   │   │   ├── audit_log.py               # Audit trail events
+│   │   │   ├── correction_log.py          # Field correction logging
+│   │   │   ├── policy_rag_chunk.py        # Vector chunks for policy chatbot
+│   │   │   └── document.py                # Document tracking
+│   │   ├── schemas/                       # Pydantic validation schemas
 │   │   ├── celery_app.py                  # Celery worker configuration
-│   │   ├── config.py                      # Application settings & environment variables
-│   │   ├── database.py                    # SQLite engine & session management
-│   │   └── main.py                        # FastAPI application entry point & CORS configuration
-│   ├── eval_reports/                      # Evaluation report outputs (e.g. handwriting extraction)
-│   ├── tests/                             # Pytest test suite
-│   │   ├── conftest.py
-│   │   ├── test_upload.py
-│   │   ├── test_validation.py
-│   │   ├── test_classification.py
-│   │   ├── test_confidence_router.py
-│   │   ├── test_confidence_scoring.py
-│   │   ├── test_field_extraction.py
-│   │   ├── test_handwriting_routing.py
-│   │   ├── test_illegible_mapping.py
-│   │   ├── test_json_parser.py
-│   │   ├── test_layout_detection.py
-│   │   └── test_eval_accuracy.py
-│   ├── uploads/                           # Local storage for uploaded files (gitignored)
-│   └── requirements.txt                   # Backend dependencies
+│   │   ├── config.py                      # Environment configuration
+│   │   └── main.py                        # FastAPI entry point
+│   ├── eval_reports/                      # Evaluation reports
+│   └── tests/                             # Pytest test suite
 │
 ├── frontend/                              # React + Vite Dashboard
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── FileUploader.jsx           # Drag-and-drop file upload with validation
-│   │   │   └── ExtractedFieldsModal.jsx   # Clinical fields inspector with confidence meters
+│   │   │   ├── FileUploader.jsx
+│   │   │   ├── ExtractedFieldsModal.jsx
+│   │   │   ├── DynamicJSONEditor.jsx      # Manual JSON correction modal
+│   │   │   ├── PolicyChatbot.jsx          # Embedded RAG policy chat UI
+│   │   │   └── PolicyDocumentUploader.jsx # RAG policy admin uploader
 │   │   ├── pages/
-│   │   │   └── UploadPage.jsx             # Document management & status dashboard
-│   │   ├── services/
-│   │   │   └── api.js                     # Backend API client
-│   │   ├── App.jsx
-│   │   ├── main.jsx
-│   │   └── index.css                      # Modern dark/light design system styling
-│   ├── package.json
-│   └── vite.config.js
-│
-├── tests/                                 # Root-level integration tests
-│   └── test_confidence_router.py
-├── .gitignore
+│   │   │   ├── UploadPage.jsx             # Document management
+│   │   │   ├── PatientsPage.jsx           # Global patient directory
+│   │   │   ├── CanonicalRecordPage.jsx    # Unified canonical patient view
+│   │   │   ├── TimelinePage.jsx           # Patient clinical timeline visualization
+│   │   │   ├── ReviewQueuePage.jsx        # Low confidence manual review queue
+│   │   │   └── PatientQAPage.jsx          # Context-aware patient QA
+│   │   └── services/
+│   │       └── api.js                     # API client
+│   └── package.json
 └── README.md
 ```
 
@@ -314,7 +286,19 @@ The frontend dashboard will be running at **http://localhost:5173**.
 
 ---
 
-### 3. Running Backend Tests
+### 3. Running the app
+
+During development, run both the backend and frontend dev servers simultaneously:
+- Run the backend on **:8000**
+- Run the frontend dev server on **:5173**
+
+Vite proxies `/api` calls to `:8000` — the frontend dev server (`:5173`) is the one you should use day to day.
+
+> **Note on `:8000/ui`:** This endpoint only serves whatever was last built with `npm run build` inside the `frontend/` directory. It doesn't hot-reload, and will silently go stale if not rebuilt. Treat it as a deploy-time preview, not a second app.
+
+---
+
+### 4. Running Backend Tests
 
 Run the full automated test suite with pytest:
 

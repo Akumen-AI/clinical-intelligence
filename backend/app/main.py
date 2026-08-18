@@ -1,9 +1,5 @@
 import os
 import sys
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
 
 # Ensure backend root directory is in python search path
 backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -29,6 +25,10 @@ from app.models.patient import Patient
 from app.models.visit import Visit
 from app.models.clinical_entities import Medication, Diagnosis, LabResult, Vital, Procedure
 from app.models.rag_chunk import PatientRAGChunk
+
+# Register SQLAlchemy hooks
+import app.services.layout_trigger  # noqa
+
 from app.api import upload
 from app.api import layout
 from app.api import fields
@@ -114,13 +114,7 @@ app.add_middleware(
 app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
 
 # Include routers
-app.include_router(upload.router, prefix="/api/v1")
-app.include_router(layout.router, prefix="/api/v1")
-app.include_router(fields.router, prefix="/api/v1")
-app.include_router(timeline.router, prefix="/api/v1")
-app.include_router(canonical_records.router, prefix="/api/v1")
-app.include_router(review.router, prefix="/api/v1")
-app.include_router(correction_logs_router, prefix="/api/v1")
+
 app.include_router(policy_chatbot_router)
 app.include_router(upload.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 app.include_router(layout.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])

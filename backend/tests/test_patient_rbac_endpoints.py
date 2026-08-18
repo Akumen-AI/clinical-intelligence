@@ -62,7 +62,8 @@ def override_auth(role: UserRole, patient_access: list[str] = None):
     app.dependency_overrides[get_current_user] = _override
 
 def clear_overrides():
-    app.dependency_overrides.clear()
+    from app.core.security import get_current_user
+    app.dependency_overrides.pop(get_current_user, None)
 
 def test_doctor_denied_out_of_scope_patient(client: TestClient, test_patient):
     override_auth(UserRole.DOCTOR, patient_access=["other-patient-id"])

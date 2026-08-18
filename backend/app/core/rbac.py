@@ -16,6 +16,10 @@ RBAC_MATRIX: Dict[str, Set[UserRole]] = {
     # Patients (read, create, update, ask)
     "/api/v1/patients": {UserRole.DOCTOR, UserRole.NURSE, UserRole.HOSPITAL_ADMIN},
     
+    # Policy Chatbot
+    "/api/v1/policy-chat/upload": {UserRole.HOSPITAL_ADMIN, UserRole.IT, UserRole.COMPLIANCE},
+    "/api/v1/policy-chat": {UserRole.DOCTOR, UserRole.NURSE, UserRole.HOSPITAL_ADMIN},
+    
     # Audit Logs (correction-logs)
     "/api/v1/correction-logs": {UserRole.HOSPITAL_ADMIN, UserRole.COMPLIANCE},
     "/api/v1/audit-log": {UserRole.COMPLIANCE},

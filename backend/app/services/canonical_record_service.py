@@ -222,10 +222,11 @@ def upsert_field(
             field.verified_value = value
             field.verification_status = VerificationStatus.HUMAN_VERIFIED
         else:
-            if confidence >= settings.CONFIDENCE_THRESHOLD:
-                field.verification_status = VerificationStatus.AUTO_PASSED
-            else:
-                field.verification_status = VerificationStatus.PENDING
+            if field.verification_status != "failed":
+                if confidence >= settings.CONFIDENCE_THRESHOLD:
+                    field.verification_status = VerificationStatus.AUTO_PASSED
+                else:
+                    field.verification_status = VerificationStatus.PENDING
         return write_field_to_canonical_record(field, db, value=value, actor_user_id=actor_user_id)
     except Exception:
         db.rollback()

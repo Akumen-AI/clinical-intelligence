@@ -1,7 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from sqlalchemy.orm import Session
-from app.services.rag.rbac_access_guard import RbacAccessGuard, AccessDeniedError
+from app.core.patient_access_guard import RbacAccessGuard, AccessDeniedError
 from sqlalchemy.orm import Session
 
 from app.database import get_db

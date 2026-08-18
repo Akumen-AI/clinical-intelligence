@@ -26,7 +26,7 @@ from app.services.confidence_router import (
     get_confidence_threshold_info,
     set_confidence_threshold,
 )
-from app.services.rag.rbac_access_guard import RbacAccessGuard, AccessDeniedError
+from app.core.patient_access_guard import RbacAccessGuard, AccessDeniedError
 from app.models.user import UserRole
 from sqlalchemy import or_
 
