@@ -59,7 +59,7 @@ def reviewer_id():
 
 @pytest.fixture
 def auth_headers(reviewer_id):
-    token = create_access_token(data={"sub": str(reviewer_id), "role": "nurse"})
+    token = create_access_token(data={"sub": str(reviewer_id), "role": "hospital_admin"})
     return {"Authorization": f"Bearer {token}"}
 
 @pytest_asyncio.fixture

@@ -6,7 +6,7 @@ backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -34,6 +34,7 @@ from app.routers import review
 from app.api.v1.patients import router as patients_router
 from app.api.v1.correction_logs import router as correction_logs_router
 from app.api.v1.auth import router as auth_router
+from app.core.rbac import check_rbac
 from app.services.upload_service import ensure_upload_directory_exists
 
 # Create database tables automatically on startup
@@ -107,14 +108,14 @@ app.add_middleware(
 app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
 
 # Include routers
-app.include_router(upload.router, prefix="/api/v1")
-app.include_router(layout.router, prefix="/api/v1")
-app.include_router(fields.router, prefix="/api/v1")
-app.include_router(timeline.router, prefix="/api/v1")
-app.include_router(canonical_records.router, prefix="/api/v1")
-app.include_router(review.router, prefix="/api/v1")
-app.include_router(correction_logs_router, prefix="/api/v1")
-app.include_router(patients_router, prefix="/api/v1")
+app.include_router(upload.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
+app.include_router(layout.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
+app.include_router(fields.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
+app.include_router(timeline.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
+app.include_router(canonical_records.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
+app.include_router(review.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
+app.include_router(correction_logs_router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
+app.include_router(patients_router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["Auth"])
 
 static_dir = os.path.join(os.path.dirname(__file__), "static")

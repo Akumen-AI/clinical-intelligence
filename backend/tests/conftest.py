@@ -27,15 +27,7 @@ def override_get_db():
     finally:
         db.close()
 
-from app.core.security import get_current_user, User
-from app.models.user import UserRole
-import uuid
-
-def override_get_current_user():
-    return User(id=uuid.uuid4(), role=UserRole.DOCTOR, email="test@clinic.org")
-
 app.dependency_overrides[get_db] = override_get_db
-app.dependency_overrides[get_current_user] = override_get_current_user
 
 import os
 import asyncio
@@ -71,7 +63,13 @@ def setup_db():
                 except Exception:
                     pass
 
+from app.core.security import create_access_token
+import uuid
+
 @pytest.fixture
 def client():
-    return TestClient(app)
+    token = create_access_token({"sub": str(uuid.uuid4()), "role": "hospital_admin", "email": "test@clinic.org"})
+    c = TestClient(app)
+    c.headers.update({"Authorization": f"Bearer {token}"})
+    return c
 

@@ -1,9 +1,9 @@
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_async_db
-from app.core.security import get_current_user, User
+from app.core.security import User
 from app.schemas.correction_log import (
     CorrectionLogCreate,
     CorrectionLogRead,
@@ -25,8 +25,9 @@ router = APIRouter(
 async def create_correction_log(
     payload: CorrectionLogCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    request: Request = None,
 ):
+    current_user = request.state.user
     service = CorrectionLogService()
     log = await service.log_correction(
         db=db,
@@ -45,7 +46,6 @@ async def create_correction_log(
 async def export_retraining_logs_post(
     limit: int = Query(default=1000, ge=1, le=10000),
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
 ):
     service = CorrectionLogService()
     return await service.export_for_retraining(db, limit=limit)
@@ -59,7 +59,6 @@ async def export_retraining_logs_post(
 async def export_retraining_logs_get(
     limit: int = Query(default=1000, ge=1, le=10000),
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
 ):
     service = CorrectionLogService()
     return await service.export_for_retraining(db, limit=limit)
@@ -73,7 +72,6 @@ async def export_retraining_logs_get(
 async def get_document_correction_logs(
     document_id: uuid.UUID,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
 ):
     service = CorrectionLogService()
     return await service.get_logs_for_document(db, document_id)
@@ -87,7 +85,6 @@ async def get_document_correction_logs(
 async def get_correction_log(
     log_id: uuid.UUID,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
 ):
     service = CorrectionLogService()
     log = await service.get_log_by_id(db, log_id)

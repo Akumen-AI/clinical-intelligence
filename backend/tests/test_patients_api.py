@@ -2,9 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 from app.main import app
 
-client = TestClient(app)
-
-def test_patient_crud():
+def test_patient_crud(client):
     # Create
     import uuid
     unique_mrn = f"MRN-{uuid.uuid4()}"

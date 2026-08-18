@@ -10,9 +10,7 @@ from app.models.clinical_entities import Diagnosis
 from app.models.visit import Visit
 from app.services.canonical_record_service import write_field_to_canonical_record
 
-client = TestClient(app)
-
-def test_link_patient_migrates_flat_records_and_creates_visit():
+def test_link_patient_migrates_flat_records_and_creates_visit(client):
     db = TestingSessionLocal()
     try:
         # Setup: Unlinked document

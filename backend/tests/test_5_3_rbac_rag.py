@@ -37,8 +37,7 @@ def _override(role: str):
     app.dependency_overrides[get_current_user] = lambda: user
 
 def _clear():
-    from tests.conftest import override_get_current_user
-    app.dependency_overrides[get_current_user] = override_get_current_user
+    app.dependency_overrides.pop(get_current_user, None)
 
 def _seed_patient_with_chunk(patient_id: str, mrn: str):
     """Seed a patient + one RAG chunk into the test DB."""
@@ -58,7 +57,7 @@ def _seed_patient_with_chunk(patient_id: str, mrn: str):
 
 # ── AC-1 + AC-3: allowed roles reach the RAG pipeline ────────────────────────
 
-@pytest.mark.parametrize("role", ["doctor", "nurse", "hospital_admin", "department_head"])
+@pytest.mark.parametrize("role", ["doctor", "nurse", "hospital_admin"])
 @patch("app.config.settings.GEMINI_API_KEY", "dummy_key")
 @patch("google.genai.Client")
 def test_allowed_role_reaches_rag(mock_genai, role):
@@ -89,7 +88,7 @@ def test_allowed_role_reaches_rag(mock_genai, role):
 
 # ── AC-2 + AC-3: denied roles get 403, not a partial answer ──────────────────
 
-@pytest.mark.parametrize("role", ["it", "compliance"])
+@pytest.mark.parametrize("role", ["it", "compliance", "department_head"])
 @patch("app.config.settings.GEMINI_API_KEY", "dummy_key")
 def test_denied_role_gets_403_not_partial_answer(role):
     """AC-2 / AC-3: roles outside CLINICAL_READ_ROLES receive 403, zero data."""
@@ -104,7 +103,7 @@ def test_denied_role_gets_403_not_partial_answer(role):
         )
         assert resp.status_code == 403, f"Expected 403 for role={role}, got {resp.status_code}"
         data = resp.json()
-        assert data["detail"] == "Access denied: insufficient role"
+        assert "Access denied: role" in data["detail"]
         # Confirm no answer field leaked
         assert "answer" not in data
         assert "source_documents" not in data
@@ -135,7 +134,7 @@ def test_denied_role_cannot_list_patients():
     try:
         resp = client.get("/api/v1/patients")
         assert resp.status_code == 403
-        assert resp.json()["detail"] == "Access denied: insufficient role"
+        assert "Access denied: role" in resp.json()["detail"]
     finally:
         _clear()
 
@@ -146,7 +145,7 @@ def test_denied_role_cannot_get_patient_records():
     try:
         resp = client.get("/api/v1/patients/some_id/records")
         assert resp.status_code == 403
-        assert resp.json()["detail"] == "Access denied: insufficient role"
+        assert "Access denied: role" in resp.json()["detail"]
     finally:
         _clear()
 

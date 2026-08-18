@@ -8,7 +8,8 @@ from app.models.patient import Patient
 from app.models.document import Document
 from app.models.clinical_entities import Diagnosis, Medication, LabResult
 from app.schemas.patient import PatientCreate, PatientUpdate, PatientResponse, PatientProfileResponse, AskRequest, AskResponse
-from app.core.security import get_current_user, require_clinical_read, User
+from app.core.security import User
+from fastapi import Request
 
 router = APIRouter(
     prefix="/patients",
@@ -48,8 +49,7 @@ def create_patient(patient_in: PatientCreate, db: Session = Depends(get_db)):
 @router.get("/{patient_id}/records", response_model=PatientProfileResponse)
 def get_patient_records(
     patient_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_clinical_read)
+    db: Session = Depends(get_db)
 ):
     """Get a full patient profile including related clinical records."""
     patient = db.query(Patient).filter(Patient.patient_id == patient_id).first()
@@ -76,8 +76,7 @@ def get_patient_records(
 @router.get("", response_model=List[PatientResponse])
 def list_patients(
     search: Optional[str] = None,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_clinical_read)
+    db: Session = Depends(get_db)
 ):
     """List all patients with optional search by name or MRN."""
     query = db.query(Patient)
@@ -95,8 +94,7 @@ def list_patients(
 @router.get("/{patient_id}", response_model=PatientResponse)
 def get_patient(
     patient_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_clinical_read)
+    db: Session = Depends(get_db)
 ):
     """Get a patient by ID, MRN, or OP ID."""
     patient = db.query(Patient).filter(
@@ -145,8 +143,8 @@ def update_patient(patient_id: str, patient_in: PatientUpdate, db: Session = Dep
 def ask_patient_question(
     patient_id: str, 
     request: AskRequest, 
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_clinical_read)
+    http_request: Request,
+    db: Session = Depends(get_db)
 ):
     """
     Ask a natural-language question about a specific patient's documents using RAG.
@@ -164,6 +162,8 @@ def ask_patient_question(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Patient not found."
         )
+
+    current_user = http_request.state.user
 
     from app.services.rag.rbac_access_guard import RbacAccessGuard, AccessDeniedError
     try:
