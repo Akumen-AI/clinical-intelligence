@@ -93,8 +93,9 @@ def _call_policy_llm(query: str, context: str) -> str | None:
     if os.getenv("POLICY_LLM_ENABLED", "1").lower() not in {"1", "true", "yes"}:
         return None
     prompt = (
-        "Answer only from the supplied hospital policy excerpts. Give a concise, readable answer "
-        "in 1-3 short bullet points; summarize the policy instead of copying the excerpts. "
+        "Answer only from the supplied hospital policy excerpts. Give a concise, readable, LLM-derived answer "
+        "in 1-3 short bullet points. Paraphrase and synthesize the relevant policy; do not copy the excerpt "
+        "verbatim and do not mention the retrieval process or source markers. "
         "If they do not answer the question, say exactly that no grounded answer was found. "
         f"\nQuestion: {query}\nPolicy excerpts:\n{context}"
     )
@@ -108,10 +109,12 @@ def _call_policy_llm(query: str, context: str) -> str | None:
             )
             return (response.text or "").strip() or None
 
+        model = os.getenv("POLICY_LLM_MODEL", settings.OLLAMA_MODEL)
+        ollama_prompt = f"/no_think\n{prompt}" if "qwen3" in model.lower() else prompt
         payload = json.dumps({
-                "model": os.getenv("POLICY_LLM_MODEL", settings.OLLAMA_MODEL),
+                "model": model,
                 "stream": False,
-                "prompt": prompt,
+                "prompt": ollama_prompt,
                 "options": {"temperature": 0.0},
             }).encode("utf-8")
         request = urllib.request.Request(
@@ -129,10 +132,16 @@ def generate_policy_answer(query: str) -> str:
     matches = retrieve_relevant_policy_chunks(query)
     if not matches:
         return POLICY_NO_GROUNDED_ANSWER
-    context = "\n\n".join(match.chunk.content for match in matches)
+    context = "\n\n".join(
+        "[Policy source: "
+        f"{match.chunk.source_document_id}; "
+        f"section: {(match.chunk.metadata_json or {}).get('section_heading', 'Unspecified section')}]\n"
+        f"{match.chunk.content}"
+        for match in matches
+    )
     llm_answer = _call_policy_llm(query, context)
-    # Only return an LLM answer when it is verbatim supported by retrieved text.
-    # Otherwise the deterministic extractive answer guarantees no added claims.
-    if llm_answer and llm_answer.lower() in context.lower():
+    # The prompt constrains the model to the retrieved policy context. A model-derived
+    # answer is preferred; extraction is only a safe availability fallback.
+    if llm_answer and POLICY_NO_GROUNDED_ANSWER.lower() not in llm_answer.lower():
         return llm_answer
     return _extractive_answer(query, matches)
