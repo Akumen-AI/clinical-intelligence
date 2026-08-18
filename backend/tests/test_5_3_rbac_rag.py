@@ -28,7 +28,9 @@ def _user(role: str) -> User:
         enum_role = UserRole(role)
     except ValueError:
         enum_role = UserRole.NURSE
-    return User(id=uuid.uuid4(), role=enum_role, email=f"{role}@clinic.org")
+    u = User(id=uuid.uuid4(), role=enum_role, email=f"{role}@clinic.org")
+    u.patient_access = [f"patient_rbac_{role}", f"patient_denied_{role}", "patient_no_leak"]
+    return u
 
 def _override(role: str):
     user = _user(role)
@@ -113,12 +115,16 @@ def test_denied_role_gets_403_not_partial_answer(role):
 
 def test_unauthenticated_ask_returns_401():
     """AC-3: no bearer token → 401 before any retrieval."""
-    _clear()  # ensure no override is active
-    resp = client.post(
-        "/api/v1/patients/any_patient/ask",
-        json={"question": "Hello?"},
-    )
-    assert resp.status_code == 401
+    old_override = app.dependency_overrides.pop(get_current_user, None)
+    try:
+        resp = client.post(
+            "/api/v1/patients/any_patient/ask",
+            json={"question": "Hello?"},
+        )
+        assert resp.status_code == 401
+    finally:
+        if old_override:
+            app.dependency_overrides[get_current_user] = old_override
 
 # ── RBAC also gates list + get patient endpoints ─────────────────────────────
 

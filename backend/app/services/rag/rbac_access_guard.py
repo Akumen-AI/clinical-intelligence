@@ -30,7 +30,7 @@ class RbacAccessGuard:
         if user_role == UserRole.HOSPITAL_ADMIN or user_role == "hospital_admin":
             return
 
-        if user_role in (UserRole.DOCTOR, UserRole.NURSE, "doctor", "nurse"):
+        if user_role in (UserRole.DOCTOR, UserRole.NURSE, UserRole.DEPARTMENT_HEAD, "doctor", "nurse", "department_head"):
             access_list = getattr(user, "patient_access", []) or []
             if str(patient_id) in access_list:
                 return

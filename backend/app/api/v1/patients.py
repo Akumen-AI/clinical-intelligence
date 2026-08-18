@@ -164,6 +164,15 @@ def ask_patient_question(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Patient not found."
         )
+
+    from app.services.rag.rbac_access_guard import RbacAccessGuard, AccessDeniedError
+    try:
+        RbacAccessGuard().assert_can_query_patient(current_user, patient.patient_id)
+    except AccessDeniedError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e)
+        )
         
     from app.services.rag_service import generate_answer
     try:
