@@ -27,7 +27,15 @@ def override_get_db():
     finally:
         db.close()
 
+from app.core.security import get_current_user, User
+from app.models.user import UserRole
+import uuid
+
+def override_get_current_user():
+    return User(id=uuid.uuid4(), role=UserRole.DOCTOR, email="test@clinic.org")
+
 app.dependency_overrides[get_db] = override_get_db
+app.dependency_overrides[get_current_user] = override_get_current_user
 
 import os
 import asyncio

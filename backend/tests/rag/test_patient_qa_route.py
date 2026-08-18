@@ -22,6 +22,7 @@ def make_doctor_without_access():
 
 @pytest.mark.asyncio
 async def test_unauthorized_patient_query_returns_403():
+    old_override = app.dependency_overrides.get(get_current_user)
     app.dependency_overrides[get_current_user] = lambda: make_doctor_without_access()
 
     with patch(
@@ -40,4 +41,7 @@ async def test_unauthorized_patient_query_returns_403():
     detail = resp.json().get("detail", "")
     assert "not authorized" in detail.lower() or resp.status_code == 403
 
-    app.dependency_overrides.clear()
+    if old_override:
+        app.dependency_overrides[get_current_user] = old_override
+    else:
+        app.dependency_overrides.pop(get_current_user, None)

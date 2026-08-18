@@ -15,11 +15,16 @@ def override_get_current_user():
 
 def test_ask_unauthorized():
     """Test that /ask returns 401 without a valid bearer token."""
-    response = client.post(
-        "/api/v1/patients/test_patient/ask",
-        json={"question": "What is the history?"}
-    )
-    assert response.status_code == 401
+    old_override = app.dependency_overrides.pop(get_current_user, None)
+    try:
+        response = client.post(
+            "/api/v1/patients/test_patient/ask",
+            json={"question": "What is the history?"}
+        )
+        assert response.status_code == 401
+    finally:
+        if old_override:
+            app.dependency_overrides[get_current_user] = old_override
 
 
 @patch("app.config.settings.GEMINI_API_KEY", "dummy_key")
@@ -66,7 +71,7 @@ def test_ask_patient_question(mock_genai_client):
     assert data["source_documents"][0]["snippet"] == "Patient has a history of asthma."
     assert data["source_documents"][0]["location"] == "Discharge Summary"
     
-    app.dependency_overrides.pop(get_current_user, None)
+    pass
 
 
 @patch("app.config.settings.GEMINI_API_KEY", "dummy_key")
@@ -127,7 +132,7 @@ def test_rag_citation_object_structure(mock_genai_client):
     
     assert citation["location"] == "Page 1"
     
-    app.dependency_overrides.pop(get_current_user, None)
+    pass
 
 
 
@@ -173,7 +178,7 @@ def test_ask_patient_isolation(mock_genai_client):
     data = response.json()
     assert "could not find any relevant information" in data["answer"].lower()
     
-    app.dependency_overrides.pop(get_current_user, None)
+    pass
 
 
 @patch("app.config.settings.GEMINI_API_KEY", "dummy_key")
@@ -188,7 +193,7 @@ def test_ask_patient_404():
     
     assert response.status_code == 404
     
-    app.dependency_overrides.pop(get_current_user, None)
+    pass
 
 
 @patch("app.config.settings.GEMINI_API_KEY", "dummy_key")
@@ -219,7 +224,7 @@ def test_ask_zero_chunks(mock_genai_client):
     data = response.json()
     assert "could not find any relevant information" in data["answer"].lower()
     
-    app.dependency_overrides.pop(get_current_user, None)
+    pass
 
 
 @patch("app.config.settings.GEMINI_API_KEY", "")
@@ -244,4 +249,4 @@ def test_ask_missing_api_key():
     data = response.json()
     assert "GEMINI_API_KEY is not set" in data["detail"]
     
-    app.dependency_overrides.pop(get_current_user, None)
+    pass

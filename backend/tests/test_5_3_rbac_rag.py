@@ -35,7 +35,8 @@ def _override(role: str):
     app.dependency_overrides[get_current_user] = lambda: user
 
 def _clear():
-    app.dependency_overrides.pop(get_current_user, None)
+    from tests.conftest import override_get_current_user
+    app.dependency_overrides[get_current_user] = override_get_current_user
 
 def _seed_patient_with_chunk(patient_id: str, mrn: str):
     """Seed a patient + one RAG chunk into the test DB."""

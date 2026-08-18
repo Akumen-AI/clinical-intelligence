@@ -33,8 +33,6 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
             headers={"WWW-Authenticate": "Bearer"},
         )
     token = credentials.credentials
-    if token == "dev-token-for-testing-123":
-        return User(id=uuid.uuid4(), role=UserRole.DOCTOR, email="test@clinic.org")
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id_str: str = payload.get("sub")
