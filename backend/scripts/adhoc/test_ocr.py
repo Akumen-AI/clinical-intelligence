@@ -1,3 +1,4 @@
+# Ad-hoc script to manually test OCR extraction on a sample image
 import sys
 import os
 

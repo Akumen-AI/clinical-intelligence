@@ -1,5 +1,6 @@
 import logging
-from typing import Dict, Any
+import uuid
+from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
 
 from app.celery_app import celery_app
@@ -12,7 +13,7 @@ logger = logging.getLogger("app.tasks.routing_tasks")
 
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=2)
-def route_document_fields(self, document_id: str) -> Dict[str, Any]:
+def route_document_fields(self, document_id: str, actor_user_id: Optional[str] = None) -> Dict[str, Any]:
     """
     Celery task to route document fields based on confidence scores.
     Loads extraction result from DB for document_id, calls route_extraction_result(),
@@ -44,7 +45,8 @@ def route_document_fields(self, document_id: str) -> Dict[str, Any]:
             "fields": field_dict,
         }
 
-        result: RoutingResult = route_extraction_result(extraction_result, db=db)
+        actor_user_uuid = uuid.UUID(actor_user_id) if actor_user_id else None
+        result: RoutingResult = route_extraction_result(extraction_result, db=db, actor_user_id=actor_user_uuid)
 
         logger.info(
             f"[Task] Routing completed for document {document_id}: "

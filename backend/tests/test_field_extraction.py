@@ -350,7 +350,7 @@ def test_trigger_extract_fields_api(client, monkeypatch, tmp_path):
 
         # Check DB status updated to extracted
         db.refresh(doc)
-        assert doc.status == DocumentStatus.EXTRACTED.value
+        assert doc.status == "unlinked"
     finally:
         db.close()
 

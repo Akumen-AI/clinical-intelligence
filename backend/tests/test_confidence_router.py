@@ -54,9 +54,6 @@ def setup_test_database():
     db.close()
 
 
-@pytest.fixture
-def test_client():
-    return TestClient(app)
 
 
 def test_all_fields_above_threshold():
@@ -198,7 +195,7 @@ def test_threshold_one_all_to_review_except_exact_one():
     db.close()
 
 
-def test_get_pending_reviews_endpoint(test_client):
+def test_get_pending_reviews_endpoint(client):
     """GET /api/v1/review/pending returns only PENDING records (not APPROVED or REJECTED)."""
     db = TestingSessionLocal()
     rec1 = PendingReview(
@@ -229,7 +226,7 @@ def test_get_pending_reviews_endpoint(test_client):
     db.commit()
     db.close()
 
-    response = test_client.get("/api/v1/review/pending")
+    response = client.get("/api/v1/review/pending")
     assert response.status_code == 200
     data = response.json()
     assert data["total"] == 1
@@ -238,7 +235,7 @@ def test_get_pending_reviews_endpoint(test_client):
     assert data["items"][0]["status"] == "PENDING"
 
 
-def test_patch_review_approve_and_reject(test_client):
+def test_patch_review_approve_and_reject(client):
     """PATCH /api/v1/review/pending/{id} approves or rejects items and invokes canonical record service on approve."""
     db = TestingSessionLocal()
     rec1 = PendingReview(
@@ -263,7 +260,7 @@ def test_patch_review_approve_and_reject(test_client):
 
     with patch.object(canonical_record_service, "upsert_field") as mock_upsert:
         # Approve rec1
-        resp = test_client.patch(
+        resp = client.patch(
             "/api/v1/review/pending/rev-approve-1",
             json={"action": "approve", "reviewer_id": "user-uuid-1"},
         )
@@ -281,7 +278,7 @@ def test_patch_review_approve_and_reject(test_client):
         )
 
         # Reject rec2
-        resp = test_client.patch(
+        resp = client.patch(
             "/api/v1/review/pending/rev-reject-1",
             json={"action": "reject", "reviewer_id": "user-uuid-2"},
         )
@@ -291,17 +288,17 @@ def test_patch_review_approve_and_reject(test_client):
         assert data["reviewer_id"] == "user-uuid-2"
 
 
-def test_get_and_put_threshold_config_endpoints(test_client):
+def test_get_and_put_threshold_config_endpoints(client):
     """GET and PUT /api/v1/review/config/threshold work correctly."""
     # GET threshold (default env)
-    resp = test_client.get("/api/v1/review/config/threshold")
+    resp = client.get("/api/v1/review/config/threshold")
     assert resp.status_code == 200
     data = resp.json()
     assert "threshold" in data
     assert data["source"] in ["env", "db"]
 
     # PUT threshold to 0.75
-    resp = test_client.put(
+    resp = client.put(
         "/api/v1/review/config/threshold",
         json={"threshold": 0.75},
     )
@@ -311,12 +308,12 @@ def test_get_and_put_threshold_config_endpoints(test_client):
     assert data["source"] == "db"
 
     # GET threshold again -> returns 0.75 from db
-    resp = test_client.get("/api/v1/review/config/threshold")
+    resp = client.get("/api/v1/review/config/threshold")
     assert resp.status_code == 200
     assert resp.json()["threshold"] == 0.75
 
     # Invalid threshold -> 422/400 validation error
-    resp = test_client.put(
+    resp = client.put(
         "/api/v1/review/config/threshold",
         json={"threshold": 1.5},
     )

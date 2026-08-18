@@ -11,6 +11,8 @@ from app.database import SessionLocal
 from app.models.pending_review import PendingReview, ReviewStatus, SystemConfig
 from app import services as services_pkg
 from app.services import canonical_record_service
+from app.models.document import Document, DocumentStatus
+from app.services.patient_matching_service import match_patient
 
 logger = logging.getLogger("app.services.confidence_router")
 
@@ -103,6 +105,7 @@ def set_confidence_threshold(threshold: float, db: Optional[Session] = None) -> 
 def route_extraction_result(
     extraction_result: dict,
     db: Optional[Session] = None,
+    actor_user_id: Optional[uuid.UUID] = None,
 ) -> RoutingResult:
     """
     Iterates over all fields in extraction_result:
@@ -123,6 +126,43 @@ def route_extraction_result(
 
     try:
         threshold = get_confidence_threshold(db)
+
+        document = db.query(Document).filter(Document.document_id == document_id).first()
+        if document and not document.patient_id:
+            # Check for patient_identifier to attempt fuzzy matching
+            patient_id_field = fields_data.get("patient_identifier")
+            if patient_id_field:
+                val = patient_id_field.get("value") if isinstance(patient_id_field, dict) else patient_id_field
+                conf = float(patient_id_field.get("confidence", patient_id_field.get("confidence_score", 0.0))) if isinstance(patient_id_field, dict) else 0.0
+                
+                if isinstance(val, dict):
+                    matched_id = match_patient(
+                        db=db,
+                        name=val.get("name"),
+                        dob=val.get("dob"),
+                        gender=val.get("gender")
+                    )
+                    
+                    if matched_id:
+                        document.patient_id = matched_id
+                        db.commit()
+                        logger.info(f"[ConfidenceRouter] Automatically linked document {document_id} to matched patient {matched_id}")
+                    else:
+                        document.status = DocumentStatus.UNLINKED.value
+                        document.needs_manual_review = True
+                        val_str = json.dumps(val)
+                        review_item = PendingReview(
+                            id=str(uuid.uuid4()),
+                            document_id=document_id,
+                            field_name="patient_assignment",
+                            extracted_value=val_str,
+                            confidence_score=conf,
+                            status=ReviewStatus.PENDING,
+                            created_at=datetime.now(timezone.utc),
+                        )
+                        db.add(review_item)
+                        db.commit()
+                        logger.info(f"[ConfidenceRouter] Document {document_id} is UNLINKED. Added patient_assignment review task.")
 
         routed_to_canonical: List[str] = []
         routed_to_review: List[str] = []
@@ -145,6 +185,7 @@ def route_extraction_result(
                     value=value,
                     confidence=confidence,
                     db=db,
+                    actor_user_id=actor_user_id,
                 )
                 routed_to_canonical.append(field_name)
             else:
@@ -163,6 +204,8 @@ def route_extraction_result(
                 routed_to_review.append(field_name)
 
         if pending_records:
+            if document:
+                document.needs_manual_review = True
             db.add_all(pending_records)
             db.commit()
 

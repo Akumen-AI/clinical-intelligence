@@ -66,6 +66,7 @@ def detect_layout(image_path: str) -> List[Dict[str, Any]]:
 
 
 def persist_layout_regions(db: Session, document: Document) -> List[LayoutRegion]:
+    print(f"[Debug] persist_layout_regions called for {document.document_id}")
     """Run layout detection for a processed image and persist its regions."""
     if not document.processed_uri:
         raise ValueError(f"Document '{document.document_id}' has no processed file")
@@ -87,7 +88,9 @@ def persist_layout_regions(db: Session, document: Document) -> List[LayoutRegion
         path = temporary_path
 
     try:
+        print(f"[Debug] Calling detect_layout for {path}")
         detections = detect_layout(path)
+        print(f"[Debug] detect_layout returned {len(detections)} detections")
     finally:
         if temporary_path:
             try:
@@ -120,12 +123,15 @@ def _run_layout_detection_after_preprocessing(document_ids: List[str], bind: Eng
     """Run detection in a fresh session after the preprocessing transaction."""
     # Reuse the committing session's bind. This keeps test database overrides
     # and non-default DATABASE_URL deployments on the correct database.
+    print(f"[Debug] document_ids: {document_ids}")
     detection_session = sessionmaker(autocommit=False, autoflush=False, bind=bind)
     db = detection_session()
     try:
         for document_id in document_ids:
             document = db.get(Document, document_id)
+            print(f"[Debug] Document: {document}, status: {document.status if document else None}")
             if not document or document.status != "preprocessed":
+                print("[Debug] SKIPPING LAYOUT!")
                 continue
             try:
                 document.status = "detecting_layout"

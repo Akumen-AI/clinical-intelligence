@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 import enum
-from sqlalchemy import Column, String, DateTime, Integer, Float, Boolean
+from sqlalchemy import Column, String, DateTime, Integer, Float, Boolean, ForeignKey
 from sqlalchemy.orm import synonym
 from app.database import Base
 
@@ -14,6 +14,7 @@ class DocumentStatus(str, enum.Enum):
     PREPROCESSED = "preprocessed"
     CLASSIFIED = "classified"
     EXTRACTED = "extracted"
+    UNLINKED = "unlinked"
     PENDING_REVIEW = "pending_review"
     COMMITTED = "committed"
     FAILED = "failed"
@@ -23,7 +24,7 @@ class Document(Base):
 
     document_id = Column(String(36), primary_key=True, index=True)
     id = synonym("document_id")
-    patient_id = Column(String(36), nullable=True)
+    patient_id = Column(String(36), ForeignKey("patients.patient_id"), nullable=True, index=True)
     filename = Column(String(255), nullable=False)
     raw_uri = Column(String(500), nullable=False)
     filetype = Column(String(50), nullable=False)

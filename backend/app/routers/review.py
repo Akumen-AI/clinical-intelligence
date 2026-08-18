@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from PIL import Image
@@ -21,11 +21,14 @@ from app.schemas.review import (
     ThresholdConfigRequest,
     ThresholdConfigResponse,
 )
-from app.services import canonical_record_service
+from app.services import canonical_record_service, audit_service
 from app.services.confidence_router import (
     get_confidence_threshold_info,
     set_confidence_threshold,
 )
+from app.services.rag.rbac_access_guard import RbacAccessGuard, AccessDeniedError
+from app.models.user import UserRole
+from sqlalchemy import or_
 
 logger = logging.getLogger("app.routers.review")
 
@@ -123,6 +126,7 @@ def _crop_region(img: Image.Image, bbox: Optional[dict], padding: float = 0.02) 
     summary="Get paginated list of pending review fields",
 )
 def get_pending_reviews(
+    http_request: Request,
     document_id: Optional[str] = Query(
         default=None,
         description="Optional filter by document ID",
@@ -141,6 +145,17 @@ def get_pending_reviews(
 
     if document_id:
         query = query.filter(PendingReview.document_id == document_id)
+        
+    current_user = http_request.state.user
+    user_role = getattr(current_user, "role", None)
+
+    if user_role in (UserRole.DOCTOR, UserRole.NURSE, "doctor", "nurse"):
+        access_list = getattr(current_user, "patient_access", []) or []
+        query = query.join(Document, PendingReview.document_id == Document.document_id).filter(
+            or_(Document.patient_id.in_(access_list), Document.patient_id == None)
+        )
+    elif user_role in (UserRole.DEPARTMENT_HEAD, "department_head"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Department Head is not authorized to review patient records.")
 
     total = query.count()
     offset = (page - 1) * page_size
@@ -168,6 +183,7 @@ def get_pending_reviews(
 )
 def get_review_context(
     review_id: str,
+    http_request: Request,
     db: Session = Depends(get_db),
 ):
     """
@@ -190,6 +206,11 @@ def get_review_context(
 
     # Fetch associated document
     doc = db.query(Document).filter(Document.document_id == review_rec.document_id).first()
+    
+    try:
+        RbacAccessGuard().assert_can_query_patient(http_request.state.user, doc.patient_id if doc else None)
+    except AccessDeniedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
 
     # Fetch bounding box from ExtractedField (most recent match)
     extracted = (
@@ -238,6 +259,7 @@ def get_review_context(
 )
 def get_review_image(
     review_id: str,
+    http_request: Request,
     full_page: bool = Query(
         default=False,
         description="If true, return the full document page instead of the cropped region",
@@ -269,6 +291,11 @@ def get_review_image(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Document '{review_rec.document_id}' not found.",
         )
+        
+    try:
+        RbacAccessGuard().assert_can_query_patient(http_request.state.user, doc.patient_id)
+    except AccessDeniedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
 
     # Get bounding box
     bbox = None
@@ -314,6 +341,8 @@ def get_review_image(
 def review_pending_field(
     review_id: str,
     payload: ReviewActionRequest,
+    background_tasks: BackgroundTasks,
+    http_request: Request,
     db: Session = Depends(get_db),
 ):
     """
@@ -334,23 +363,50 @@ def review_pending_field(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Pending review record with ID '{review_id}' not found.",
         )
+        
+    doc = db.query(Document).filter(Document.document_id == review_rec.document_id).first()
+    if doc:
+        try:
+            RbacAccessGuard().assert_can_query_patient(http_request.state.user, doc.patient_id)
+        except AccessDeniedError as e:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
 
     if payload.action == "approve":
         review_rec.status = ReviewStatus.APPROVED
-        # Use corrected value when reviewer edited, otherwise fall back to extracted
-        value_to_write = (
-            payload.corrected_value
-            if payload.corrected_value is not None
-            else review_rec.extracted_value
-        )
-        canonical_record_service.upsert_field(
-            document_id=review_rec.document_id,
-            field_name=review_rec.field_name,
-            value=value_to_write,
-            confidence=review_rec.confidence_score,
-            db=db,
-            human_verified=True,
-        )
+        
+        if review_rec.field_name == "patient_assignment":
+            if not payload.corrected_value:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="patient_id must be provided as corrected_value to approve patient_assignment."
+                )
+            if doc:
+                doc.patient_id = payload.corrected_value
+                from app.models.document import DocumentStatus
+                if doc.status == DocumentStatus.UNLINKED.value:
+                    doc.status = DocumentStatus.EXTRACTED.value
+                db.commit()
+                canonical_record_service.migrate_generic_records_to_normalized(
+                    document_id=doc.document_id,
+                    patient_id=doc.patient_id,
+                    db=db
+                )
+        else:
+            # Use corrected value when reviewer edited, otherwise fall back to extracted
+            value_to_write = (
+                payload.corrected_value
+                if payload.corrected_value is not None
+                else review_rec.extracted_value
+            )
+            canonical_record_service.upsert_field(
+                document_id=review_rec.document_id,
+                field_name=review_rec.field_name,
+                value=value_to_write,
+                confidence=review_rec.confidence_score,
+                db=db,
+                human_verified=True,
+                actor_user_id=http_request.state.user.id,
+            )
     elif payload.action == "reject":
         review_rec.status = ReviewStatus.REJECTED
 
@@ -360,6 +416,19 @@ def review_pending_field(
     review_rec.reviewed_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(review_rec)
+
+    audit_service.write_entry(
+        db=db,
+        actor_user_id=http_request.state.user.id,
+        action_type=f"review_{payload.action}",
+        target_entity=f"pending_review:{review_rec.id}",
+        rationale=f"Reviewer {payload.action}ed field '{review_rec.field_name}'"
+    )
+
+    # Trigger background indexing if document is already linked to a patient
+    if doc and doc.patient_id:
+        from app.tasks.rag_tasks import index_document_task
+        background_tasks.add_task(index_document_task, doc.document_id)
 
     return PendingReviewResponse.model_validate(review_rec)
 

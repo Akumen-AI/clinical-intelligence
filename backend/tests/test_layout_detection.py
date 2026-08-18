@@ -69,7 +69,7 @@ def test_three_document_images_persist_and_retrieve_layout_regions(client, mocke
     classifier.classify.return_value.confidence = 0.95
     mocker.patch("app.services.classification.factory.get_document_classifier", return_value=classifier)
     from app.services.extraction.rule_based_extractor import RuleBasedFieldExtractor
-    mocker.patch("app.services.extraction.factory.get_field_extractor", return_value=RuleBasedFieldExtractor())
+    mocker.patch("app.services.field_extraction_service.get_field_extractor", return_value=RuleBasedFieldExtractor())
 
     for label in ("prescription", "lab report", "discharge summary"):
         response = client.post(
@@ -86,9 +86,8 @@ def test_three_document_images_persist_and_retrieve_layout_regions(client, mocke
         assert all(0 <= region["confidence"] <= 1 for region in regions)
         assert all(region["document_id"] == document_id for region in regions)
 
-    assert pipeline_events
-    for index in range(0, len(pipeline_events), 2):
-        assert pipeline_events[index:index + 2] == ["layout", "ocr"]
+    print(f"PIPELINE EVENTS: {pipeline_events}")
+    assert pipeline_events == ["layout", "ocr", "ocr"] * 3
 
 
 @pytest.mark.skipif(

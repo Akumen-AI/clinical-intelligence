@@ -1,7 +1,8 @@
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.models.document import Document
 from app.models.upload_log import UploadLog
@@ -13,7 +14,9 @@ from app.main import app
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test_clinical_platform.db"
 
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    SQLALCHEMY_DATABASE_URL, 
+    connect_args={"check_same_thread": False, "timeout": 15},
+    poolclass=StaticPool
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -27,11 +30,30 @@ def override_get_db():
 app.dependency_overrides[get_db] = override_get_db
 
 import os
+import asyncio
+from sqlalchemy.pool import StaticPool
+
 @pytest.fixture(autouse=True)
 def setup_db():
     Base.metadata.create_all(bind=engine)
+    
+    # Patch the global SessionLocal so Celery tasks in the same process use the test DB
+    import app.database
+    original_session_local = app.database.SessionLocal
+    app.database.SessionLocal = TestingSessionLocal
+    
     yield
-    Base.metadata.drop_all(bind=engine)
+    
+    # Clear all data without dropping tables to avoid 'database is locked' errors
+    # and to provide a clean state for each test.
+    # Note: We must disable foreign keys temporarily to clear all tables in any order.
+    with engine.connect() as conn:
+        conn.execute(text("PRAGMA foreign_keys = OFF;"))
+        for table_name in Base.metadata.tables.keys():
+            conn.execute(text(f"DELETE FROM {table_name}"))
+        conn.execute(text("PRAGMA foreign_keys = ON;"))
+        conn.commit()
+
     from app.services.upload_service import UPLOAD_DIR
     if os.path.exists(UPLOAD_DIR):
         for f in os.listdir(UPLOAD_DIR):
@@ -41,7 +63,13 @@ def setup_db():
                 except Exception:
                     pass
 
+from app.core.security import create_access_token
+import uuid
+
 @pytest.fixture
 def client():
-    return TestClient(app)
+    token = create_access_token({"sub": str(uuid.uuid4()), "role": "hospital_admin", "email": "test@clinic.org"})
+    c = TestClient(app)
+    c.headers.update({"Authorization": f"Bearer {token}"})
+    return c
 

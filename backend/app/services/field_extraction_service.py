@@ -41,6 +41,7 @@ def extract_and_persist_fields(
     ocr_text: Optional[str] = None,
     pre_extracted_fields: Optional[ClinicalFieldsSchema] = None,
     field_confidences: Optional[Dict[str, Any]] = None,
+    actor_user_id: Optional[uuid.UUID] = None,
 ) -> Tuple[ClinicalFieldsSchema, List[ExtractedField]]:
     """
     Extracts key fields from document text using the configured extraction engine
@@ -105,8 +106,8 @@ def extract_and_persist_fields(
             fields = result.fields
             raw_field_confidences = result.field_confidences
 
-    # Remove any existing field records for this document
-    db.query(ExtractedField).filter(ExtractedField.document_id == document.document_id).delete(
+    doc_id = document.document_id
+    db.query(ExtractedField).filter(ExtractedField.document_id == doc_id).delete(
         synchronize_session=False
     )
 
@@ -140,18 +141,25 @@ def extract_and_persist_fields(
         else:
             ocr_confidences = []
 
+        # Safe access to document attributes
+        doc_type = "unknown"
+        try:
+            doc_type = document.document_type or "unknown"
+        except Exception:
+            pass
+
         score = engine.score_field(
             field_name=field_name,
             raw_value=_stringify_value(value),
             ocr_word_confidences=ocr_confidences,
             layout_region="body",  # default; layout detection may refine this
-            document_type=document.document_type or "unknown",
+            document_type=doc_type,
             field_map=field_map_for_signal_d,
-            document_id=document.document_id,
+            document_id=doc_id,
         )
         record = ExtractedField(
             field_id=str(uuid.uuid4()),
-            document_id=document.document_id,
+            document_id=doc_id,
             field_name=field_name,
             raw_value=value,
             confidence_score=score,
@@ -160,7 +168,8 @@ def extract_and_persist_fields(
         records.append(record)
 
     db.add_all(records)
-    target_doc = db.query(Document).filter(Document.document_id == document.document_id).first()
+    
+    target_doc = db.query(Document).filter(Document.document_id == doc_id).first()
     if target_doc:
         target_doc.status = DocumentStatus.EXTRACTED.value
     db.commit()
@@ -172,12 +181,14 @@ def extract_and_persist_fields(
     # Story 2.5: Automatically enqueue confidence routing task for extracted fields
     try:
         from app.tasks.routing_tasks import route_document_fields
-        route_document_fields.delay(document.document_id)
+        route_document_fields.delay(document.document_id, actor_user_id=str(actor_user_id) if actor_user_id else None)
     except Exception as exc:
         # Fallback to direct routing execution if Celery broker unavailable
         try:
-            from app.tasks.routing_tasks import route_document_fields
-            route_document_fields(document.document_id)
+            from app.services.confidence_router import route_extraction_result
+            field_dict = {f.field_name: {"value": f.raw_value, "confidence": f.confidence_score} for f in records}
+            extraction_result = {"document_id": document.document_id, "fields": field_dict}
+            route_extraction_result(extraction_result, db=db, actor_user_id=actor_user_id)
         except Exception as e:
             print(f"[Field Extraction] Direct routing execution error: {e}")
 

@@ -144,6 +144,11 @@ export const updateThresholdConfig = async (threshold) => {
   return response.data;
 };
 
+export const linkDocumentToPatient = async (documentId, patientId) => {
+  const response = await apiClient.post(`/documents/${documentId}/link-patient`, { patient_id: patientId });
+  return response.data;
+};
+
 // ── Patient Timeline (Story 4.2) ───────────────────────────────────────────
 
 export const fetchTimeline = async (patientId = null) => {
@@ -155,6 +160,32 @@ export const fetchTimeline = async (patientId = null) => {
 
 export const fetchTimelineEvent = async (documentId) => {
   const response = await apiClient.get(`/timeline/${documentId}`);
+  return response.data;
+};
+
+export const askPatientQuestion = async (patientId, question) => {
+  // Note: if auth is added, attach bearer token here (Story 5.2+)
+  const token = localStorage.getItem('token') || '';
+  const response = await apiClient.post(`/patients/${patientId}/ask`, { question }, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+  return response.data;
+};
+
+export const fetchPatients = async () => {
+  const response = await apiClient.get('/patients');
+  return response.data;
+};
+
+export const fetchPatient = async (patientId) => {
+  const response = await apiClient.get(`/patients/${patientId}`);
+  return response.data;
+};
+
+export const fetchPatientRecords = async (patientId) => {
+  const response = await apiClient.get(`/patients/${patientId}/records`);
   return response.data;
 };
 
