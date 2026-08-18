@@ -6,12 +6,12 @@ from app.models.rag_chunk import PatientRAGChunk
 from tests.conftest import TestingSessionLocal
 from unittest.mock import patch, MagicMock
 from app.core.security import get_current_user
-from app.models.user import User
+from app.models.user import User, UserRole
 
 client = TestClient(app)
 
 def override_get_current_user():
-    return User(email="test@test.com", role="doctor")
+    return User(email="test@test.com", role=UserRole.DOCTOR)
 
 def test_ask_unauthorized():
     """Test that /ask returns 401 without a valid bearer token."""

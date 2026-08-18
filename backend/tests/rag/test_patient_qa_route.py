@@ -4,7 +4,7 @@ from uuid import uuid4
 from unittest.mock import patch, AsyncMock
 from app.main import app
 from app.models.user import UserRole
-from app.core.security import get_current_active_user, User as SecurityUser
+from app.core.security import get_current_user, User as SecurityUser
 from app.services.rag.rbac_access_guard import AccessDeniedError
 
 PATIENT_ID = uuid4()
@@ -13,7 +13,7 @@ PATIENT_ID = uuid4()
 def make_doctor_without_access():
     return SecurityUser(
         id=uuid4(),
-        role=UserRole.doctor,
+        role=UserRole.DOCTOR,
         email="doctor@clinic.org",
         patient_access=[],
         is_active=True,
@@ -22,7 +22,7 @@ def make_doctor_without_access():
 
 @pytest.mark.asyncio
 async def test_unauthorized_patient_query_returns_403():
-    app.dependency_overrides[get_current_active_user] = lambda: make_doctor_without_access()
+    app.dependency_overrides[get_current_user] = lambda: make_doctor_without_access()
 
     with patch(
         "app.services.rag.patient_rag_service.PatientRagService.query",

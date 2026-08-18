@@ -15,7 +15,7 @@ from app.models.document import Document
 from app.models.extracted_field import ExtractedField
 from app.models.pending_review import PendingReview, ReviewStatus
 from app.models.correction_log import CorrectionLog
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.correction_log import CorrectionAction
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -68,7 +68,7 @@ async def seed_extracted_field(db_session, reviewer_id):
     field_id = uuid.uuid4()
 
     # Seed User if needed
-    user = User(id=reviewer_id, email="nurse@clinic.org", role="nurse")
+    user = User(id=reviewer_id, email="nurse@clinic.org", role=UserRole.NURSE)
     db_session.add(user)
 
     doc = Document(

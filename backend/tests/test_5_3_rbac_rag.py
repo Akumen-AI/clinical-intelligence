@@ -21,8 +21,14 @@ client = TestClient(app)
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
+from app.models.user import User, UserRole
+
 def _user(role: str) -> User:
-    return User(id=uuid.uuid4(), role=role, email=f"{role}@clinic.org")
+    try:
+        enum_role = UserRole(role)
+    except ValueError:
+        enum_role = UserRole.NURSE
+    return User(id=uuid.uuid4(), role=enum_role, email=f"{role}@clinic.org")
 
 def _override(role: str):
     user = _user(role)

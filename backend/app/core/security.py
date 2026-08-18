@@ -6,6 +6,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from pydantic import BaseModel
+from app.models.user import UserRole
 
 SECRET_KEY = os.getenv("SECRET_KEY", "clinical_platform_secret_key_for_jwt_auth_2026")
 ALGORITHM = "HS256"
@@ -15,7 +16,7 @@ security_scheme = HTTPBearer(auto_error=False)
 
 class User(BaseModel):
     id: uuid.UUID
-    role: Optional[str] = "nurse"
+    role: Optional[UserRole] = UserRole.NURSE
     email: Optional[str] = "reviewer@clinic.org"
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -33,7 +34,7 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
         )
     token = credentials.credentials
     if token == "dev-token-for-testing-123":
-        return User(id=uuid.uuid4(), role="doctor", email="test@clinic.org")
+        return User(id=uuid.uuid4(), role=UserRole.DOCTOR, email="test@clinic.org")
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id_str: str = payload.get("sub")
@@ -43,7 +44,11 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
                 detail="Invalid token payload",
             )
         reviewer_id = uuid.UUID(user_id_str)
-        role = payload.get("role", "nurse")
+        role_str = payload.get("role", "nurse")
+        try:
+            role = UserRole(role_str)
+        except ValueError:
+            role = UserRole.NURSE
         email = payload.get("email", "reviewer@clinic.org")
         return User(id=reviewer_id, role=role, email=email)
     except (JWTError, ValueError):
@@ -54,7 +59,7 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
         )
 
 
-CLINICAL_READ_ROLES = {"doctor", "nurse", "hospital_admin", "department_head"}
+CLINICAL_READ_ROLES = {UserRole.DOCTOR, UserRole.NURSE, UserRole.HOSPITAL_ADMIN, UserRole.DEPARTMENT_HEAD}
 
 
 def require_clinical_read(current_user: User = Depends(get_current_user)) -> User:

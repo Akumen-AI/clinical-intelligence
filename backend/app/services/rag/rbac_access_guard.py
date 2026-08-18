@@ -27,10 +27,10 @@ class RbacAccessGuard:
         Returns None (implicitly) if access is permitted.
         """
         user_role = getattr(user, "role", None)
-        if user_role == UserRole.admin or user_role == "admin":
+        if user_role == UserRole.HOSPITAL_ADMIN or user_role == "hospital_admin":
             return
 
-        if user_role in (UserRole.doctor, UserRole.reviewer, "doctor", "reviewer"):
+        if user_role in (UserRole.DOCTOR, UserRole.NURSE, "doctor", "nurse"):
             access_list = getattr(user, "patient_access", []) or []
             if str(patient_id) in access_list:
                 return

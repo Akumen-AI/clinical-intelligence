@@ -21,25 +21,25 @@ guard = RbacAccessGuard()
 
 def test_admin_always_permitted():
     """Admin may query any patient regardless of patient_access list."""
-    user = make_user(UserRole.admin)
+    user = make_user(UserRole.HOSPITAL_ADMIN)
     guard.assert_can_query_patient(user, PATIENT_ID)  # must not raise
 
 
 # ── Doctor role ─────────────────────────────────────────────────────────────
 
 def test_doctor_permitted_when_in_access_list():
-    user = make_user(UserRole.doctor, patient_access=[str(PATIENT_ID)])
+    user = make_user(UserRole.DOCTOR, patient_access=[str(PATIENT_ID)])
     guard.assert_can_query_patient(user, PATIENT_ID)  # must not raise
 
 
 def test_doctor_denied_when_not_in_access_list():
-    user = make_user(UserRole.doctor, patient_access=[str(uuid4())])  # different patient
+    user = make_user(UserRole.DOCTOR, patient_access=[str(uuid4())])  # different patient
     with pytest.raises(AccessDeniedError):
         guard.assert_can_query_patient(user, PATIENT_ID)
 
 
 def test_doctor_denied_when_access_list_empty():
-    user = make_user(UserRole.doctor, patient_access=[])
+    user = make_user(UserRole.DOCTOR, patient_access=[])
     with pytest.raises(AccessDeniedError):
         guard.assert_can_query_patient(user, PATIENT_ID)
 
@@ -47,12 +47,12 @@ def test_doctor_denied_when_access_list_empty():
 # ── Reviewer role ───────────────────────────────────────────────────────────
 
 def test_reviewer_permitted_when_in_access_list():
-    user = make_user(UserRole.reviewer, patient_access=[str(PATIENT_ID)])
+    user = make_user(UserRole.NURSE, patient_access=[str(PATIENT_ID)])
     guard.assert_can_query_patient(user, PATIENT_ID)  # must not raise
 
 
 def test_reviewer_denied_when_not_in_access_list():
-    user = make_user(UserRole.reviewer, patient_access=[])
+    user = make_user(UserRole.NURSE, patient_access=[])
     with pytest.raises(AccessDeniedError):
         guard.assert_can_query_patient(user, PATIENT_ID)
 
