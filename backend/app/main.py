@@ -1,5 +1,9 @@
 import os
 import sys
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Ensure backend root directory is in python search path
 backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

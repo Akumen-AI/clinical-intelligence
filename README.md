@@ -38,6 +38,15 @@ An enterprise-grade clinical document intake, computer vision preprocessing, dua
 - **Interactive Dashboard & Inspection UI**  
   React-based single-page application featuring live pipeline status tracking, upload audit logs, document management, and a clinical field inspection modal with confidence meters, status indicators, and raw JSON export.
 
+- **Authentication & Role-Based Access Control (RBAC)**  
+  Secure JWT-based authentication enforcing granular access control with distinct roles (e.g., Doctor, Nurse, Admin, IT, Compliance). Includes strict controls for patient data access tailored by user roles.
+
+- **Comprehensive Audit Logging & Correction Tracking**  
+  Centralized logging of critical actions (authentication, document uploads, patient access, configuration changes) and a correction log for tracking manual overrides to extracted clinical fields.
+
+- **Clinical Policy Chatbot (RAG)**  
+  AI-powered chatbot integrating internal policies via Retrieval-Augmented Generation (RAG) to answer operational and clinical policy queries based on the hospital's knowledge base.
+
 ---
 
 ## 🔄 Processing Pipeline
@@ -207,6 +216,7 @@ clinical-intelligence/
 | **Multimodal Vision & Handwriting** | [Google Gemini API](https://ai.google.dev/) (`google-genai`) |
 | **LLM Classification & Extraction** | [Ollama](https://ollama.com/) (Local) / [Google Gemini](https://ai.google.dev/) (Cloud) |
 | **Task Queue** | [Celery](https://docs.celeryq.dev/) (async confidence routing) |
+| **Security & Auth** | JWT Authentication, Role-Based Access Control (RBAC) |
 | **Database Migrations** | [Alembic](https://alembic.sqlalchemy.org/) |
 | **Frontend SPA** | React 18, Vite 5, Lucide Icons, Axios |
 | **Testing** | Pytest, Pytest-Mock |
@@ -368,6 +378,21 @@ All document routes are served under `/api/v1/documents`.
 | `PATCH` | `/api/v1/review/pending/{review_id}` | Approve or reject a field. Approving writes the field to the canonical patient record. |
 | `GET` | `/api/v1/review/config/threshold` | Retrieve active confidence threshold and its source (`env` or `db`). |
 | `PUT` | `/api/v1/review/config/threshold` | Update threshold dynamically (validated 0.0 < threshold ≤ 1.0), stored in the `system_config` table. |
+
+### Security, Identity, and Auditing
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/v1/auth/login` | Authenticate and obtain JWT token for RBAC. |
+| `GET` | `/api/v1/audit-log` | Retrieve comprehensive audit logs for compliance monitoring. |
+| `GET` | `/api/v1/correction_logs` | Retrieve manual correction history on clinical records. |
+
+### Patient & Policy Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/v1/patients/{patient_id}` | Retrieve canonical patient records (RBAC protected). |
+| `POST` | `/api/v1/policy-chatbot/query` | Ask clinical and operational policy questions (RAG). |
 
 ---
 
