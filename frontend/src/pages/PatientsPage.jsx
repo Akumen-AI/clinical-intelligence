@@ -170,12 +170,15 @@ function PatientProfileView({ patientId, onBack }) {
   );
 }
 
+import { useNavigate } from 'react-router-dom';
+
 export default function PatientsPage() {
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
   const [selectedPatientId, setSelectedPatientId] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     loadPatients();
@@ -257,7 +260,7 @@ export default function PatientsPage() {
               key={patient.patient_id} 
               className="glass-card patient-card-hover" 
               style={{ padding: '1.5rem', position: 'relative', overflow: 'hidden', cursor: 'pointer', transition: 'all 0.2s ease' }}
-              onClick={() => setSelectedPatientId(patient.patient_id)}
+              onClick={() => navigate(`/patients/${patient.patient_id}/timeline`)}
             >
               <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-emerald)' }}></div>
               

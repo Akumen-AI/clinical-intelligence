@@ -12,10 +12,13 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { fetchTimeline, getDocumentFileUrl } from '../services/api';
+import { useParams, useNavigate } from 'react-router-dom';
 
 export default function TimelinePage() {
-  const [patientIdFilter, setPatientIdFilter] = useState('');
-  const [activePatientId, setActivePatientId] = useState('');
+  const { patientId } = useParams();
+  const navigate = useNavigate();
+  const [patientIdFilter, setPatientIdFilter] = useState(patientId || '');
+  const [activePatientId, setActivePatientId] = useState(patientId || '');
   const [events, setEvents] = useState([]);
   const [totalEvents, setTotalEvents] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -47,6 +50,14 @@ export default function TimelinePage() {
     loadTimeline(false);
   }, [loadTimeline]);
 
+  // Sync state with URL params
+  useEffect(() => {
+    if (patientId && patientId !== activePatientId) {
+      setActivePatientId(patientId);
+      setPatientIdFilter(patientId);
+    }
+  }, [patientId, activePatientId]);
+
   // Auto-refresh every 15 seconds
   useEffect(() => {
     const interval = setInterval(() => {
@@ -57,12 +68,15 @@ export default function TimelinePage() {
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    setActivePatientId(patientIdFilter);
+    if (patientIdFilter.trim()) {
+      navigate(`/patients/${patientIdFilter.trim()}/timeline`);
+    }
   };
 
   const handleClearFilter = () => {
     setPatientIdFilter('');
     setActivePatientId('');
+    navigate('/patients');
   };
 
   return (

@@ -9,9 +9,12 @@ import {
   Info
 } from 'lucide-react';
 import { askPatientQuestion, getDocumentFileUrl, fetchPatient } from '../services/api';
+import { useParams, useNavigate } from 'react-router-dom';
 
 export default function PatientQAPage() {
-  const [patientIdInput, setPatientIdInput] = useState('');
+  const { patientId } = useParams();
+  const navigate = useNavigate();
+  const [patientIdInput, setPatientIdInput] = useState(patientId || '');
   const [activePatientId, setActivePatientId] = useState('');
   
   // Chat state
@@ -27,26 +30,40 @@ export default function PatientQAPage() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [history, loading, error]);
 
-  const handleLoadPatient = async (e) => {
-    e.preventDefault();
-    if (!patientIdInput.trim()) return;
+  // Sync state with URL params
+  useEffect(() => {
+    if (patientId && patientId !== activePatientId) {
+      setPatientIdInput(patientId);
+      // Trigger load patient automatically if route changes
+      loadPatientData(patientId);
+    }
+  }, [patientId]);
+
+  const loadPatientData = async (idToLoad) => {
+    if (!idToLoad) return;
     
     setLoading(true);
     setError(null);
     setErrorType(null);
     
     try {
-      await fetchPatient(patientIdInput.trim());
-      setActivePatientId(patientIdInput.trim());
+      await fetchPatient(idToLoad);
+      setActivePatientId(idToLoad);
       setHistory([]);
       setQuestion('');
     } catch (err) {
-      setError(`Patient '${patientIdInput.trim()}' not found. Please verify the ID/MRN.`);
+      setError(`Patient '${idToLoad}' not found. Please verify the ID/MRN.`);
       setErrorType('not_found');
       setActivePatientId('');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLoadPatient = (e) => {
+    e.preventDefault();
+    if (!patientIdInput.trim()) return;
+    navigate(`/patients/${patientIdInput.trim()}/ask`);
   };
 
   const handleClearPatient = () => {
@@ -56,6 +73,7 @@ export default function PatientQAPage() {
     setQuestion('');
     setError(null);
     setErrorType(null);
+    navigate('/patients');
   };
 
   const handleAskQuestion = async (e) => {
