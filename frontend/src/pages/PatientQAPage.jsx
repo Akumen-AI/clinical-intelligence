@@ -227,36 +227,39 @@ export default function PatientQAPage() {
                 </div>
                 
                 {/* Sources Chips */}
-                {msg.sources && msg.sources.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', paddingLeft: '0.25rem' }}>
-                    {msg.sources.map((docId, idx) => (
-                      <a
-                        key={`${docId}-${idx}`}
-                        href={getDocumentFileUrl(docId)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.3rem',
-                          background: 'rgba(6, 182, 212, 0.1)',
-                          border: '1px solid rgba(6, 182, 212, 0.25)',
-                          padding: '0.2rem 0.6rem',
-                          borderRadius: 'var(--radius-full)',
-                          fontSize: '0.75rem',
-                          color: 'var(--primary-cyan)',
-                          textDecoration: 'none',
-                          transition: 'all 0.2s'
-                        }}
-                        onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(6, 182, 212, 0.2)'; e.currentTarget.style.borderColor = 'rgba(6, 182, 212, 0.4)'; }}
-                        onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(6, 182, 212, 0.1)'; e.currentTarget.style.borderColor = 'rgba(6, 182, 212, 0.25)'; }}
-                      >
-                        <FileText size={12} />
-                        Source {idx + 1}
-                      </a>
-                    ))}
-                  </div>
-                )}
+                {msg.sources && msg.sources.length > 0 && (() => {
+                  const uniqueDocIds = Array.from(new Set(msg.sources.map(source => typeof source === 'string' ? source : source.document_id)));
+                  return (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', paddingLeft: '0.25rem' }}>
+                      {uniqueDocIds.map((docId, idx) => (
+                        <a
+                          key={`${docId}-${idx}`}
+                          href={getDocumentFileUrl(docId)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            background: 'rgba(6, 182, 212, 0.1)',
+                            border: '1px solid rgba(6, 182, 212, 0.25)',
+                            padding: '0.2rem 0.6rem',
+                            borderRadius: 'var(--radius-full)',
+                            fontSize: '0.75rem',
+                            color: 'var(--primary-cyan)',
+                            textDecoration: 'none',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(6, 182, 212, 0.2)'; e.currentTarget.style.borderColor = 'rgba(6, 182, 212, 0.4)'; }}
+                          onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(6, 182, 212, 0.1)'; e.currentTarget.style.borderColor = 'rgba(6, 182, 212, 0.25)'; }}
+                        >
+                          <FileText size={12} />
+                          Source {idx + 1}
+                        </a>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             ))}
 

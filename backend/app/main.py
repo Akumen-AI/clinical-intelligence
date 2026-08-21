@@ -1,5 +1,9 @@
 import os
 import sys
+from dotenv import load_dotenv
+
+# Load environment variables from .env file before anything else
+load_dotenv()
 
 # Ensure backend root directory is in python search path
 backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -25,6 +29,7 @@ from app.models.patient import Patient
 from app.models.visit import Visit
 from app.models.clinical_entities import Medication, Diagnosis, LabResult, Vital, Procedure
 from app.models.rag_chunk import PatientRAGChunk
+from app.models.rag_conversation import RAGConversation
 
 # Register SQLAlchemy hooks
 import app.services.layout_trigger  # noqa

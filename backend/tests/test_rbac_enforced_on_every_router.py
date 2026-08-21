@@ -30,3 +30,11 @@ def test_rbac_enforced_on_every_router():
                 response = unauthed_client.post(path)
                 
         assert response.status_code == 401, f"Expected 401 Unauthorized for {method} {path}, got {response.status_code} - response: {response.text}"
+
+def test_rbac_allows_hospital_admin_on_canonical_records(client: TestClient):
+    """
+    Ensure that a user with a valid role (e.g. hospital_admin) gets 200 OK 
+    when hitting /api/v1/canonical-records, verifying the RBAC mapping is correct.
+    """
+    response = client.get("/api/v1/canonical-records")
+    assert response.status_code == 200, f"Expected 200 OK, got {response.status_code} - {response.text}"

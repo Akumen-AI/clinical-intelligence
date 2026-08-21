@@ -46,7 +46,8 @@ def login(login_data: LoginRequest, db: Session = Depends(get_db)):
     payload = {
         "sub": str(user.id),
         "role": user.role.value,
-        "email": user.email
+        "email": user.email,
+        "patient_access": user.patient_access
     }
     
     access_token = create_access_token(payload)
@@ -78,7 +79,8 @@ def refresh(refresh_data: RefreshRequest):
         new_payload = {
             "sub": user_id_str,
             "role": payload.get("role", "nurse"),
-            "email": payload.get("email", "reviewer@clinic.org")
+            "email": payload.get("email", "reviewer@clinic.org"),
+            "patient_access": payload.get("patient_access", [])
         }
         
         access_token = create_access_token(new_payload)

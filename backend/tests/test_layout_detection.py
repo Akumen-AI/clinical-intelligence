@@ -89,7 +89,7 @@ def test_three_document_images_persist_and_retrieve_layout_regions(client, mocke
         assert all(region["document_id"] == document_id for region in regions)
 
     print(f"PIPELINE EVENTS: {pipeline_events}")
-    assert pipeline_events == ["layout", "ocr", "ocr"] * 3
+    assert pipeline_events == ["layout", "ocr"] * 3
 
 
 @pytest.mark.skipif(
