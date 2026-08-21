@@ -209,7 +209,13 @@ def ask_patient_question(
     from app.services.rag_service import generate_answer
     from app.services import audit_service
     try:
-        answer, citations = generate_answer(db, patient.patient_id, request.question)
+        answer, citations, conv_id = generate_answer(
+            db=db, 
+            patient_id=patient.patient_id, 
+            question=request.question,
+            user_id=current_user.id,
+            conversation_id=request.conversation_id
+        )
         
         has_answer = len(citations) > 0
         audit_service.write_entry(
@@ -222,8 +228,14 @@ def ask_patient_question(
         
         return AskResponse(
             answer=answer,
+            conversation_id=conv_id,
             source_documents=citations,
             citations=citations
+        )
+    except AccessDeniedError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e)
         )
     except Exception as e:
         raise HTTPException(

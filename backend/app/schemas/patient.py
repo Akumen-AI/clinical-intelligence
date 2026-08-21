@@ -73,6 +73,7 @@ class PatientProfileResponse(BaseModel):
 
 class AskRequest(BaseModel):
     question: str
+    conversation_id: Optional[str] = None
 
 
 class CitationSchema(BaseModel):
@@ -84,6 +85,7 @@ class CitationSchema(BaseModel):
 
 class AskResponse(BaseModel):
     answer: str
+    conversation_id: str
     source_documents: List[CitationSchema] = []
     citations: List[CitationSchema] = []
 

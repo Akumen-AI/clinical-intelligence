@@ -67,44 +67,10 @@ def extract_and_persist_fields(
             if not ocr_text and document.processed_uri:
                 ocr_text = extract_text(document.raw_uri, document.filetype)
 
-        handwriting_handled = False
-        if settings.HANDWRITING_EXTRACTION_ENABLED and settings.GEMINI_API_KEY:
-            from app.services.handwriting.routing import should_route_to_handwriting
-
-            if not ocr_scores:
-                try:
-                    _, ocr_scores = extract_text_with_confidence(file_path, document.filetype)
-                except Exception:
-                    ocr_scores = []
-
-            if should_route_to_handwriting(
-                ocr_scores,
-                confidence_threshold=settings.HANDWRITING_OCR_CONFIDENCE_THRESHOLD,
-                proportion_threshold=settings.HANDWRITING_LOW_CONFIDENCE_PROPORTION,
-                consecutive_count_threshold=settings.HANDWRITING_CONSECUTIVE_LOW_CONFIDENCE_COUNT,
-            ):
-                try:
-                    from app.services.handwriting.factory import get_handwriting_extractor
-
-                    hw_extractor = get_handwriting_extractor()
-                    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-                    image_abs_path = os.path.abspath(os.path.join(backend_dir, file_path))
-                    hw_result = hw_extractor.extract_from_image(
-                        image_abs_path,
-                        document_type=document.document_type,
-                    )
-                    if hw_result and hw_result.fields:
-                        fields = hw_result.fields
-                        raw_field_confidences = hw_result.field_confidences or {}
-                        handwriting_handled = True
-                except Exception as e:
-                    print(f"[Field Extraction] Handwriting fallback failed: {e}")
-
-        if not handwriting_handled:
-            extractor = get_field_extractor()
-            result = extractor.extract(ocr_text or "", document_type=document.document_type)
-            fields = result.fields
-            raw_field_confidences = result.field_confidences
+        extractor = get_field_extractor()
+        result = extractor.extract(ocr_text or "", document_type=document.document_type)
+        fields = result.fields
+        raw_field_confidences = result.field_confidences
 
     doc_id = document.document_id
     db.query(ExtractedField).filter(ExtractedField.document_id == doc_id).delete(

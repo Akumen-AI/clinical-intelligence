@@ -154,28 +154,74 @@ def retrieve_relevant_chunks(db: Session, patient_id: str, query: str, top_k: in
 # This function performs only patient-scoped retrieval (patient_id filter on
 # PatientRAGChunk.patient_id). Role enforcement lives in the router layer via
 # require_clinical_read — do not add role checks here.
-def generate_answer(db: Session, patient_id: str, question: str) -> Tuple[str, List[Dict[str, Any]]]:
+def generate_answer(db: Session, patient_id: str, question: str, user_id: str, conversation_id: str = None) -> Tuple[str, List[Dict[str, Any]], str]:
 
     """
     Generate an answer to a user's question based on the patient's retrieved document chunks.
-    Returns (answer_text, citations), where citations is a list of structured objects containing:
+    Returns (answer_text, citations, conversation_id), where citations is a list of structured objects containing:
       - document_id: str
       - snippet: str
       - location: Optional[str]
     """
     from google import genai
     from app.config import settings
+    from app.models.rag_conversation import RAGConversation
 
     if not settings.GEMINI_API_KEY:
         raise ValueError("GEMINI_API_KEY is not set. Cannot generate answers.")
 
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
     
-    # Retrieve top 5 most relevant chunks
-    top_chunks = retrieve_relevant_chunks(db, patient_id, question, top_k=5)
+    # Handle conversation session
+    conversation = None
+    if conversation_id:
+        conversation = db.query(RAGConversation).filter(RAGConversation.id == conversation_id).first()
+        if not conversation or conversation.patient_id != patient_id or conversation.user_id != str(user_id):
+            # Strict isolation requirement: if conversation does not match user and patient, deny access
+            from app.core.patient_access_guard import AccessDeniedError
+            raise AccessDeniedError("Invalid conversation ID for this patient and user.")
+    else:
+        conversation = RAGConversation(patient_id=patient_id, user_id=str(user_id), turns=[])
+        db.add(conversation)
+        db.commit()
+        db.refresh(conversation)
+
+    # Use the last N turns for context (e.g. up to 10)
+    history_turns = conversation.turns[-10:] if conversation.turns else []
+    
+    # Contextual query rewriting to resolve referential questions
+    search_query = question
+    if history_turns:
+        history_text = "\n".join([f"{t['role'].capitalize()}: {t['content']}" for t in history_turns])
+        rewrite_prompt = f"""Given the following conversation history and the latest user question, rewrite the question to be a standalone question that can be understood without the conversation history. Do not answer the question, just rewrite it. If it is already standalone, return it as is.
+        
+Conversation History:
+{history_text}
+
+Latest Question: {question}
+
+Standalone Question:"""
+        try:
+            rewrite_response = client.models.generate_content(
+                model="gemini-3.5-flash",
+                contents=rewrite_prompt,
+            )
+            if rewrite_response.text:
+                search_query = rewrite_response.text.strip()
+        except Exception as e:
+            logger.warning(f"[RAG] Failed to rewrite question for context: {e}")
+
+    # Retrieve top 5 most relevant chunks using the (possibly rewritten) search query
+    top_chunks = retrieve_relevant_chunks(db, patient_id, search_query, top_k=5)
     
     if not top_chunks:
-        return "I could not find any relevant information in the patient's documents to answer your question.", []
+        answer_text = "I could not find any relevant information in the patient's documents to answer your question."
+        conversation.turns = conversation.turns + [
+            {"role": "user", "content": question},
+            {"role": "assistant", "content": answer_text}
+        ]
+        db.commit()
+        return answer_text, [], conversation.id
         
     # Build context string and citations list
     context_parts = []
@@ -211,12 +257,17 @@ def generate_answer(db: Session, patient_id: str, question: str) -> Tuple[str, L
         
     context_str = "\n\n".join(context_parts)
     
+    # Build history context for the main prompt
+    history_context = ""
+    if history_turns:
+        history_context = "Conversation History:\n" + "\n".join([f"{t['role'].capitalize()}: {t['content']}" for t in history_turns]) + "\n\n"
+    
     prompt = f"""You are a clinical AI assistant answering questions about a specific patient's medical record.
 You will be provided with a set of retrieved text snippets from the patient's documents.
 Answer the user's question based ONLY on the information provided in the snippets.
 If the snippets do not contain the answer, say "I cannot answer this question based on the provided documents."
 
-Retrieved Snippets:
+{history_context}Retrieved Snippets:
 {context_str}
 
 Question: {question}
@@ -227,5 +278,19 @@ Answer:"""
         contents=prompt,
     )
     
-    return response.text, citations
+    answer_text = response.text
+    
+    # Persist the new turn
+    new_turns = conversation.turns + [
+        {"role": "user", "content": question},
+        {"role": "assistant", "content": answer_text}
+    ]
+    conversation.turns = new_turns
+    
+    # SQLAlchemy requires explicit assignment or flag_modified for JSON column mutations
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(conversation, "turns")
+    db.commit()
+    
+    return answer_text, citations, conversation.id
 

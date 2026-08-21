@@ -22,6 +22,8 @@ from app.models.upload_log import UploadLog
 from app.models.layout_region import LayoutRegion
 from app.models.rag_chunk import PatientRAGChunk
 from app.models.audit_log import AuditLogEntry
+from app.models.policy_rag_chunk import PolicyRAGChunk
+from app.models.rag_conversation import RAGConversation
 
 config = context.config
 if config.config_file_name:

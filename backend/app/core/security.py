@@ -2,7 +2,7 @@ import os
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Optional
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from pydantic import BaseModel
@@ -34,6 +34,7 @@ class User(BaseModel):
     id: uuid.UUID
     role: Optional[UserRole] = UserRole.NURSE
     email: Optional[str] = "reviewer@clinic.org"
+    patient_access: list[str] = []
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
@@ -47,14 +48,22 @@ def create_refresh_token(data: dict) -> str:
     to_encode.update({"exp": expire, "type": "refresh"})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme)) -> User:
-    if not credentials or not credentials.credentials:
+async def get_current_user(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme)
+) -> User:
+    token = None
+    if credentials and credentials.credentials:
+        token = credentials.credentials
+    elif "token" in request.query_params:
+        token = request.query_params["token"]
+        
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    token = credentials.credentials
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         if payload.get("type", "access") != "access":
@@ -75,7 +84,8 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
         except ValueError:
             role = UserRole.NURSE
         email = payload.get("email", "reviewer@clinic.org")
-        return User(id=reviewer_id, role=role, email=email)
+        patient_access = payload.get("patient_access", [])
+        return User(id=reviewer_id, role=role, email=email, patient_access=patient_access)
     except (JWTError, ValueError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

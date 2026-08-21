@@ -27,7 +27,7 @@ except ModuleNotFoundError:
 
 
 POLICY_NO_GROUNDED_ANSWER = "No grounded answer found in the hospital policy index."
-POLICY_SIMILARITY_THRESHOLD = 0.20
+POLICY_SIMILARITY_THRESHOLD = 0.10
 
 
 @dataclass(frozen=True)

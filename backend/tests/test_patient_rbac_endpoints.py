@@ -9,6 +9,7 @@ from app.models.patient import Patient
 from app.models.document import Document
 from app.models.user import User, UserRole
 from tests.conftest import TestingSessionLocal
+from app.core.security import get_password_hash
 
 @pytest.fixture
 def db_session():
@@ -49,24 +50,31 @@ def test_document(db_session: Session, test_patient):
     db_session.refresh(doc)
     return doc
 
-def override_auth(role: UserRole, patient_access: list[str] = None):
-    def _override():
-        user = User(
-            id=uuid4(),
-            email=f"{role.value}@example.com",
-            role=role,
-            patient_access=patient_access or []
-        )
-        return user
-    from app.core.security import get_current_user
-    app.dependency_overrides[get_current_user] = _override
+def get_auth_client(db_session: Session, role: UserRole, patient_access: list[str] = None):
+    email = f"{uuid4()}@example.com"
+    password = "testpassword123"
+    user = User(
+        id=uuid4(),
+        email=email,
+        password_hash=get_password_hash(password),
+        role=role,
+        patient_access=patient_access or []
+    )
+    db_session.add(user)
+    db_session.commit()
+    
+    unauthed_client = TestClient(app)
+    res = unauthed_client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    assert res.status_code == 200
+    token = res.json()["access_token"]
+    
+    new_client = TestClient(app)
+    new_client.headers.update({"Authorization": f"Bearer {token}"})
+    return new_client
 
-def clear_overrides():
-    from app.core.security import get_current_user
-    app.dependency_overrides.pop(get_current_user, None)
 
-def test_doctor_denied_out_of_scope_patient(client: TestClient, test_patient):
-    override_auth(UserRole.DOCTOR, patient_access=["other-patient-id"])
+def test_doctor_denied_out_of_scope_patient(db_session: Session, test_patient):
+    client = get_auth_client(db_session, UserRole.DOCTOR, patient_access=["other-patient-id"])
     
     # 1. GET /patients/{id}
     res = client.get(f"/api/v1/patients/{test_patient.patient_id}")
@@ -75,35 +83,31 @@ def test_doctor_denied_out_of_scope_patient(client: TestClient, test_patient):
     # 2. GET /patients/{id}/records
     res = client.get(f"/api/v1/patients/{test_patient.patient_id}/records")
     assert res.status_code == 403
+    
+    # 3. POST /patients/{id}/ask
+    res = client.post(f"/api/v1/patients/{test_patient.patient_id}/ask", json={"question": "What is the diagnosis?"})
+    assert res.status_code == 403
 
-    clear_overrides()
-
-def test_doctor_permitted_in_scope_patient(client: TestClient, test_patient):
-    override_auth(UserRole.DOCTOR, patient_access=[test_patient.patient_id])
+def test_doctor_permitted_in_scope_patient(db_session: Session, test_patient):
+    client = get_auth_client(db_session, UserRole.DOCTOR, patient_access=[test_patient.patient_id])
     
     res = client.get(f"/api/v1/patients/{test_patient.patient_id}")
     assert res.status_code == 200
-    
-    clear_overrides()
 
-def test_hospital_admin_bypasses_restriction(client: TestClient, test_patient):
-    override_auth(UserRole.HOSPITAL_ADMIN, patient_access=[])
+def test_hospital_admin_bypasses_restriction(db_session: Session, test_patient):
+    client = get_auth_client(db_session, UserRole.HOSPITAL_ADMIN, patient_access=[])
     
     res = client.get(f"/api/v1/patients/{test_patient.patient_id}")
     assert res.status_code == 200
-    
-    clear_overrides()
 
-def test_department_head_denied_direct_access(client: TestClient, test_patient):
-    override_auth(UserRole.DEPARTMENT_HEAD)
+def test_department_head_denied_direct_access(db_session: Session, test_patient):
+    client = get_auth_client(db_session, UserRole.DEPARTMENT_HEAD)
     
     res = client.get(f"/api/v1/patients/{test_patient.patient_id}")
     assert res.status_code == 403
-    
-    clear_overrides()
 
-def test_timeline_patient_id_required_for_doctor(client: TestClient, test_patient):
-    override_auth(UserRole.DOCTOR, patient_access=[test_patient.patient_id])
+def test_timeline_patient_id_required_for_doctor(db_session: Session, test_patient):
+    client = get_auth_client(db_session, UserRole.DOCTOR, patient_access=[test_patient.patient_id])
     
     # Allowed if provided
     res = client.get(f"/api/v1/timeline?patient_id={test_patient.patient_id}")
@@ -113,22 +117,14 @@ def test_timeline_patient_id_required_for_doctor(client: TestClient, test_patien
     res = client.get("/api/v1/timeline")
     assert res.status_code == 403
 
-    clear_overrides()
-
-def test_timeline_event_document_scoped(client: TestClient, test_patient, test_document):
-    override_auth(UserRole.DOCTOR, patient_access=["wrong-patient-id"])
+def test_timeline_event_document_scoped(db_session: Session, test_patient, test_document):
+    client = get_auth_client(db_session, UserRole.DOCTOR, patient_access=["wrong-patient-id"])
     
     res = client.get(f"/api/v1/timeline/{test_document.document_id}")
     assert res.status_code == 403
-    
-    clear_overrides()
 
-def test_review_pending_list_filtered(client: TestClient, test_patient, test_document):
-    # For a doctor, if we don't pass document_id, it should filter to only their patients
-    # We test it by ensuring it returns 200, we don't strictly test the DB result right now
-    override_auth(UserRole.DOCTOR, patient_access=[])
+def test_review_pending_list_filtered(db_session: Session, test_patient, test_document):
+    client = get_auth_client(db_session, UserRole.DOCTOR, patient_access=[])
     res = client.get("/api/v1/review/pending")
     assert res.status_code == 200
-    assert len(res.json()["items"]) == 0  # should not see other patients' docs
-    
-    clear_overrides()
+    assert len(res.json()["items"]) == 0

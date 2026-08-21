@@ -11,6 +11,51 @@ const apiClient = axios.create({
   },
 });
 
+// Development Auto-Login Interceptor to bypass 401s during local testing
+apiClient.interceptors.request.use(async (config) => {
+  let token = localStorage.getItem('token');
+  
+  // If no token exists and we are in dev mode, fetch one using demo credentials
+  if (!token && import.meta.env.DEV) {
+    if (!config.url.includes('/auth/login')) {
+      try {
+        const response = await axios.post(`${API_BASE_URL}/auth/login`, {
+          email: 'admin@demo.com',
+          password: 'adminPassword123!'
+        });
+        token = response.data.access_token;
+        localStorage.setItem('token', token);
+      } catch (error) {
+        console.error('Development auto-login failed:', error);
+      }
+    }
+  }
+
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  
+  return config;
+}, (error) => {
+  return Promise.reject(error);
+});
+
+// Response interceptor to handle 401 Unauthorized errors
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      // Token is invalid or expired
+      localStorage.removeItem('token');
+      // In development mode, reload the page to trigger auto-login again
+      if (import.meta.env.DEV) {
+        window.location.reload();
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const uploadDocuments = async (files) => {
   const formData = new FormData();
   files.forEach((file) => {
@@ -110,7 +155,12 @@ export const submitReviewAction = async (reviewId, action, correctedValue = null
  */
 export const getReviewImageUrl = (reviewId, fullPage = false) => {
   const base = API_BASE_URL.replace(/\/$/, '');
-  return `${base}/review/pending/${reviewId}/image${fullPage ? '?full_page=true' : ''}`;
+  const token = localStorage.getItem('token') || '';
+  const qs = new URLSearchParams();
+  if (fullPage) qs.append('full_page', 'true');
+  if (token) qs.append('token', token);
+  const qsStr = qs.toString();
+  return `${base}/review/pending/${reviewId}/image${qsStr ? '?' + qsStr : ''}`;
 };
 
 /**
@@ -131,7 +181,9 @@ export const getDocumentStaticUrl = (rawUri) => {
 export const getDocumentFileUrl = (documentId) => {
   if (!documentId) return null;
   const base = API_BASE_URL.replace(/\/$/, '');
-  return `${base}/documents/${documentId}/file`;
+  const token = localStorage.getItem('token') || '';
+  const qs = token ? `?token=${token}` : '';
+  return `${base}/documents/${documentId}/file${qs}`;
 };
 
 export const fetchThresholdConfig = async () => {
