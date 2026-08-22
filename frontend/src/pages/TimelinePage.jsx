@@ -1,328 +1,497 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Clock,
-  Search,
   FileText,
   ExternalLink,
   Calendar,
-  Filter,
-  CheckCircle2,
   RefreshCw,
+  AlertTriangle,
   User,
-  ShieldCheck,
+  Activity,
+  Syringe,
+  Pill,
+  Stethoscope,
+  Microscope,
+  ShieldAlert,
+  MessageCircleQuestion,
 } from 'lucide-react';
-import { fetchTimeline, getDocumentFileUrl } from '../services/api';
+import { 
+  fetchTimeline, 
+  getDocumentFileUrl, 
+  fetchPatient,
+  fetchPatientRecords
+} from '../services/api';
+import { useParams, useNavigate } from 'react-router-dom';
+
+const getEventConfig = (eventType) => {
+  const type = (eventType || '').toLowerCase();
+  
+  if (type.includes('medication') || type.includes('med-change') || type.includes('prescription')) {
+    return {
+      color: 'text-emerald-500',
+      bg: 'bg-emerald-500',
+      border: 'border-emerald-500/30',
+      containerBg: 'bg-emerald-500/10',
+      icon: <Pill size={16} />,
+      label: 'Medication'
+    };
+  }
+  
+  if (type.includes('lab') || type.includes('test')) {
+    return {
+      color: 'text-violet-500',
+      bg: 'bg-violet-500',
+      border: 'border-violet-500/30',
+      containerBg: 'bg-violet-500/10',
+      icon: <Microscope size={16} />,
+      label: 'Lab Result'
+    };
+  }
+  
+  if (type.includes('diagnos') || type.includes('condition')) {
+    return {
+      color: 'text-amber-500',
+      bg: 'bg-amber-500',
+      border: 'border-amber-500/30',
+      containerBg: 'bg-amber-500/10',
+      icon: <Activity size={16} />,
+      label: 'Diagnosis'
+    };
+  }
+  
+  if (type.includes('vital')) {
+    return {
+      color: 'text-cyan-500',
+      bg: 'bg-cyan-500',
+      border: 'border-cyan-500/30',
+      containerBg: 'bg-cyan-500/10',
+      icon: <Activity size={16} />,
+      label: 'Vitals'
+    };
+  }
+  
+  if (type.includes('procedure') || type.includes('surgery')) {
+    return {
+      color: 'text-rose-500',
+      bg: 'bg-rose-500',
+      border: 'border-rose-500/30',
+      containerBg: 'bg-rose-500/10',
+      icon: <Syringe size={16} />,
+      label: 'Procedure'
+    };
+  }
+  
+  if (type.includes('visit') || type.includes('consult')) {
+    return {
+      color: 'text-indigo-500',
+      bg: 'bg-indigo-500',
+      border: 'border-indigo-500/30',
+      containerBg: 'bg-indigo-500/10',
+      icon: <Stethoscope size={16} />,
+      label: 'Clinical Visit'
+    };
+  }
+
+  return {
+    color: 'text-primary',
+    bg: 'bg-primary',
+    border: 'border-primary/30',
+    containerBg: 'bg-primary/10',
+    icon: <FileText size={16} />,
+    label: eventType || 'Clinical Document'
+  };
+};
 
 export default function TimelinePage() {
-  const [patientIdFilter, setPatientIdFilter] = useState('');
-  const [activePatientId, setActivePatientId] = useState('');
+  const { patientId } = useParams();
+  const navigate = useNavigate();
+  
+  const [patient, setPatient] = useState(null);
+  const [allergies, setAllergies] = useState([]);
   const [events, setEvents] = useState([]);
   const [totalEvents, setTotalEvents] = useState(0);
+  
+  const [diagnoses, setDiagnoses] = useState([]);
+  const [medications, setMedications] = useState([]);
+  const [labResults, setLabResults] = useState([]);
+  const [documents, setDocuments] = useState([]);
+  
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [authError, setAuthError] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState(null);
 
-  const loadTimeline = useCallback(async (isPolling = false) => {
+  const loadData = useCallback(async (isPolling = false) => {
+    if (!patientId) {
+      setError("No Patient ID provided in route.");
+      setLoading(false);
+      return;
+    }
+
     if (!isPolling) setLoading(true);
     else setRefreshing(true);
 
     setError(null);
+    setAuthError(false);
+
     try {
-      const data = await fetchTimeline(activePatientId.trim() || null);
-      setEvents(data.events || []);
-      setTotalEvents(data.total_events || 0);
+      // 1. Fetch Patient Info & Timeline in parallel
+      const [patientRes, timelineRes] = await Promise.all([
+        fetchPatient(patientId),
+        fetchTimeline(patientId)
+      ]);
+      
+      setPatient(patientRes);
+      setEvents(timelineRes.events || []);
+      setTotalEvents(timelineRes.total_events || 0);
       setLastRefreshed(new Date());
+
+      // 2. Fetch canonical records for clinical summary
+      try {
+        const recordsRes = await fetchPatientRecords(patientId);
+        if (recordsRes) {
+          setDiagnoses(recordsRes.diagnoses || []);
+          setMedications(recordsRes.medications || []);
+          setLabResults(recordsRes.lab_results || []);
+          setDocuments(recordsRes.documents || []);
+          
+          if (recordsRes.patient && recordsRes.patient.allergies) {
+             setAllergies(recordsRes.patient.allergies);
+          } else if (recordsRes.items) {
+             const allergyRecords = recordsRes.items.filter(r => r.field_name === 'allergies');
+             if (allergyRecords.length > 0) {
+                const parsed = allergyRecords.map(a => typeof a.value === 'string' ? a.value : JSON.stringify(a.value));
+                setAllergies(parsed);
+             }
+          }
+        }
+      } catch (err) {
+        console.warn("Could not load canonical records", err);
+      }
+
     } catch (err) {
-      console.error('Failed to load patient timeline:', err);
-      setError('Failed to load timeline events. Please check the backend connection.');
+      console.error('Failed to load patient data:', err);
+      if (err.response && err.response.status === 403) {
+         setAuthError(true);
+         setError("You do not have access to this patient's records.");
+      } else {
+         setError(err.response?.data?.detail || 'Failed to load timeline events. Please check the backend connection.');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [activePatientId]);
+  }, [patientId]);
 
-  // Initial load and whenever activePatientId changes
   useEffect(() => {
-    loadTimeline(false);
-  }, [loadTimeline]);
+    loadData(false);
+  }, [loadData]);
 
   // Auto-refresh every 15 seconds
   useEffect(() => {
+    if (authError || !patientId) return;
     const interval = setInterval(() => {
-      loadTimeline(true);
+      loadData(true);
     }, 15000);
     return () => clearInterval(interval);
-  }, [loadTimeline]);
+  }, [loadData, authError, patientId]);
 
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    setActivePatientId(patientIdFilter);
-  };
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] text-on-surface-variant">
+        <RefreshCw size={32} className="animate-spin mb-4 text-primary" />
+        <p>Loading patient timeline…</p>
+      </div>
+    );
+  }
 
-  const handleClearFilter = () => {
-    setPatientIdFilter('');
-    setActivePatientId('');
-  };
+  if (authError) {
+    return (
+      <div className="p-6 md:p-8 max-w-[1200px] mx-auto">
+        <div className="flex flex-col items-center justify-center min-h-[40vh] bg-error-container/20 border border-error/30 rounded-2xl p-8 text-center">
+          <ShieldAlert size={64} className="text-error mb-4" />
+          <h2 className="text-headline-sm font-headline-sm text-error mb-2">Access Denied</h2>
+          <p className="text-on-surface-variant">You do not have authorization to view the records for Patient ID: <strong>{patientId}</strong></p>
+          <button className="mt-6 px-6 py-2 bg-surface-variant text-on-surface rounded-lg font-semibold hover:bg-surface-variant/80 transition-colors" onClick={() => navigate('/patients')}>
+            Return to Patients List
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="app-container" style={{ paddingBottom: '3rem' }}>
-      {/* Header Section */}
+    <div className="app-container flex flex-col gap-6">
+      
+      {/* ── Patient Header Banner ── */}
+      {patient && (
+        <div className="bg-surface-container-high rounded-2xl border border-outline-variant/30 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex items-start gap-4">
+            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center shrink-0 shadow-inner">
+              <User size={28} className="text-on-primary" />
+            </div>
+            <div>
+              <h1 className="text-headline-md font-headline-md text-on-surface leading-tight mb-1">
+                {patient.name || 'Unknown Patient'}
+              </h1>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-medium text-on-surface-variant">
+                <div className="flex items-center gap-1.5">
+                  <span className="opacity-70">MRN:</span>
+                  <span className="text-on-surface">{patient.mrn || patientId}</span>
+                </div>
+                {patient.dob && (
+                  <>
+                    <div className="w-1 h-1 rounded-full bg-outline-variant"></div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="opacity-70">DOB:</span>
+                      <span className="text-on-surface">{patient.dob}</span>
+                    </div>
+                  </>
+                )}
+                {patient.sex && (
+                  <>
+                    <div className="w-1 h-1 rounded-full bg-outline-variant"></div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="opacity-70">Sex:</span>
+                      <span className="text-on-surface capitalize">{patient.sex}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Allergies / Badges */}
+          <div className="flex flex-col items-start md:items-end gap-2">
+            <div className="text-xs font-bold uppercase tracking-wider text-on-surface-variant/70">Allergies</div>
+            <div className="flex flex-wrap gap-2 justify-end">
+              {allergies.length > 0 ? allergies.map((allergy, i) => (
+                <span key={i} className="px-3 py-1 bg-error-container/20 text-error border border-error/30 rounded-full text-xs font-bold">
+                  {allergy}
+                </span>
+              )) : (
+                <span className="px-3 py-1 bg-surface-variant text-on-surface-variant border border-outline-variant/30 rounded-full text-xs font-semibold">
+                  No Known Allergies
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="p-4 bg-error-container/20 text-error border border-error/30 rounded-xl flex items-center gap-3">
+          <AlertTriangle size={20} />
+          <span className="font-medium text-sm">{error}</span>
+        </div>
+      )}
+
+      {/* ── Clinical Summary Grid ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-2">
+        <div className="bg-surface-container rounded-xl border border-outline-variant/30 p-4 shadow-sm flex flex-col h-64">
+          <h3 className="flex items-center gap-2 text-on-surface font-semibold mb-3 border-b border-outline-variant/20 pb-2">
+            <Activity size={16} className="text-amber-500" /> Diagnoses
+          </h3>
+          <div className="overflow-y-auto flex-1 pr-1 custom-scrollbar">
+            {diagnoses.length > 0 ? (
+              <ul className="flex flex-col gap-2">
+                {diagnoses.map(d => (
+                  <li key={d.id} className="bg-surface-container-high rounded-lg p-2 text-sm">
+                    <div className="text-on-surface font-medium">{d.raw_text}</div>
+                    {d.icd10_code && <div className="text-xs text-on-surface-variant mt-1">ICD-10: {d.icd10_code}</div>}
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="text-sm text-on-surface-variant/70 italic text-center mt-4">No diagnoses recorded.</p>}
+          </div>
+        </div>
+
+        <div className="bg-surface-container rounded-xl border border-outline-variant/30 p-4 shadow-sm flex flex-col h-64">
+          <h3 className="flex items-center gap-2 text-on-surface font-semibold mb-3 border-b border-outline-variant/20 pb-2">
+            <Pill size={16} className="text-emerald-500" /> Medications
+          </h3>
+          <div className="overflow-y-auto flex-1 pr-1 custom-scrollbar">
+            {medications.length > 0 ? (
+              <ul className="flex flex-col gap-2">
+                {medications.map(m => (
+                  <li key={m.id} className="bg-surface-container-high rounded-lg p-2 text-sm">
+                    <div className="text-on-surface font-medium">{m.raw_text}</div>
+                    {m.rxnorm_code && <div className="text-xs text-on-surface-variant mt-1">RxNorm: {m.rxnorm_code}</div>}
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="text-sm text-on-surface-variant/70 italic text-center mt-4">No medications recorded.</p>}
+          </div>
+        </div>
+
+        <div className="bg-surface-container rounded-xl border border-outline-variant/30 p-4 shadow-sm flex flex-col h-64">
+          <h3 className="flex items-center gap-2 text-on-surface font-semibold mb-3 border-b border-outline-variant/20 pb-2">
+            <Microscope size={16} className="text-violet-500" /> Lab Results
+          </h3>
+          <div className="overflow-y-auto flex-1 pr-1 custom-scrollbar">
+            {labResults.length > 0 ? (
+              <ul className="flex flex-col gap-2">
+                {labResults.map(l => (
+                  <li key={l.id} className="bg-surface-container-high rounded-lg p-2 text-sm">
+                    <div className="text-on-surface font-medium">{l.raw_text}</div>
+                    {l.loinc_code && <div className="text-xs text-on-surface-variant mt-1">LOINC: {l.loinc_code}</div>}
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="text-sm text-on-surface-variant/70 italic text-center mt-4">No lab results recorded.</p>}
+          </div>
+        </div>
+
+        <div className="bg-surface-container rounded-xl border border-outline-variant/30 p-4 shadow-sm flex flex-col h-64">
+          <h3 className="flex items-center gap-2 text-on-surface font-semibold mb-3 border-b border-outline-variant/20 pb-2">
+            <FileText size={16} className="text-primary" /> Documents
+          </h3>
+          <div className="overflow-y-auto flex-1 pr-1 custom-scrollbar">
+            {documents.length > 0 ? (
+              <ul className="flex flex-col gap-2">
+                {documents.map(d => (
+                  <li key={d.document_id} className="bg-surface-container-high rounded-lg p-2 text-sm flex flex-col gap-1">
+                    <div className="text-on-surface font-medium truncate" title={d.filename}>{d.filename}</div>
+                    <div className="text-xs text-on-surface-variant">{d.document_type || 'Unknown Type'}</div>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="text-sm text-on-surface-variant/70 italic text-center mt-4">No documents recorded.</p>}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Header Controls ── */}
       <header className="app-header">
         <div className="brand-wrapper">
-          <div className="brand-logo" style={{ background: 'linear-gradient(135deg, var(--primary-cyan), #3b82f6)' }}>
+          <div className="brand-logo" style={{ background: 'linear-gradient(135deg, var(--accent-emerald), var(--primary-cyan))' }}>
             <Clock size={26} color="#ffffff" />
           </div>
           <div className="brand-title">
-            <h1>Patient Event Timeline</h1>
-            <p>Chronological sequence of verified canonical clinical events</p>
+            <h2>Longitudinal Timeline</h2>
+            <p>Chronological sequence of verified clinical events</p>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           {lastRefreshed && (
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            <span className="text-xs font-medium text-on-surface-variant hidden sm:inline-block">
               Updated {lastRefreshed.toLocaleTimeString()}
             </span>
           )}
+          
           <button
-            className="btn btn-secondary"
-            onClick={() => loadTimeline(false)}
-            disabled={loading || refreshing}
-            style={{ padding: '0.5rem 0.9rem', fontSize: '0.82rem' }}
+            className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-lg font-semibold hover:bg-primary/20 transition-colors text-sm"
+            onClick={() => navigate(`/patients/${patientId}/ask`)}
           >
-            <RefreshCw size={14} className={refreshing ? 'spin' : ''} />
+            <MessageCircleQuestion size={14} />
+            Ask QA
+          </button>
+
+          <button
+            className="flex items-center gap-2 px-3 py-1.5 bg-surface-variant text-on-surface rounded-lg font-semibold hover:bg-surface-variant/80 transition-colors text-sm"
+            onClick={() => loadData(false)}
+            disabled={refreshing}
+          >
+            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
             Refresh
           </button>
         </div>
       </header>
 
-      {/* Filter Toolbar */}
-      <div className="glass-card" style={{ marginBottom: '2rem', padding: '1.25rem 1.5rem' }}>
-        <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary-cyan)', fontWeight: '600', fontSize: '0.9rem' }}>
-            <Filter size={16} />
-            <span>Filter Timeline:</span>
+      {/* ── Timeline Track ── */}
+      <div className="relative pt-4 pb-8 pl-4 sm:pl-8">
+        
+        {/* The Stem */}
+        <div className="absolute top-4 bottom-8 left-[23px] sm:left-[39px] w-[2px] bg-gradient-to-b from-primary via-primary/50 to-transparent"></div>
+
+        {events.length === 0 ? (
+          <div className="ml-8 sm:ml-12 p-8 bg-surface-container rounded-2xl border border-outline-variant/20 text-center flex flex-col items-center justify-center min-h-[250px]">
+            <Clock size={40} className="text-on-surface-variant/50 mb-3" />
+            <h3 className="text-lg font-semibold text-on-surface mb-1">No events recorded</h3>
+            <p className="text-on-surface-variant text-sm">Once documents for this patient pass review and are committed, they will appear here chronologically.</p>
           </div>
-
-          <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
-            <User size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-            <input
-              type="text"
-              placeholder="Search by Patient ID (e.g. P001)..."
-              value={patientIdFilter}
-              onChange={(e) => setPatientIdFilter(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.6rem 0.85rem 0.6rem 2.5rem',
-                background: 'rgba(15, 23, 42, 0.7)',
-                border: '1px solid var(--border-light)',
-                borderRadius: 'var(--radius-md)',
-                color: 'var(--text-main)',
-                fontSize: '0.875rem',
-                outline: 'none',
-              }}
-            />
-          </div>
-
-          <button type="submit" className="btn btn-primary" style={{ padding: '0.6rem 1.25rem', fontSize: '0.85rem' }}>
-            <Search size={15} />
-            Apply Filter
-          </button>
-
-          {activePatientId && (
-            <button type="button" className="btn btn-secondary" onClick={handleClearFilter} style={{ padding: '0.6rem 1rem', fontSize: '0.85rem' }}>
-              Clear Filter
-            </button>
-          )}
-        </form>
-
-        {activePatientId && (
-          <div style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: 'var(--primary-cyan)' }}>
-            Showing events for patient ID: <strong>{activePatientId}</strong>
-          </div>
-        )}
-      </div>
-
-      {/* Error state */}
-      {error && (
-        <div className="alert-banner error" style={{ marginBottom: '1.5rem' }}>
-          <span>{error}</span>
-          <button onClick={() => loadTimeline(false)} className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
-            Retry
-          </button>
-        </div>
-      )}
-
-      {/* Main Content Area */}
-      {loading ? (
-        <div className="glass-card" style={{ textAlign: 'center', padding: '3.5rem 1.5rem', color: 'var(--text-muted)' }}>
-          <RefreshCw size={28} className="spin" style={{ margin: '0 auto 1rem', color: 'var(--primary-cyan)' }} />
-          <p style={{ fontSize: '0.95rem' }}>Loading patient timeline events...</p>
-        </div>
-      ) : events.length === 0 ? (
-        <div className="glass-card" style={{ textAlign: 'center', padding: '4rem 1.5rem' }}>
-          <Clock size={48} color="var(--text-muted)" style={{ margin: '0 auto 1rem', opacity: 0.6 }} />
-          <h3 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--text-main)' }}>
-            No verified documents in timeline yet
-          </h3>
-          <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', maxWidth: '460px', margin: '0 auto' }}>
-            {activePatientId
-              ? `No committed documents found for patient "${activePatientId}". Try clearing the filter or committing documents in the Review Queue.`
-              : 'Once documents complete review and are committed to canonical records, their chronological events will appear here.'}
-          </p>
-        </div>
-      ) : (
-        <div>
-          {/* Summary bar */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', padding: '0 0.25rem' }}>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Showing <strong>{totalEvents}</strong> chronological event{totalEvents === 1 ? '' : 's'} (oldest first)
-            </span>
-            <span className="pipeline-badge" style={{ fontSize: '0.75rem', padding: '0.3rem 0.75rem' }}>
-              <span className="pulse-dot"></span> Live Sync Enabled
-            </span>
-          </div>
-
-          {/* Timeline Vertical Track */}
-          <div style={{ position: 'relative', paddingLeft: '2rem' }}>
-            {/* Vertical spine line */}
-            <div
-              style={{
-                position: 'absolute',
-                left: '11px',
-                top: '12px',
-                bottom: '12px',
-                width: '2px',
-                background: 'linear-gradient(180deg, var(--primary-cyan), rgba(139, 92, 246, 0.4))',
-              }}
-            />
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              {events.map((event, index) => {
-                const fileUrl = getDocumentFileUrl(event.document_id);
-                const confidencePct = Math.round((event.confidence_score || 1.0) * 100);
-
-                return (
-                  <div
-                    key={event.event_id || index}
-                    className="glass-card"
-                    style={{
-                      position: 'relative',
-                      margin: 0,
-                      padding: '1.25rem 1.5rem',
-                      borderLeft: '3px solid var(--primary-cyan)',
-                      transition: 'transform 0.15s ease, border-color 0.15s ease',
-                    }}
-                  >
-                    {/* Node Dot on Vertical Line */}
-                    <div
-                      style={{
-                        position: 'absolute',
-                        left: '-2.35rem',
-                        top: '1.4rem',
-                        width: '14px',
-                        height: '14px',
-                        borderRadius: '50%',
-                        background: 'var(--primary-cyan)',
-                        border: '3px solid var(--bg-dark)',
-                        boxShadow: '0 0 10px rgba(6, 182, 212, 0.6)',
-                      }}
-                    />
-
-                    {/* Card Content Header */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                        {/* Event Date Badge */}
-                        <div
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.4rem',
-                            padding: '0.3rem 0.75rem',
-                            background: 'rgba(6, 182, 212, 0.12)',
-                            border: '1px solid rgba(6, 182, 212, 0.3)',
-                            borderRadius: 'var(--radius-sm)',
-                            color: 'var(--primary-cyan)',
-                            fontSize: '0.85rem',
-                            fontWeight: '700',
-                          }}
-                        >
-                          <Calendar size={14} />
-                          <span>{event.event_date}</span>
+        ) : (
+          <div className="flex flex-col gap-6">
+            {events.map((event, index) => {
+              const cfg = getEventConfig(event.event_type || event.field_name);
+              const fileUrl = getDocumentFileUrl(event.document_id);
+              
+              return (
+                <div key={event.event_id || index} className="relative ml-8 sm:ml-12 group">
+                  
+                  {/* Node Dot */}
+                  <div className={`absolute -left-[37px] sm:-left-[53px] top-5 w-4 h-4 rounded-full ${cfg.bg} border-[3px] border-surface shadow-[0_0_10px_rgba(0,0,0,0.2)] z-10 transition-transform duration-300 group-hover:scale-125`} style={{ boxShadow: `0 0 12px var(--color-${cfg.bg.split('-')[1]})` }}></div>
+                  
+                  {/* Event Card */}
+                  <div className={`bg-surface-container rounded-2xl border ${cfg.border} p-5 hover:bg-surface-container-high transition-colors shadow-sm`}>
+                    
+                    {/* Card Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-3">
+                      
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className={`flex items-center gap-1.5 px-3 py-1.5 ${cfg.containerBg} ${cfg.color} ${cfg.border} border rounded-lg text-sm font-bold shadow-sm`}>
+                          {cfg.icon}
+                          <span className="capitalize">{cfg.label}</span>
                         </div>
-
-                        {/* Document Type Pill */}
-                        <span
-                          className="badge-status badge-CLASSIFIED"
-                          style={{ fontSize: '0.75rem', textTransform: 'capitalize' }}
-                        >
-                          {event.event_type || 'Clinical Document'}
-                        </span>
-
-                        {/* Patient ID Pill if present */}
-                        {event.patient_id && (
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', background: 'rgba(255, 255, 255, 0.05)', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
-                            Patient: <strong>{event.patient_id}</strong>
-                          </span>
-                        )}
+                        
+                        <div className="flex items-center gap-1.5 text-sm font-semibold text-on-surface-variant bg-surface-variant px-3 py-1.5 rounded-lg border border-outline-variant/20">
+                          <Calendar size={14} />
+                          {event.event_date || 'Unknown Date'}
+                        </div>
                       </div>
 
-                      {/* View Document Button */}
                       {fileUrl && (
                         <a
                           href={fileUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="btn btn-secondary"
-                          style={{
-                            padding: '0.4rem 0.85rem',
-                            fontSize: '0.78rem',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.35rem',
-                            textDecoration: 'none',
-                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg font-semibold text-sm transition-colors shrink-0 border border-primary/20"
                         >
-                          <ExternalLink size={13} />
-                          <span>View Document</span>
+                          <ExternalLink size={14} /> View Source
                         </a>
                       )}
                     </div>
 
-                    {/* Summary One-liner */}
-                    <div style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-main)', marginBottom: '0.6rem' }}>
-                      {event.summary}
+                    {/* Summary / Value */}
+                    <div className="text-base font-semibold text-on-surface mb-4 pl-1">
+                      {event.summary || event.value || event.raw_text || 'Event recorded'}
                     </div>
 
-                    {/* Meta info bar: filename, confidence score */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-light)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <FileText size={14} color="var(--text-dim)" />
-                        <span>Source: <strong style={{ color: 'var(--text-main)' }}>{event.filename}</strong></span>
-                        <span style={{ color: 'var(--text-dim)', marginLeft: '0.4rem' }}>(ID: {event.document_id.slice(0, 8)}...)</span>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--accent-emerald)' }}>
-                          <ShieldCheck size={14} />
-                          <span>{event.verification_status}</span>
+                    {/* Footer Metadata */}
+                    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-3 border-t border-outline-variant/10 text-xs font-medium text-on-surface-variant pl-1">
+                      {event.filename && (
+                        <div className="flex items-center gap-1.5">
+                          <FileText size={14} className="opacity-70" />
+                          <span>Extracted from: <strong className="text-on-surface">{event.filename}</strong></span>
                         </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <span>Confidence:</span>
-                          <strong style={{ color: confidencePct >= 80 ? 'var(--accent-emerald)' : 'var(--accent-amber)' }}>
-                            {confidencePct}%
+                      )}
+                      
+                      {event.verification_status && (
+                        <div className="flex items-center gap-1.5 text-emerald-500">
+                          <CheckCircle2 size={14} />
+                          <span className="capitalize">{event.verification_status.replace('_', ' ')}</span>
+                        </div>
+                      )}
+                      
+                      {event.confidence_score !== undefined && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="opacity-70">Confidence:</span>
+                          <strong className={event.confidence_score >= 0.8 ? 'text-emerald-500' : 'text-amber-500'}>
+                            {Math.round(event.confidence_score * 100)}%
                           </strong>
                         </div>
-                      </div>
+                      )}
                     </div>
+
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
+
     </div>
   );
 }

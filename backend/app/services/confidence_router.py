@@ -169,6 +169,9 @@ def route_extraction_result(
 
         pending_records: List[PendingReview] = []
 
+        total_confidence = 0.0
+        field_count = 0
+
         for field_name, field_info in fields_data.items():
             if isinstance(field_info, dict):
                 value = field_info.get("value")
@@ -176,6 +179,9 @@ def route_extraction_result(
             else:
                 value = field_info
                 confidence = 0.0
+
+            total_confidence += confidence
+            field_count += 1
 
             # Inclusive check: confidence >= threshold -> canonical record
             if confidence >= threshold:
@@ -207,6 +213,11 @@ def route_extraction_result(
             if document:
                 document.needs_manual_review = True
             db.add_all(pending_records)
+            
+        if document and field_count > 0:
+            document.extraction_confidence = total_confidence / field_count
+            
+        if pending_records or (document and field_count > 0):
             db.commit()
 
         logger.info(

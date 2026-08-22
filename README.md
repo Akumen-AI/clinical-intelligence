@@ -164,7 +164,6 @@ clinical-intelligence/
 │   │   ├── pages/
 │   │   │   ├── UploadPage.jsx             # Document management
 │   │   │   ├── PatientsPage.jsx           # Global patient directory
-│   │   │   ├── CanonicalRecordPage.jsx    # Unified canonical patient view
 │   │   │   ├── TimelinePage.jsx           # Patient clinical timeline visualization
 │   │   │   ├── ReviewQueuePage.jsx        # Low confidence manual review queue
 │   │   │   └── PatientQAPage.jsx          # Context-aware patient QA
@@ -190,7 +189,7 @@ clinical-intelligence/
 | **Task Queue** | [Celery](https://docs.celeryq.dev/) (async confidence routing) |
 | **Security & Auth** | JWT Authentication, Role-Based Access Control (RBAC) |
 | **Database Migrations** | [Alembic](https://alembic.sqlalchemy.org/) |
-| **Frontend SPA** | React 18, Vite 5, Lucide Icons, Axios |
+| **Frontend SPA** | React 18, Vite 5, Tailwind CSS, Lucide Icons, Axios |
 | **Testing** | Pytest, Pytest-Mock |
 
 ---
@@ -320,7 +319,7 @@ Configure backend settings via environment variables or a `backend/.env` file:
 | `GEMINI_API_KEY` | `string` | `""` | Google Gemini API key. Required for handwriting recognition or when `AI_PROVIDER=gemini`. |
 | `OLLAMA_MODEL` | `string` | `qwen3:4b` | Ollama model identifier to use for classification and extraction. |
 | `DOCUMENT_CLASSIFICATION_THRESHOLD` | `float` | `0.80` | Confidence threshold below which documents are flagged for manual review (`needs_manual_review = true`). |
-| `CONFIDENCE_THRESHOLD` | `float` | `0.80` | Field-level confidence threshold for routing extracted fields to the canonical record vs. the pending review queue (Story 2.5). |
+| `CONFIDENCE_THRESHOLD` | `float` | `0.80` | Field-level confidence threshold for routing extracted fields to the canonical record vs. the pending review queue. |
 | `OLLAMA_TIMEOUT` | `int` | `120` | Read timeout (in seconds) for Ollama HTTP API requests. |
 | `OCR_PAGE_TIMEOUT` | `int` | `120` | Maximum timeout (in seconds) per page for the PaddleOCR subprocess worker. |
 | `HANDWRITING_EXTRACTION_ENABLED` | `bool` | `true` | Enables or disables the multimodal handwriting extraction route. |
@@ -339,7 +338,7 @@ All document routes are served under `/api/v1/documents`.
 | Method | Endpoint | Description |
 |---|---|---|
 | `POST` | `/api/v1/documents/upload` | Upload one or more documents (PDF, PNG, JPG, JPEG, TIFF; max 20 MB). Initiates background processing. |
-| `GET` | `/api/v1/documents` | List all uploaded documents with metadata, classification results, and status. |
+| `GET` | `/api/v1/documents` | List all uploaded documents. Supports `?needs_review=true/false` and `?document_type=` filters. |
 | `GET` | `/api/v1/documents/{document_id}` | Retrieve metadata and pipeline status for a specific document by UUID. |
 | `GET` | `/api/v1/documents/{document_id}/status` | Poll the current processing status of a document. |
 | `GET` | `/api/v1/documents/upload-logs` | Retrieve the intake audit trail (accepted and rejected attempts). |
@@ -382,7 +381,7 @@ All document routes are served under `/api/v1/documents`.
 
 ## 🚦 Confidence Routing
 
-Story 2.5 introduces automated routing for extracted clinical fields based on confidence scores.
+Automated routing for extracted clinical fields based on confidence scores.
 
 ### Routing Logic & Default Threshold
 - **Default Threshold**: `CONFIDENCE_THRESHOLD = 0.80` (configured in `app/config.py` and `.env`).

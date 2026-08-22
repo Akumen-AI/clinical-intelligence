@@ -11,45 +11,51 @@ const apiClient = axios.create({
   },
 });
 
-// Development Auto-Login Interceptor to bypass 401s during local testing
-apiClient.interceptors.request.use(async (config) => {
-  let token = localStorage.getItem('token');
-  
-  // If no token exists and we are in dev mode, fetch one using demo credentials
-  if (!token && import.meta.env.DEV) {
-    if (!config.url.includes('/auth/login')) {
-      try {
-        const response = await axios.post(`${API_BASE_URL}/auth/login`, {
-          email: 'admin@demo.com',
-          password: 'adminPassword123!'
-        });
-        token = response.data.access_token;
-        localStorage.setItem('token', token);
-      } catch (error) {
-        console.error('Development auto-login failed:', error);
-      }
-    }
-  }
-
+// Request interceptor to attach JWT token to all requests
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  
   return config;
 }, (error) => {
   return Promise.reject(error);
 });
 
-// Response interceptor to handle 401 Unauthorized errors
+// Response interceptor to handle 401 Unauthorized errors and token refresh
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response && error.response.status === 401) {
-      // Token is invalid or expired
-      localStorage.removeItem('token');
-      // In development mode, reload the page to trigger auto-login again
-      if (import.meta.env.DEV) {
-        window.location.reload();
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // Prevent infinite loops if refresh itself fails
+    if (error.response && error.response.status === 401 && !originalRequest._retry && !originalRequest.url.includes('/auth/refresh')) {
+      originalRequest._retry = true;
+      const refresh_token = localStorage.getItem('refresh_token');
+      
+      if (refresh_token) {
+        try {
+          // Use a fresh axios instance to avoid interceptor loops if something goes wrong
+          const res = await axios.post(`${API_BASE_URL}/auth/refresh`, { refresh_token });
+          const new_token = res.data.access_token;
+          localStorage.setItem('token', new_token);
+          if (res.data.refresh_token) {
+             localStorage.setItem('refresh_token', res.data.refresh_token);
+          }
+          
+          originalRequest.headers.Authorization = `Bearer ${new_token}`;
+          return apiClient(originalRequest); // retry the original request
+        } catch (refreshError) {
+          // Refresh failed, clear tokens and redirect
+          localStorage.removeItem('token');
+          localStorage.removeItem('refresh_token');
+          window.location.href = '/login';
+          return Promise.reject(refreshError);
+        }
+      } else {
+        // No refresh token available
+        localStorage.removeItem('token');
+        window.location.href = '/login';
       }
     }
     return Promise.reject(error);
@@ -70,8 +76,12 @@ export const uploadDocuments = async (files) => {
   return response.data;
 };
 
-export const fetchDocuments = async () => {
-  const response = await apiClient.get('/documents');
+export const fetchDocuments = async (needsReview = null, documentType = null) => {
+  const params = {};
+  if (needsReview !== null) params.needs_review = needsReview;
+  if (documentType) params.document_type = documentType;
+  
+  const response = await apiClient.get('/documents', { params });
   return response.data;
 };
 
@@ -110,7 +120,7 @@ export const extractDocumentFields = async (documentId) => {
   return response.data;
 };
 
-// ── Review Queue (Story 3.1) ───────────────────────────────────────────────
+// ── Review Queue ───────────────────────────────────────────────
 
 /**
  * Fetch paginated pending review items.
@@ -201,7 +211,7 @@ export const linkDocumentToPatient = async (documentId, patientId) => {
   return response.data;
 };
 
-// ── Patient Timeline (Story 4.2) ───────────────────────────────────────────
+// ── Patient Timeline ───────────────────────────────────────────
 
 export const fetchTimeline = async (patientId = null) => {
   const params = {};
@@ -215,14 +225,10 @@ export const fetchTimelineEvent = async (documentId) => {
   return response.data;
 };
 
-export const askPatientQuestion = async (patientId, question) => {
-  // Note: if auth is added, attach bearer token here (Story 5.2+)
-  const token = localStorage.getItem('token') || '';
-  const response = await apiClient.post(`/patients/${patientId}/ask`, { question }, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
+export const askPatientQuestion = async (patientId, question, conversationId = null) => {
+  const payload = { question };
+  if (conversationId) payload.conversation_id = conversationId;
+  const response = await apiClient.post(`/patients/${patientId}/ask`, payload);
   return response.data;
 };
 

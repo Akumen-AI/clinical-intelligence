@@ -417,6 +417,16 @@ def review_pending_field(
     db.commit()
     db.refresh(review_rec)
 
+    if doc and doc.needs_manual_review:
+        remaining = db.query(PendingReview).filter(
+            PendingReview.document_id == doc.document_id,
+            PendingReview.status == ReviewStatus.PENDING
+        ).count()
+        if remaining == 0:
+            doc.needs_manual_review = False
+            db.commit()
+            db.refresh(doc)
+
     audit_service.write_entry(
         db=db,
         actor_user_id=http_request.state.user.id,

@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useAuth } from './contexts/AuthContext';
+import LoginPage from './pages/LoginPage';
 import UploadPage from './pages/UploadPage';
 import ReviewQueuePage from './pages/ReviewQueuePage';
-import CanonicalRecordPage from './pages/CanonicalRecordPage';
+
 import TimelinePage from './pages/TimelinePage';
 import PolicyChatbot from './components/PolicyChatbot';
 import PolicyDocumentUploader from './components/PolicyDocumentUploader';
-import { Activity, ClipboardCheck, Database, Clock, MessageCircleQuestion, Users } from 'lucide-react';
+import { Activity, ClipboardCheck, Database, Clock, MessageCircleQuestion, Users, LogOut } from 'lucide-react';
 import PatientQAPage from './pages/PatientQAPage';
 import PatientsPage from './pages/PatientsPage';
 
@@ -66,81 +69,91 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-function App() {
-  const [activePage, setActivePage] = useState('intake'); // 'intake' | 'review' | 'canonical' | 'timeline'
+import Layout from './components/Layout';
+import { RoleProtectedRoute } from './components/RoleProtectedRoute';
 
+const ProtectedRoute = ({ children }) => {
+  const { user, isLoading } = useAuth();
+  const location = useLocation();
+
+  if (isLoading) {
+    return <div style={{ color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: 'var(--bg-main)' }}>Loading...</div>;
+  }
+
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  return children;
+};
+
+function App() {
   return (
     <ErrorBoundary>
-      <div className="App">
-        <PolicyDocumentUploader />
-        {/* Global navigation bar */}
-        <nav className="global-nav">
-          <div className="global-nav-inner">
-            <div className="global-nav-brand">
-              <Activity size={18} color="var(--primary-cyan)" />
-              <span>Clinical Intelligence Platform</span>
-            </div>
-            <div className="global-nav-tabs">
-              <button
-                id="nav-intake-tab"
-                className={`global-nav-tab ${activePage === 'intake' ? 'active' : ''}`}
-                onClick={() => setActivePage('intake')}
-              >
-                <Activity size={15} />
-                Document Intake
-              </button>
-              <button
-                id="nav-review-tab"
-                className={`global-nav-tab ${activePage === 'review' ? 'active' : ''}`}
-                onClick={() => setActivePage('review')}
-              >
-                <ClipboardCheck size={15} />
-                Review Queue
-              </button>
-              <button
-                id="nav-canonical-tab"
-                className={`global-nav-tab ${activePage === 'canonical' ? 'active' : ''}`}
-                onClick={() => setActivePage('canonical')}
-              >
-                <Database size={15} />
-                Canonical Records
-              </button>
-              <button
-                id="nav-timeline-tab"
-                className={`global-nav-tab ${activePage === 'timeline' ? 'active' : ''}`}
-                onClick={() => setActivePage('timeline')}
-              >
-                <Clock size={15} />
-                Patient Timeline
-              </button>
-              <button
-                id="nav-ask-tab"
-                className={`global-nav-tab ${activePage === 'ask' ? 'active' : ''}`}
-                onClick={() => setActivePage('ask')}
-              >
-                <MessageCircleQuestion size={15} />
-                Patient Q&A
-              </button>
-              <button
-                id="nav-patients-tab"
-                className={`global-nav-tab ${activePage === 'patients' ? 'active' : ''}`}
-                onClick={() => setActivePage('patients')}
-              >
-                <Users size={15} />
-                Patients
-              </button>
-            </div>
-          </div>
-        </nav>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        
+        {/* Protected routes wrapped in the Layout with Sidebar */}
+        <Route path="/" element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }>
+          {/* Default route redirect */}
+          <Route index element={<Navigate to="/intake" replace />} />
+          
+          <Route path="intake" element={
+            <RoleProtectedRoute routeKey="intake">
+              <UploadPage />
+            </RoleProtectedRoute>
+          } />
+          
+          <Route path="review" element={
+            <RoleProtectedRoute routeKey="review">
+              <ReviewQueuePage />
+            </RoleProtectedRoute>
+          } />
+          
+          <Route path="patients" element={
+            <RoleProtectedRoute routeKey="patients">
+              <PatientsPage />
+            </RoleProtectedRoute>
+          } />
+          
+          {/* Patient Details Redirection */}
+          <Route path="patients/:patientId" element={<Navigate to="/patients/:patientId/timeline" replace />} />
+          
+          <Route path="patients/:patientId/timeline" element={
+            <RoleProtectedRoute routeKey="patients">
+              <TimelinePage />
+            </RoleProtectedRoute>
+          } />
+          
+          <Route path="patients/:patientId/ask" element={
+            <RoleProtectedRoute routeKey="patients">
+              <PatientQAPage />
+            </RoleProtectedRoute>
+          } />
+          
+          <Route path="patients/ask" element={
+            <RoleProtectedRoute routeKey="patients">
+              <PatientQAPage />
+            </RoleProtectedRoute>
+          } />
+          
 
-        {activePage === 'intake' && <UploadPage />}
-        {activePage === 'review' && <ReviewQueuePage />}
-        {activePage === 'canonical' && <CanonicalRecordPage />}
-        {activePage === 'timeline' && <TimelinePage />}
-        <PolicyChatbot />
-        {activePage === 'ask' && <PatientQAPage />}
-        {activePage === 'patients' && <PatientsPage />}
-      </div>
+          
+          <Route path="policy-assistant" element={
+            <RoleProtectedRoute routeKey="policyChat">
+              <PolicyChatbot />
+            </RoleProtectedRoute>
+          } />
+          
+
+          
+          <Route path="*" element={<Navigate to="/patients" replace />} />
+        </Route>
+      </Routes>
     </ErrorBoundary>
   );
 }

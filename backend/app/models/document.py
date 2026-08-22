@@ -34,6 +34,7 @@ class Document(Base):
     processing_time_ms = Column(Integer, nullable=True)
     document_type = Column(String(100), nullable=True)
     classification_confidence = Column(Float, nullable=True)
+    extraction_confidence = Column(Float, nullable=True)
     needs_manual_review = Column(Boolean, default=False, nullable=False)
     rejection_reason = Column(String(500), nullable=True)
 
