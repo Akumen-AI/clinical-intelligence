@@ -430,13 +430,25 @@ export default function UploadPage() {
                       <td className="px-6 py-4 text-on-surface-variant">
                         {doc.document_type || '-'}
                       </td>
-                      <td className="px-6 py-4 font-data-tabular text-on-surface-variant">
-                        {doc.classification_confidence != null ? doc.classification_confidence.toFixed(2) : '-'}
+                      <td className="px-6 py-4 font-data-tabular">
+                        {doc.extraction_confidence != null ? (
+                          <div className="flex items-center gap-1.5 cursor-help" title="Overall Extraction Confidence">
+                            <span className="text-primary font-medium">{doc.extraction_confidence.toFixed(2)}</span>
+                            <Database size={12} className="text-primary/70" />
+                          </div>
+                        ) : doc.classification_confidence != null ? (
+                          <div className="flex items-center gap-1.5 cursor-help text-on-surface-variant/70" title="Classification Confidence">
+                            <span>{doc.classification_confidence.toFixed(2)}</span>
+                            <Layers size={12} />
+                          </div>
+                        ) : (
+                          <span className="text-on-surface-variant">-</span>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         {doc.needs_manual_review === true || (doc.status || '').toUpperCase() === 'UNLINKED' ? (
                           <span className="px-2 py-1 rounded bg-error-container/20 text-error text-xs font-bold border border-error/30">Needs Review</span>
-                        ) : doc.needs_manual_review === false ? (
+                        ) : doc.needs_manual_review === false && ['EXTRACTED', 'VERIFIED', 'COMMITTED'].includes((doc.status || '').toUpperCase()) ? (
                           <span className="text-emerald-500 text-xs font-bold">Verified</span>
                         ) : <span className="text-on-surface-variant">-</span>}
                       </td>
