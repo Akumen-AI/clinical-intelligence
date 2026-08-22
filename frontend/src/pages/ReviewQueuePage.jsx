@@ -9,8 +9,8 @@ import {
   ZoomOut,
   Maximize2,
   RotateCcw,
-  ChevronDown,
   InboxIcon,
+  FileText,
 } from 'lucide-react';
 import ReviewFieldCard from '../components/ReviewFieldCard';
 import LinkPatientModal from '../components/LinkPatientModal';
@@ -24,35 +24,27 @@ import {
 } from '../services/api';
 
 export default function ReviewQueuePage() {
-  const [viewMode, setViewMode] = useState('list'); // 'list' or 'review'
+  const [viewMode, setViewMode] = useState('list');
   const [documents, setDocuments] = useState([]);
-  const [allItems, setAllItems] = useState([]);      // all PENDING review items
+  const [allItems, setAllItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Current document filter
   const [selectedDocId, setSelectedDocId] = useState(null);
-
-  // ── No useState for docItems; we will compute it directly ──
   const [currentIndex, setCurrentIndex] = useState(0);
-
-  // Context for the currently focused item (enriched with doc info + bbox)
   const [context, setContext] = useState(null);
   const [isLoadingContext, setIsLoadingContext] = useState(false);
 
-  // Image display state
   const [imgSrc, setImgSrc] = useState(null);
   const [imgError, setImgError] = useState(false);
   const [showFullPage, setShowFullPage] = useState(false);
   const [zoom, setZoom] = useState(1.0);
   const [imgLoaded, setImgLoaded] = useState(false);
 
-  // Action state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toastMsg, setToastMsg] = useState(null);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   
-  // Try to find if an MRN/patient_identifier was extracted for the current document
   const patientAssignmentStr = allItems.find(i => i.document_id === selectedDocId && i.field_name === 'patient_assignment')?.extracted_value;
   const patientIdStr = allItems.find(i => i.document_id === selectedDocId && i.field_name === 'patient_identifier')?.extracted_value;
 
@@ -65,26 +57,22 @@ export default function ReviewQueuePage() {
         if (parsed.dob) data.dob = parsed.dob;
         if (parsed.gender) data.sex = parsed.gender;
         if (parsed.patient_id) data.mrn = parsed.patient_id;
-      } catch (e) {
-        // ignore
-      }
+      } catch (e) {}
     } else if (patientIdStr) {
       try {
         const parsed = JSON.parse(patientIdStr);
         if (parsed.patient_id) data.mrn = parsed.patient_id;
         if (parsed.name) data.name = parsed.name;
       } catch (e) {
-        data.name = patientIdStr; // If it's a raw string, it was likely mis-extracted as a name
+        data.name = patientIdStr;
       }
     }
     return data;
   }, [patientAssignmentStr, patientIdStr]);
 
-  // Stats
   const [reviewedToday, setReviewedToday] = useState(0);
   const startTimeRef = useRef(Date.now());
 
-  // ── Load all pending items and documents ────────────────────────────────
   const loadQueue = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -96,13 +84,11 @@ export default function ReviewQueuePage() {
       setAllItems(reviewsData.items || []);
       setDocuments(docsData || []);
     } catch (err) {
-      // Safely convert error detail to string — it can be an array (Pydantic) or object
       const raw = err.response?.data?.detail;
-      let msg;
+      let msg = 'Failed to load review queue';
       if (typeof raw === 'string') msg = raw;
       else if (Array.isArray(raw)) msg = raw.map((e) => e.msg || JSON.stringify(e)).join('; ');
       else if (raw) msg = JSON.stringify(raw);
-      else msg = err.message || 'Failed to load review queue';
       setError(msg);
     } finally {
       setIsLoading(false);
@@ -113,7 +99,6 @@ export default function ReviewQueuePage() {
     loadQueue();
   }, [loadQueue]);
 
-  // ── Compute docItems synchronously during render ──────────
   const docItems = useMemo(() => {
     if (selectedDocId === 'ALL') return allItems;
     if (!selectedDocId) return [];
@@ -124,20 +109,18 @@ export default function ReviewQueuePage() {
     setCurrentIndex((index) => Math.min(index, Math.max(0, docItems.length - 1)));
   }, [docItems.length]);
 
-  // ── Unique documents in the queue ──────────────────────────────────────
   const uniqueDocs = [...new Map(allItems.map((i) => [i.document_id, i])).entries()].map(
     ([docId, item]) => {
-      const docItems = allItems.filter((x) => x.document_id === docId);
-      const isPatientAssignment = docItems.some(x => x.field_name === 'patient_assignment');
+      const dItems = allItems.filter((x) => x.document_id === docId);
+      const isPatientAssignment = dItems.some(x => x.field_name === 'patient_assignment');
       return { 
         docId, 
-        count: docItems.length,
+        count: dItems.length,
         isPatientAssignment
       };
     }
   );
 
-  // Transition back to list if all items for the selected document are reviewed
   useEffect(() => {
     if (viewMode === 'review' && selectedDocId && docItems.length === 0) {
       setViewMode('list');
@@ -147,7 +130,6 @@ export default function ReviewQueuePage() {
     }
   }, [docItems.length, viewMode, selectedDocId]);
 
-  // ── Load context whenever the current item changes ──────────────────────
   const currentItem = docItems[currentIndex] || null;
 
   useEffect(() => {
@@ -161,8 +143,6 @@ export default function ReviewQueuePage() {
 
     const loadContext = async () => {
       setIsLoadingContext(true);
-      // Clear the previous field immediately so the image and value never
-      // appear out of sync while the next evidence region is loading.
       setContext(null);
       setImgLoaded(false);
       setImgError(false);
@@ -170,13 +150,11 @@ export default function ReviewQueuePage() {
         const ctx = await fetchReviewContext(currentItem.id);
         if (!cancelled) {
           setContext(ctx);
-          // Build image URL: prefer the /image endpoint (crops to bbox)
           const imageUrl = getReviewImageUrl(currentItem.id, showFullPage);
           setImgSrc(imageUrl);
         }
       } catch (err) {
         if (!cancelled) {
-          // Fallback: try serving the raw document directly
           if (currentItem.document_id) {
             try {
               const fallbackCtx = await fetchReviewContext(currentItem.id);
@@ -199,7 +177,6 @@ export default function ReviewQueuePage() {
     return () => { cancelled = true; };
   }, [currentItem?.id, showFullPage]);
 
-  // Update image src when full-page toggle changes
   useEffect(() => {
     if (currentItem) {
       setImgLoaded(false);
@@ -207,13 +184,11 @@ export default function ReviewQueuePage() {
     }
   }, [showFullPage]);
 
-  // ── Toast helper ───────────────────────────────────────────────────────
   const showToast = (msg, type = 'success') => {
     setToastMsg({ msg, type });
     setTimeout(() => setToastMsg(null), 2500);
   };
 
-  // ── Action handlers ────────────────────────────────────────────────────
   const handleAccept = async (correctedValue) => {
     if (!currentItem || isSubmitting) return;
     setIsSubmitting(true);
@@ -225,7 +200,6 @@ export default function ReviewQueuePage() {
           : `✅ "${currentItem.field_name}" accepted`
       );
       setReviewedToday((n) => n + 1);
-      // Remove from list and advance
       setAllItems((prev) => prev.filter((i) => i.id !== currentItem.id));
     } catch (err) {
       showToast(err.response?.data?.detail || 'Action failed', 'error');
@@ -252,22 +226,18 @@ export default function ReviewQueuePage() {
   const handlePrev = useCallback(() => setCurrentIndex((i) => Math.max(0, i - 1)), []);
   const handleNext = useCallback(() => setCurrentIndex((i) => Math.min(docItems.length - 1, i + 1)), [docItems.length]);
 
-  // Elapsed review time display
   const elapsedSec = Math.floor((Date.now() - startTimeRef.current) / 1000);
   const elapsedStr =
     elapsedSec >= 60
       ? `${Math.floor(elapsedSec / 60)}m ${elapsedSec % 60}s`
       : `${elapsedSec}s`;
 
-  // ── Bounding box overlay calculation ─────────────────────────────────
-  // Passed to the image container as a percentage-based absolutely positioned div
   const bbox = context?.bounding_box;
 
-  // ── Render ──────────────────────────────────────────────────────────────
   if (isLoading) {
     return (
-      <div className="rq-loading-state">
-        <RefreshCw size={32} className="spin" color="var(--primary-cyan)" />
+      <div className="flex flex-col items-center justify-center min-h-[50vh] text-on-surface-variant">
+        <RefreshCw size={32} className="animate-spin mb-4 text-primary" />
         <p>Loading review queue…</p>
       </div>
     );
@@ -275,102 +245,92 @@ export default function ReviewQueuePage() {
 
   if (error) {
     return (
-      <div className="rq-loading-state">
-        <AlertTriangle size={32} color="var(--accent-rose)" />
-        <p style={{ color: 'var(--accent-rose)' }}>{error}</p>
-        <button className="btn btn-primary" onClick={loadQueue} style={{ marginTop: '1rem' }}>
+      <div className="flex flex-col items-center justify-center min-h-[50vh] text-error">
+        <AlertTriangle size={32} className="mb-4" />
+        <p>{error}</p>
+        <button className="mt-4 px-4 py-2 bg-primary text-on-primary rounded-lg font-semibold hover:bg-primary/90 transition-colors" onClick={loadQueue}>
           Retry
         </button>
       </div>
     );
   }
 
-  if (allItems.length === 0) {
-    return (
-      <div className="rq-empty-state">
-        <div className="rq-empty-icon">
-          <InboxIcon size={48} color="var(--primary-cyan)" />
-        </div>
-        <h2>Review Queue is Empty</h2>
-        <p>All fields are at or above the confidence threshold — no manual review needed.</p>
-        <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', marginTop: '0.5rem' }}>
-          Upload more documents or lower the confidence threshold to populate the queue.
-        </p>
-        <button className="btn btn-secondary" onClick={loadQueue} style={{ marginTop: '1.5rem' }}>
-          <RefreshCw size={14} /> Refresh
-        </button>
-      </div>
-    );
-  }
+  // Early return for empty state removed so the header is always rendered.
 
   return (
-    <div className="rq-root">
-      {/* ── Header bar ── */}
-      <div className="rq-header">
-        <div className="rq-header-left">
-          <div className="rq-header-icon">
-            <ClipboardCheck size={22} color="var(--primary-cyan)" />
+    <div className="app-container flex-1 flex flex-col min-h-0">
+      {/* Header Section */}
+      <header className="app-header">
+        <div className="brand-wrapper">
+          <div className="brand-logo" style={{ background: 'linear-gradient(135deg, var(--accent-emerald), var(--primary-cyan))' }}>
+            <ClipboardCheck size={26} color="#ffffff" />
           </div>
-          <div>
-            <h2 className="rq-header-title">Pending Review Queue</h2>
-            <p className="rq-header-sub">Story 3.1 · Side-by-Side Field Verification</p>
+          <div className="brand-title">
+            <h1>Pending Review Queue</h1>
+            <p>Human-in-the-Loop Verification</p>
           </div>
         </div>
 
-        <div className="rq-stats-strip">
-          <div className="rq-stat">
-            <AlertTriangle size={14} color="#f59e0b" />
-            <span><strong>{allItems.length}</strong> pending</span>
+        <div className="flex items-center gap-4 bg-surface-container-high px-4 py-2 rounded-xl border border-outline-variant/20">
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            <AlertTriangle size={16} className="text-amber-500" />
+            <span className="text-on-surface"><span className="text-amber-500">{allItems.length}</span> pending</span>
           </div>
-          <div className="rq-stat">
-            <CheckCircle2 size={14} color="#10b981" />
-            <span><strong>{reviewedToday}</strong> reviewed this session</span>
+          <div className="w-px h-4 bg-outline-variant/30 mx-2"></div>
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            <CheckCircle2 size={16} className="text-emerald-500" />
+            <span className="text-on-surface"><span className="text-emerald-500">{reviewedToday}</span> reviewed this session</span>
           </div>
-          <div className="rq-stat">
-            <Clock size={14} color="var(--text-dim)" />
-            <span>{elapsedStr} elapsed</span>
+          <div className="w-px h-4 bg-outline-variant/30 mx-2"></div>
+          <div className="flex items-center gap-2 text-sm text-on-surface-variant font-medium">
+            <Clock size={16} />
+            <span>{elapsedStr}</span>
           </div>
-          <button className="btn btn-secondary rq-refresh-btn" onClick={loadQueue} title="Refresh queue">
-            <RefreshCw size={13} />
+          <button className="btn btn-icon ml-2" onClick={loadQueue} title="Refresh queue">
+            <RefreshCw size={16} />
           </button>
         </div>
-      </div>
+      </header>
 
       {viewMode === 'list' ? (
-        <div className="rq-doc-list" style={{ marginTop: '1.5rem', display: 'grid', gap: '1rem' }}>
-          {uniqueDocs.map(({ docId, count, isPatientAssignment }) => {
-            const doc = documents.find(d => d.document_id === docId);
-            const filename = doc ? doc.filename : (docId.slice(0, 8) + '…');
-            return (
-              <div key={docId} style={{ 
-                background: 'var(--surface-color)', 
-                border: '1px solid var(--border-color)', 
-                borderRadius: '8px', 
-                padding: '1.5rem', 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center' 
-              }}>
-                <div>
-                  <h3 style={{ margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <FileTextIcon size={18} />
-                    {filename}
-                  </h3>
-                  <div style={{ display: 'flex', gap: '1rem', fontSize: '0.9rem' }}>
-                    {isPatientAssignment ? (
-                      <span style={{ color: '#f43f5e', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <AlertTriangle size={14} /> Needs Patient Assignment
-                      </span>
-                    ) : (
-                      <span style={{ color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <ZoomIn size={14} /> Low Confidence Data ({count} fields)
-                      </span>
-                    )}
+        <div className="grid gap-4 mt-2">
+          {allItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center min-h-[50vh] text-center p-8 bg-surface-container rounded-2xl border border-outline-variant/20 mt-8">
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-6">
+                <InboxIcon size={32} className="text-primary" />
+              </div>
+              <h2 className="text-headline-md font-headline-md text-on-surface mb-2">Review Queue is Empty</h2>
+              <p className="text-body-lg font-body-lg text-on-surface-variant mb-1">All fields are at or above the confidence threshold — no manual review needed.</p>
+              <p className="text-sm text-on-surface-variant/70 mb-6">Upload more documents or lower the confidence threshold to populate the queue.</p>
+              <button className="flex items-center gap-2 px-4 py-2 bg-surface-variant text-on-surface rounded-lg font-semibold border border-outline-variant/30 hover:bg-surface-variant/80 transition-colors" onClick={loadQueue}>
+                <RefreshCw size={16} /> Refresh
+              </button>
+            </div>
+          ) : (
+            uniqueDocs.map(({ docId, count, isPatientAssignment }) => {
+              const doc = documents.find(d => d.document_id === docId);
+              const filename = doc ? doc.filename : (docId.slice(0, 8) + '…');
+              return (
+                <div key={docId} className="flex justify-between items-center p-5 bg-surface-container rounded-xl border border-outline-variant/20 hover:border-outline-variant/40 transition-colors">
+                  <div>
+                    <h3 className="flex items-center gap-2 text-lg font-semibold text-on-surface mb-2">
+                      <FileText size={20} className="text-primary" />
+                      {filename}
+                    </h3>
+                    <div className="flex gap-4 text-sm font-medium">
+                      {isPatientAssignment ? (
+                        <span className="flex items-center gap-1.5 text-error">
+                          <AlertTriangle size={16} /> Needs Patient Assignment
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1.5 text-amber-500">
+                          <ZoomIn size={16} /> Low Confidence Data ({count} fields)
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <div>
                   <button 
-                    className="btn btn-primary"
+                    className="px-5 py-2.5 bg-gradient-to-r from-primary to-secondary text-white rounded-lg font-semibold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
                     onClick={() => {
                       setSelectedDocId(docId);
                       setViewMode('review');
@@ -379,19 +339,18 @@ export default function ReviewQueuePage() {
                     Start Review
                   </button>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       ) : (
-        <>
-          <div style={{ margin: '1rem 0' }}>
+        <div className="flex flex-col h-full flex-grow">
+          <div className="mb-4">
             <button 
-              className="btn btn-secondary" 
+              className="flex items-center gap-2 px-4 py-2 bg-surface-variant text-on-surface rounded-lg font-semibold border border-outline-variant/30 hover:bg-surface-variant/80 transition-colors text-sm"
               onClick={() => { setViewMode('list'); setSelectedDocId(null); }}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
             >
-              <RotateCcw size={14} style={{ transform: 'rotate(-45deg)' }} /> Back to Queue
+              <RotateCcw size={16} className="-rotate-45" /> Back to Queue
             </button>
           </div>
 
@@ -404,7 +363,7 @@ export default function ReviewQueuePage() {
               setIsLinkModalOpen(false);
               try {
                 const { default: api } = await import('../services/api');
-                const res = await api.post(`/documents/${selectedDocId}/link-patient`, payload);
+                await api.post(`/documents/${selectedDocId}/link-patient`, payload);
                 setToastMsg({ msg: `Document linked to patient successfully!`, type: 'success' });
                 setTimeout(() => setToastMsg(null), 2500);
               } catch (err) {
@@ -414,77 +373,56 @@ export default function ReviewQueuePage() {
             }}
           />
 
-          {/* ── Split pane ── */}
-          <div className="rq-split-pane">
-            {/* ── Left: Document Image Viewer ── */}
-            <div className="rq-image-panel">
-              <div className="rq-image-toolbar">
-                <span className="rq-image-toolbar-label">
-                  {showFullPage ? 'Full Page View' : 'Field Region'}
+          {/* Split Pane Container */}
+          <div className="flex flex-col lg:flex-row gap-6 flex-grow min-h-0">
+            
+            {/* Left: Document Image Viewer */}
+            <div className="flex flex-col flex-1 bg-surface-container rounded-2xl border border-outline-variant/20 overflow-hidden relative">
+              <div className="flex justify-between items-center p-3 border-b border-outline-variant/10 bg-surface-container-high">
+                <span className="text-sm font-semibold text-on-surface-variant px-2">
+                  {showFullPage ? 'Full Page View' : 'Field Region View'}
                 </span>
-                <div className="rq-image-toolbar-actions">
-                  <button
-                    className="rq-img-btn"
-                    onClick={() => setShowFullPage((v) => !v)}
-                    title={showFullPage ? 'Show cropped field region' : 'Show full document page'}
-                  >
-                    <Maximize2 size={14} />
-                    {showFullPage ? 'Crop to Field' : 'Full Page'}
+                <div className="flex items-center gap-1">
+                  <button className="p-1.5 rounded text-on-surface-variant hover:bg-surface-variant hover:text-on-surface transition-colors flex items-center gap-1.5 text-xs font-semibold mr-2" onClick={() => setShowFullPage((v) => !v)}>
+                    <Maximize2 size={14} /> {showFullPage ? 'Crop to Field' : 'Full Page'}
                   </button>
-                  <button
-                    className="rq-img-btn"
-                    onClick={() => setZoom((z) => Math.min(3, z + 0.25))}
-                    title="Zoom in"
-                    disabled={zoom >= 3}
-                  >
-                    <ZoomIn size={14} />
+                  <div className="w-px h-4 bg-outline-variant/30 mx-1"></div>
+                  <button className="p-1.5 rounded text-on-surface-variant hover:bg-surface-variant hover:text-on-surface transition-colors" onClick={() => setZoom((z) => Math.min(3, z + 0.25))} disabled={zoom >= 3}>
+                    <ZoomIn size={16} />
                   </button>
-                  <button
-                    className="rq-img-btn"
-                    onClick={() => setZoom((z) => Math.max(0.5, z - 0.25))}
-                    title="Zoom out"
-                    disabled={zoom <= 0.5}
-                  >
-                    <ZoomOut size={14} />
+                  <button className="p-1.5 rounded text-on-surface-variant hover:bg-surface-variant hover:text-on-surface transition-colors" onClick={() => setZoom((z) => Math.max(0.5, z - 0.25))} disabled={zoom <= 0.5}>
+                    <ZoomOut size={16} />
                   </button>
-                  <button
-                    className="rq-img-btn"
-                    onClick={() => setZoom(1.0)}
-                    title="Reset zoom"
-                  >
-                    <RotateCcw size={13} />
+                  <button className="p-1.5 rounded text-on-surface-variant hover:bg-surface-variant hover:text-on-surface transition-colors" onClick={() => setZoom(1.0)}>
+                    <RotateCcw size={14} />
                   </button>
                 </div>
               </div>
 
-              <div className="rq-image-viewport">
+              <div className="flex-1 overflow-auto p-4 bg-surface-container-highest/20 relative flex items-center justify-center min-h-[400px]">
                 {isLoadingContext && (
-                  <div className="rq-image-loader">
-                    <RefreshCw size={24} className="spin" color="var(--primary-cyan)" />
-                    <span>Loading image…</span>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-surface-container/50 z-10">
+                    <RefreshCw size={24} className="animate-spin text-primary mb-2" />
+                    <span className="text-sm font-medium text-on-surface-variant">Loading image…</span>
                   </div>
                 )}
 
-                {imgSrc && (
-                  <div
-                    className="rq-image-zoom-wrap"
-                    style={{ transform: `scale(${zoom})`, transformOrigin: 'top center' }}
-                  >
-                    <div className="rq-image-container" style={{ position: 'relative', display: 'inline-block' }}>
+                {imgSrc ? (
+                  <div className="origin-top-left transition-transform duration-200" style={{ transform: `scale(${zoom})` }}>
+                    <div className="relative inline-block shadow-2xl rounded overflow-hidden">
                       <img
                         key={imgSrc}
                         src={imgSrc}
                         alt="Document region"
-                        className={`rq-document-image ${imgLoaded ? 'loaded' : ''}`}
+                        className={`max-w-none transition-opacity duration-300 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
+                        style={{ maxHeight: showFullPage ? 'none' : '400px' }}
                         onLoad={() => { setImgLoaded(true); setImgError(false); }}
                         onError={() => { setImgError(true); setImgLoaded(true); }}
                         draggable={false}
                       />
-
-                      {/* Bounding box highlight overlay — shown only on full-page view with a valid bbox */}
                       {showFullPage && bbox && imgLoaded && (
                         <div
-                          className="rq-bbox-overlay"
+                          className="absolute border-2 border-primary bg-primary/20 pointer-events-none rounded-sm"
                           style={{
                             left: `${bbox.x * 100}%`,
                             top: `${bbox.y * 100}%`,
@@ -494,42 +432,41 @@ export default function ReviewQueuePage() {
                         />
                       )}
                     </div>
-
                     {imgError && (
-                      <div className="rq-image-error">
-                        <AlertTriangle size={20} color="#f59e0b" />
-                        <span>Could not load document image. The file may still be processing.</span>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center text-amber-500 bg-surface-container/90">
+                        <AlertTriangle size={32} className="mb-2" />
+                        <span className="text-sm font-medium">Could not load document image.</span>
                       </div>
                     )}
                   </div>
-                )}
-
-                {!imgSrc && !isLoadingContext && (
-                  <div className="rq-image-placeholder">
-                    <FileTextIcon size={40} style={{ opacity: 0.3 }} />
-                    <span>No image available</span>
+                ) : !isLoadingContext ? (
+                  <div className="flex flex-col items-center text-on-surface-variant/50">
+                    <FileText size={48} className="mb-2 opacity-50" />
+                    <span className="text-sm font-semibold">No image available</span>
                   </div>
-                )}
+                ) : null}
               </div>
 
-              {/* Field label overlay at bottom of image panel */}
               {context && (
-                <div className="rq-image-field-label">
-                  <span className="rq-image-field-tag">Field:</span>
-                  <span>{context.field_name}</span>
+                <div className="absolute bottom-4 left-4 right-4 bg-surface-container-high/90 backdrop-blur border border-outline-variant/30 p-3 rounded-lg flex justify-between items-center shadow-lg">
+                  <div className="flex items-center gap-3">
+                    <span className="px-2 py-1 bg-primary/20 text-primary text-xs font-bold rounded uppercase">Target Field</span>
+                    <span className="font-semibold text-on-surface">{context.field_name}</span>
+                  </div>
                   {context.document_filename && (
-                    <span className="rq-image-doc-name">· {context.document_filename}</span>
+                    <span className="text-sm text-on-surface-variant truncate max-w-[50%]">{context.document_filename}</span>
                   )}
                 </div>
               )}
             </div>
 
-            {/* ── Right: Field Review Panel ── */}
-            <div className="rq-review-panel">
+            {/* Right: Field Review Panel */}
+            <div className="flex flex-col w-full lg:w-[450px] shrink-0">
               {docItems.length === 0 ? (
-                <div className="rq-review-empty">
-                  <CheckCircle2 size={32} color="#10b981" />
-                  <p>All fields in this document are reviewed!</p>
+                <div className="flex flex-col items-center justify-center h-full bg-surface-container rounded-2xl border border-outline-variant/20 p-8 text-center">
+                  <CheckCircle2 size={48} className="text-emerald-500 mb-4" />
+                  <p className="text-xl font-semibold text-on-surface mb-2">Document Complete!</p>
+                  <p className="text-on-surface-variant">All fields in this document are reviewed.</p>
                 </div>
               ) : (
                 <ReviewFieldCard
@@ -545,22 +482,19 @@ export default function ReviewQueuePage() {
               )}
             </div>
           </div>
-        </>
+        </div>
       )}
 
-      {/* ── Toast notification ── */}
+      {/* Toast Notification */}
       {toastMsg && (
-        <div
-          className={`rq-toast ${toastMsg.type === 'error' ? 'rq-toast-error' : toastMsg.type === 'warn' ? 'rq-toast-warn' : 'rq-toast-success'}`}
-        >
+        <div className={`fixed bottom-6 right-6 px-6 py-3 rounded-xl shadow-2xl text-sm font-bold flex items-center gap-2 z-50 animate-fade-in-up border ${
+          toastMsg.type === 'error' ? 'bg-error-container text-error border-error/30' : 
+          toastMsg.type === 'warn' ? 'bg-amber-500/20 text-amber-500 border-amber-500/30' : 
+          'bg-emerald-500/20 text-emerald-500 border-emerald-500/30'
+        }`}>
           {toastMsg.msg}
         </div>
       )}
     </div>
   );
-}
-
-// Inline placeholder icon (fallback if Lucide doesn't export FileTextIcon)
-function FileTextIcon({ size, style }) {
-  return <div style={{ width: size, height: size, ...style }} />;
 }

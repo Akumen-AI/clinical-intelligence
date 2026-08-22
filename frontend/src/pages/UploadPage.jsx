@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Activity, 
   FileCheck, 
@@ -12,13 +13,16 @@ import {
   Trash2,
   AlertOctagon,
   ListFilter,
-  Code
+  Code,
+  Filter,
+  Loader2
 } from 'lucide-react';
 import FileUploader from '../components/FileUploader';
 import ExtractedFieldsModal from '../components/ExtractedFieldsModal';
 import { fetchDocuments, fetchDocumentStatus, deleteDocument, deleteAllDocuments, fetchUploadLogs } from '../services/api';
 
 export default function UploadPage() {
+  const navigate = useNavigate();
   const [documents, setDocuments] = useState([]);
   const [uploadLogs, setUploadLogs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -26,6 +30,11 @@ export default function UploadPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedDocForFields, setSelectedDocForFields] = useState(null);
+  
+  // Filters
+  const [filterNeedsReview, setFilterNeedsReview] = useState(false);
+  const [filterDocType, setFilterDocType] = useState('');
+
   const refreshInFlight = useRef(false);
 
   const loadData = async () => {
@@ -33,8 +42,11 @@ export default function UploadPage() {
     refreshInFlight.current = true;
     setIsRefreshing(true);
     try {
+      const needsReviewParam = filterNeedsReview ? true : null;
+      const docTypeParam = filterDocType || null;
+      
       const [docsData, logsData] = await Promise.all([
-        fetchDocuments(),
+        fetchDocuments(needsReviewParam, docTypeParam),
         fetchUploadLogs()
       ]);
       setDocuments(docsData);
@@ -50,17 +62,9 @@ export default function UploadPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [filterNeedsReview, filterDocType]); // Re-fetch when filters change
 
-  // --- Stable polling with exponential backoff ---
-  // The previous implementation used [documents] as a dependency, which caused
-  // a feedback loop: every poll updated state → state change re-ran the effect
-  // → new intervals created → immediate new polls. This generated hundreds of
-  // redundant requests per document.
-  //
-  // Fix: use a ref to track which documents need polling, and a single
-  // setTimeout chain (not setInterval) with increasing delays.
-  const pollingRef = useRef({});  // { [docId]: { timeoutId, delay } }
+  const pollingRef = useRef({});
 
   useEffect(() => {
     const TERMINAL = new Set(['extracted', 'failed']);
@@ -68,12 +72,10 @@ export default function UploadPage() {
     const MAX_DELAY = 15000;
     const BACKOFF_FACTOR = 1.5;
 
-    // Determine which non-terminal docs need polling
     const activeDocs = documents.filter(
       (doc) => !TERMINAL.has((doc.status || '').toLowerCase())
     );
 
-    // Stop polling for docs that have reached a terminal status
     const activeIds = new Set(activeDocs.map((d) => d.document_id));
     for (const [docId, entry] of Object.entries(pollingRef.current)) {
       if (!activeIds.has(docId)) {
@@ -82,14 +84,12 @@ export default function UploadPage() {
       }
     }
 
-    // Start polling for new non-terminal docs (skip already-polling ones)
     for (const doc of activeDocs) {
       if (pollingRef.current[doc.document_id]) continue;
 
       const scheduleNext = (docId, delay) => {
         const timeoutId = setTimeout(async () => {
           if (document.visibilityState !== 'visible') {
-            // Tab hidden — reschedule at same delay, don't back off
             pollingRef.current[docId] = { timeoutId: null, delay };
             scheduleNext(docId, delay);
             return;
@@ -101,7 +101,6 @@ export default function UploadPage() {
                 item.document_id === docId ? { ...item, ...statusData } : item
               )
             );
-            // If terminal, stop polling
             if (TERMINAL.has((statusData.status || '').toLowerCase())) {
               delete pollingRef.current[docId];
               return;
@@ -109,7 +108,6 @@ export default function UploadPage() {
           } catch (err) {
             console.error(`Failed to poll status for ${docId}:`, err);
           }
-          // Schedule next poll with backoff
           const nextDelay = Math.min(delay * BACKOFF_FACTOR, MAX_DELAY);
           pollingRef.current[docId] = { timeoutId: null, delay: nextDelay };
           scheduleNext(docId, nextDelay);
@@ -121,13 +119,12 @@ export default function UploadPage() {
     }
 
     return () => {
-      // Cleanup all timeouts on unmount
       for (const entry of Object.values(pollingRef.current)) {
         clearTimeout(entry.timeoutId);
       }
       pollingRef.current = {};
     };
-  }, [documents.length]);  // Only re-run when docs are added/removed, not on status changes
+  }, [documents.length]);
 
   const statusLabel = (status) => ({
     queued: 'Queued',
@@ -143,11 +140,20 @@ export default function UploadPage() {
     failed: 'failed'
   }[(status || '').toLowerCase()] || status || 'Queued');
 
+  const getStatusBadgeClass = (status) => {
+    const s = (status || '').toUpperCase();
+    if (s === 'QUEUED') return 'bg-amber-500/15 text-amber-500 border-amber-500/30';
+    if (s === 'FAILED') return 'bg-error-container/15 text-error border-error/30';
+    if (s === 'EXTRACTED' || s === 'VERIFIED') return 'bg-emerald-500/15 text-emerald-500 border-emerald-500/30';
+    return 'bg-primary/15 text-primary border-primary/30';
+  };
+
   const handleUploadSuccess = () => {
     loadData();
   };
 
-  const handleDeleteDocument = async (documentId, filename) => {
+  const handleDeleteDocument = async (e, documentId, filename) => {
+    e.stopPropagation(); // Prevent row click
     if (!window.confirm(`Delete document "${filename}"?`)) return;
     try {
       await deleteDocument(documentId);
@@ -165,6 +171,10 @@ export default function UploadPage() {
     } catch (err) {
       console.error('Failed to delete all documents:', err);
     }
+  };
+
+  const handleRowClick = (doc) => {
+    navigate(`/review?documentId=${doc.document_id}`);
   };
 
   const filteredDocuments = documents.filter((doc) => {
@@ -203,259 +213,251 @@ export default function UploadPage() {
 
   return (
     <div className="app-container">
-      {/* Platform Header */}
+      {/* Header Section */}
       <header className="app-header">
         <div className="brand-wrapper">
-          <div className="brand-logo">
-            <Activity size={28} />
+          <div className="brand-logo" style={{ background: 'linear-gradient(135deg, var(--accent-emerald), var(--primary-cyan))' }}>
+            <FileCheck size={26} color="#ffffff" />
           </div>
           <div className="brand-title">
-            <h1>AI Clinical Intelligence Platform</h1>
-            <p>Epic 1.1 Document Intake & Epic 1.3 Validation Engine (FR-04)</p>
+            <h1>Document Intake Queue</h1>
+            <p>Monitor and manage the document processing pipeline</p>
           </div>
         </div>
-
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20">
+            <div className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(6,182,212,0.6)]"></div>
+            <span className="text-sm font-semibold text-primary">Pipeline Active</span>
+          </div>
           <a
             href="http://localhost:8000/docs"
             target="_blank"
             rel="noopener noreferrer"
-            className="btn btn-secondary"
-            style={{ textDecoration: 'none', fontSize: '0.85rem' }}
+            className="btn btn-secondary" style={{ padding: '0.5rem 1rem' }}
           >
-            FastAPI Swagger Docs <ExternalLink size={14} />
+            API Docs <ExternalLink size={16} />
           </a>
-          <div className="pipeline-badge">
-            <div className="pulse-dot"></div>
-            <span>Validation & Intake Active</span>
-          </div>
         </div>
       </header>
 
       {/* Overview Stat Cards */}
-      <div className="stats-grid">
-        <div className="glass-card stat-card">
-          <div className="stat-icon total">
-            <Layers size={24} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="p-6 rounded-2xl bg-surface-container border border-outline-variant/20 hover:border-outline-variant/40 transition-colors">
+          <div className="flex justify-between items-start mb-4">
+            <h3 className="text-body-md font-body-md text-on-surface-variant">Total Documents</h3>
+            <div className="p-2 rounded-lg bg-secondary-container/20 text-secondary">
+              <Layers size={20} />
+            </div>
           </div>
-          <div className="stat-info">
-            <h3>{documents.length}</h3>
-            <p>Total Documents Saved</p>
-          </div>
+          <div className="text-headline-display font-headline-display text-on-surface">{documents.length}</div>
         </div>
 
-        <div className="glass-card stat-card">
-          <div className="stat-icon queued">
-            <Clock size={24} />
+        <div className="p-6 rounded-2xl bg-surface-container border border-outline-variant/20 hover:border-outline-variant/40 transition-colors">
+          <div className="flex justify-between items-start mb-4">
+            <h3 className="text-body-md font-body-md text-on-surface-variant">Status: QUEUED</h3>
+            <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500">
+              <Clock size={20} />
+            </div>
           </div>
-          <div className="stat-info">
-            <h3>{queuedCount}</h3>
-            <p>Status: QUEUED (Epic 1.1)</p>
-          </div>
+          <div className="text-headline-display font-headline-display text-on-surface">{queuedCount}</div>
         </div>
 
-        <div className="glass-card stat-card">
-          <div className="stat-icon processed" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>
-            <AlertOctagon size={24} color="#ef4444" />
+        <div className="p-6 rounded-2xl bg-surface-container border border-outline-variant/20 hover:border-outline-variant/40 transition-colors">
+          <div className="flex justify-between items-start mb-4">
+            <h3 className="text-body-md font-body-md text-on-surface-variant">Rejected Uploads</h3>
+            <div className="p-2 rounded-lg bg-error-container/10 text-error">
+              <AlertOctagon size={20} />
+            </div>
           </div>
-          <div className="stat-info">
-            <h3 style={{ color: '#ef4444' }}>{rejectedLogsCount}</h3>
-            <p>Rejected Upload Logs</p>
-          </div>
+          <div className="text-headline-display font-headline-display text-error">{rejectedLogsCount}</div>
         </div>
 
-        <div className="glass-card stat-card">
-          <div className="stat-icon pipeline">
-            <ShieldCheck size={24} />
+        <div className="p-6 rounded-2xl bg-surface-container border border-outline-variant/20 hover:border-outline-variant/40 transition-colors">
+          <div className="flex justify-between items-start mb-4">
+            <h3 className="text-body-md font-body-md text-on-surface-variant">Validated Initial</h3>
+            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
+              <ShieldCheck size={20} />
+            </div>
           </div>
-          <div className="stat-info">
-            <h3>100%</h3>
-            <p>Validated Before Queueing</p>
-          </div>
+          <div className="text-headline-display font-headline-display text-on-surface">100%</div>
         </div>
       </div>
 
       {/* File Uploader Section */}
       <FileUploader onUploadSuccess={handleUploadSuccess} />
 
-      {/* Tabs & Table Section */}
-      <div className="glass-card">
-        <div className="section-header" style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem' }}>
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-            <button
-              onClick={() => setActiveTab('documents')}
-              style={{
-                background: activeTab === 'documents' ? 'var(--primary-cyan)' : 'transparent',
-                color: activeTab === 'documents' ? '#0f172a' : 'var(--text-muted)',
-                border: 'none',
-                padding: '0.5rem 1rem',
-                borderRadius: '6px',
-                fontWeight: '600',
-                fontSize: '0.9rem',
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-            >
-              Queued Documents ({documents.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('logs')}
-              style={{
-                background: activeTab === 'logs' ? 'var(--primary-cyan)' : 'transparent',
-                color: activeTab === 'logs' ? '#0f172a' : 'var(--text-muted)',
-                border: 'none',
-                padding: '0.5rem 1rem',
-                borderRadius: '6px',
-                fontWeight: '600',
-                fontSize: '0.9rem',
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-            >
-              Upload Audit Logs ({uploadLogs.length})
-            </button>
-          </div>
-
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-            <div style={{ position: 'relative', width: '260px' }}>
-              <Search
-                size={16}
-                color="var(--text-muted)"
-                style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}
-              />
-              <input
-                type="text"
-                placeholder={activeTab === 'documents' ? "Search filename or ID..." : "Search logs or reasons..."}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.5rem 0.75rem 0.5rem 2.25rem',
-                  background: 'rgba(15, 23, 42, 0.6)',
-                  border: '1px solid var(--border-light)',
-                  borderRadius: 'var(--radius-sm)',
-                  color: 'var(--text-main)',
-                  fontSize: '0.85rem',
-                  outline: 'none'
-                }}
-              />
-            </div>
-
-            <button
-              className="btn btn-secondary"
-              onClick={loadData}
-              disabled={isRefreshing}
-              style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
-            >
-              <RefreshCw size={14} className={isRefreshing ? 'spin' : ''} />
-              Refresh
-            </button>
-            {documents.length > 0 && (
-              <button
-                className="btn btn-secondary"
-                onClick={handleDeleteAll}
-                style={{
-                  padding: '0.5rem 1rem',
-                  fontSize: '0.85rem',
-                  color: 'var(--accent-rose)',
-                  borderColor: 'rgba(239, 68, 68, 0.3)'
-                }}
-              >
-                <Trash2 size={14} />
-                Delete All
-              </button>
-            )}
-          </div>
+      {/* Filters and Search */}
+      <div className="flex flex-col md:flex-row justify-between gap-4 mb-6">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setActiveTab('documents')}
+            className={`px-4 py-2 rounded-lg font-semibold text-sm transition-colors ${
+              activeTab === 'documents' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-variant'
+            }`}
+          >
+            Queued Documents ({documents.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('logs')}
+            className={`px-4 py-2 rounded-lg font-semibold text-sm transition-colors ${
+              activeTab === 'logs' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-variant'
+            }`}
+          >
+            Upload Audit Logs ({uploadLogs.length})
+          </button>
         </div>
 
+        <div className="flex flex-wrap items-center gap-4">
+          {activeTab === 'documents' && (
+            <>
+              {/* Needs Review Filter */}
+              <label className="flex items-center gap-2 cursor-pointer">
+                <div className="relative">
+                  <input type="checkbox" className="sr-only" checked={filterNeedsReview} onChange={(e) => setFilterNeedsReview(e.target.checked)} />
+                  <div className={`block w-10 h-6 rounded-full transition-colors ${filterNeedsReview ? 'bg-primary' : 'bg-surface-variant'}`}></div>
+                  <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${filterNeedsReview ? 'transform translate-x-4' : ''}`}></div>
+                </div>
+                <span className="text-sm font-semibold text-on-surface-variant">Needs Review</span>
+              </label>
+
+              {/* Doc Type Dropdown */}
+              <div className="relative">
+                <select
+                  className="appearance-none bg-surface-container border border-outline-variant/30 text-on-surface text-sm rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:border-primary"
+                  value={filterDocType}
+                  onChange={(e) => setFilterDocType(e.target.value)}
+                >
+                  <option value="">All Document Types</option>
+                  <option value="Prescription">Prescription</option>
+                  <option value="Lab Report">Lab Report</option>
+                  <option value="Discharge Summary">Discharge Summary</option>
+                  <option value="Referral">Referral</option>
+                  <option value="Admission Form">Admission Form</option>
+                  <option value="Unknown">Unknown</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-on-surface-variant">
+                  <Filter size={14} />
+                </div>
+              </div>
+            </>
+          )}
+
+          <div className="relative w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant w-4 h-4" />
+            <input
+              type="text"
+              placeholder="Search..."
+              className="w-full bg-surface-container border border-outline-variant/30 text-on-surface text-sm rounded-lg pl-9 pr-3 py-2 focus:outline-none focus:border-primary placeholder-on-surface-variant/50"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+
+          <button
+            onClick={loadData}
+            disabled={isRefreshing}
+            className="p-2 rounded-lg bg-surface-variant border border-outline-variant/30 text-on-surface hover:bg-surface-variant/80 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
+          </button>
+          
+          {documents.length > 0 && (
+            <button
+              onClick={handleDeleteAll}
+              className="p-2 rounded-lg bg-error-container/10 border border-error/30 text-error hover:bg-error-container/20 transition-colors"
+              title="Delete All Documents"
+            >
+              <Trash2 size={18} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Table Area */}
+      <div className="bg-surface-container rounded-xl border border-outline-variant/20 overflow-hidden">
         {isLoading ? (
-          <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-            Loading database repository...
+          <div className="p-12 text-center text-on-surface-variant">
+            <Loader2 size={32} className="animate-spin mx-auto mb-4 text-primary" />
+            <p>Loading database repository...</p>
           </div>
         ) : activeTab === 'documents' ? (
-          /* Documents Table */
           filteredDocuments.length === 0 ? (
-            <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-              <Database size={36} style={{ marginBottom: '0.75rem', opacity: 0.5 }} />
-              <p>No valid clinical documents found in repository.</p>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginTop: '0.25rem' }}>
-                Upload valid PDF, PNG, JPG, or TIFF files above to populate the QUEUED queue.
-              </p>
+            <div className="p-16 text-center text-on-surface-variant">
+              <Database size={48} className="mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-semibold text-on-surface mb-2">No documents found.</p>
+              <p className="text-sm">Upload files above or adjust your search/filters.</p>
             </div>
           ) : (
-            <div className="table-responsive" style={{ marginTop: '1rem' }}>
-              <table className="custom-table">
-                <thead>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead className="bg-surface-container-high border-b border-outline-variant/20 text-on-surface-variant font-label-caps text-xs uppercase tracking-wider">
                   <tr>
-                    <th>Filename</th>
-                    <th>Document ID (UUID)</th>
-                    <th>Format</th>
-                    <th>Ingestion Date</th>
-                    <th>Pipeline Status</th>
-                    <th>Document Type</th>
-                    <th>Confidence</th>
-                    <th>Review Required</th>
-                    <th>Extracted Fields</th>
-                    <th style={{ width: '60px' }}></th>
+                    <th className="px-6 py-4 font-semibold">Filename</th>
+                    <th className="px-6 py-4 font-semibold">Format</th>
+                    <th className="px-6 py-4 font-semibold">Ingestion Date</th>
+                    <th className="px-6 py-4 font-semibold">Status</th>
+                    <th className="px-6 py-4 font-semibold">Document Type</th>
+                    <th className="px-6 py-4 font-semibold">Confidence</th>
+                    <th className="px-6 py-4 font-semibold">Review</th>
+                    <th className="px-6 py-4 font-semibold">Actions</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-outline-variant/10">
                   {filteredDocuments.map((doc) => (
-                    <tr key={doc.document_id}>
-                      <td style={{ fontWeight: '600' }}>{doc.filename}</td>
-                      <td>
-                        <span className="uuid-text">{doc.document_id}</span>
+                    <tr 
+                      key={doc.document_id} 
+                      className="hover:bg-surface-variant/30 transition-colors cursor-pointer"
+                      onClick={() => handleRowClick(doc)}
+                    >
+                      <td className="px-6 py-4 font-semibold text-on-surface">
+                        <div className="max-w-[200px] truncate" title={doc.filename}>{doc.filename}</div>
+                        <div className="text-[10px] text-primary font-data-tabular mt-1">{doc.document_id.substring(0, 13)}...</div>
                       </td>
-                      <td>
-                        <span className="tag" style={{ textTransform: 'uppercase' }}>
+                      <td className="px-6 py-4">
+                        <span className="px-2 py-1 rounded bg-surface-variant text-[10px] font-bold text-on-surface-variant uppercase border border-outline-variant/20">
                           {doc.filetype}
                         </span>
                       </td>
-                      <td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                      <td className="px-6 py-4 text-on-surface-variant text-xs">
                         {formatDate(doc.uploaded_at)}
                       </td>
-                      <td>
-                        <span className={`badge-status badge-${(doc.status || "").toUpperCase()}`}>
-                          <span className="pulse-dot" style={{ width: '6px', height: '6px' }}></span>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border ${getStatusBadgeClass(doc.status)}`}>
+                          <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse"></span>
                           {statusLabel(doc.status)}
                         </span>
                       </td>
-                      <td>{doc.document_type || '-'}</td>
-                      <td>{doc.classification_confidence !== null && doc.classification_confidence !== undefined ? doc.classification_confidence.toFixed(2) : '-'}</td>
-                      <td>
+                      <td className="px-6 py-4 text-on-surface-variant">
+                        {doc.document_type || '-'}
+                      </td>
+                      <td className="px-6 py-4 font-data-tabular text-on-surface-variant">
+                        {doc.classification_confidence != null ? doc.classification_confidence.toFixed(2) : '-'}
+                      </td>
+                      <td className="px-6 py-4">
                         {doc.needs_manual_review === true || (doc.status || '').toUpperCase() === 'UNLINKED' ? (
-                          <span style={{ color: 'var(--accent-rose)', fontWeight: 'bold' }}>Yes</span>
+                          <span className="px-2 py-1 rounded bg-error-container/20 text-error text-xs font-bold border border-error/30">Needs Review</span>
                         ) : doc.needs_manual_review === false ? (
-                          <span style={{ color: '#10b981' }}>No</span>
-                        ) : '-'}
+                          <span className="text-emerald-500 text-xs font-bold">Verified</span>
+                        ) : <span className="text-on-surface-variant">-</span>}
                       </td>
-                      <td>
-                        {(() => {
-                          const isExtracted = ['EXTRACTED', 'PENDING_REVIEW', 'COMMITTED', 'VERIFIED', 'UNLINKED'].includes((doc.status || '').toUpperCase());
-                          return (
-                            <button
-                              className="btn-view-fields"
-                              onClick={() => isExtracted && setSelectedDocForFields(doc)}
-                              disabled={!isExtracted}
-                              title={isExtracted ? "View extracted clinical fields in JSON" : `Extraction pending (Current status: ${statusLabel(doc.status)})`}
-                            >
-                              <Code size={13} />
-                              <span>View JSON</span>
-                            </button>
-                          );
-                        })()}
-                      </td>
-                      <td>
-                        <button
-                          className="btn-icon"
-                          title="Delete document"
-                          onClick={() => handleDeleteDocument(doc.document_id, doc.filename)}
-                          style={{ color: 'var(--text-dim)', cursor: 'pointer', background: 'none', border: 'none' }}
-                          onMouseOver={(e) => e.currentTarget.style.color = 'var(--accent-rose)'}
-                          onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-dim)'}
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <button
+                            className="p-1.5 rounded-md text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-on-surface-variant"
+                            onClick={(e) => { e.stopPropagation(); setSelectedDocForFields(doc); }}
+                            disabled={!['EXTRACTED', 'PENDING_REVIEW', 'COMMITTED', 'VERIFIED', 'UNLINKED'].includes((doc.status || '').toUpperCase())}
+                            title="View extracted JSON"
+                          >
+                            <Code size={18} />
+                          </button>
+                          <button
+                            className="p-1.5 rounded-md text-on-surface-variant hover:text-error hover:bg-error-container/10 transition-colors"
+                            title="Delete document"
+                            onClick={(e) => handleDeleteDocument(e, doc.document_id, doc.filename)}
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -466,45 +468,46 @@ export default function UploadPage() {
         ) : (
           /* Upload Logs Table */
           filteredLogs.length === 0 ? (
-            <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-              <ListFilter size={36} style={{ marginBottom: '0.75rem', opacity: 0.5 }} />
-              <p>No upload log entries recorded yet.</p>
+            <div className="p-16 text-center text-on-surface-variant">
+              <ListFilter size={48} className="mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-semibold text-on-surface mb-2">No upload log entries recorded yet.</p>
             </div>
           ) : (
-            <div className="table-responsive" style={{ marginTop: '1rem' }}>
-              <table className="custom-table">
-                <thead>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead className="bg-surface-container-high border-b border-outline-variant/20 text-on-surface-variant font-label-caps text-xs uppercase tracking-wider">
                   <tr>
-                    <th>Timestamp</th>
-                    <th>Filename</th>
-                    <th>Validation Status</th>
-                    <th>Rejection Reason</th>
-                    <th>Client IP</th>
+                    <th className="px-6 py-4 font-semibold">Timestamp</th>
+                    <th className="px-6 py-4 font-semibold">Filename</th>
+                    <th className="px-6 py-4 font-semibold">Validation Status</th>
+                    <th className="px-6 py-4 font-semibold">Rejection Reason</th>
+                    <th className="px-6 py-4 font-semibold">Client IP</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-outline-variant/10">
                   {filteredLogs.map((log) => (
-                    <tr key={log.id}>
-                      <td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                    <tr key={log.id} className="hover:bg-surface-variant/30 transition-colors">
+                      <td className="px-6 py-4 text-on-surface-variant text-xs">
                         {formatDate(log.timestamp)}
                       </td>
-                      <td style={{ fontWeight: '600' }}>{log.filename}</td>
-                      <td>
-                        <span 
-                          className="tag" 
-                          style={{
-                            background: log.status === 'REJECTED' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-                            color: log.status === 'REJECTED' ? '#ef4444' : '#10b981',
-                            fontWeight: '700'
-                          }}
-                        >
+                      <td className="px-6 py-4 font-semibold text-on-surface max-w-[250px] truncate" title={log.filename}>
+                        {log.filename}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase border ${
+                          log.status === 'REJECTED' 
+                            ? 'bg-error-container/20 text-error border-error/30' 
+                            : 'bg-emerald-500/15 text-emerald-500 border-emerald-500/30'
+                        }`}>
                           {log.status === 'REJECTED' ? '❌ REJECTED' : '✓ ACCEPTED'}
                         </span>
                       </td>
-                      <td style={{ color: log.status === 'REJECTED' ? '#fca5a5' : 'var(--text-muted)', fontSize: '0.85rem' }}>
-                        {log.reason || 'None (Validated & Queued)'}
+                      <td className="px-6 py-4">
+                        <span className={`text-xs ${log.status === 'REJECTED' ? 'text-error/80 font-medium' : 'text-on-surface-variant'}`}>
+                          {log.reason || 'None (Validated & Queued)'}
+                        </span>
                       </td>
-                      <td style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>
+                      <td className="px-6 py-4 text-on-surface-variant text-xs font-data-tabular">
                         {log.client_ip || '127.0.0.1'}
                       </td>
                     </tr>
@@ -527,4 +530,3 @@ export default function UploadPage() {
     </div>
   );
 }
-

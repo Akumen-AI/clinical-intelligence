@@ -4,7 +4,7 @@ import { useAuth } from './contexts/AuthContext';
 import LoginPage from './pages/LoginPage';
 import UploadPage from './pages/UploadPage';
 import ReviewQueuePage from './pages/ReviewQueuePage';
-import CanonicalRecordPage from './pages/CanonicalRecordPage';
+
 import TimelinePage from './pages/TimelinePage';
 import PolicyChatbot from './components/PolicyChatbot';
 import PolicyDocumentUploader from './components/PolicyDocumentUploader';
@@ -135,11 +135,13 @@ function App() {
             </RoleProtectedRoute>
           } />
           
-          <Route path="canonical-records" element={
-            <RoleProtectedRoute routeKey="canonical">
-              <CanonicalRecordPage />
+          <Route path="patients/ask" element={
+            <RoleProtectedRoute routeKey="patients">
+              <PatientQAPage />
             </RoleProtectedRoute>
           } />
+          
+
           
           <Route path="policy-assistant" element={
             <RoleProtectedRoute routeKey="policyChat">
@@ -147,12 +149,9 @@ function App() {
             </RoleProtectedRoute>
           } />
           
-          <Route path="policy-upload" element={
-            <RoleProtectedRoute routeKey="policyUpload">
-              <PolicyDocumentUploader />
-            </RoleProtectedRoute>
-          } />
+
           
+          <Route path="*" element={<Navigate to="/patients" replace />} />
         </Route>
       </Routes>
     </ErrorBoundary>

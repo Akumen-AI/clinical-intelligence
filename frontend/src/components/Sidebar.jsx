@@ -64,27 +64,21 @@ export default function Sidebar() {
           </NavLink>
         )}
 
-        {hasAccess(user.role, 'canonical') && (
-          <NavLink to="/canonical-records" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
-            <Database size={18} />
-            <span>Canonical Records</span>
-          </NavLink>
-        )}
 
         <div className="sidebar-divider"></div>
         <div className="sidebar-section-title">Tools</div>
+
+        {hasAccess(user.role, 'patients') && (
+          <NavLink to="/patients/ask" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+            <MessageSquare size={18} />
+            <span>Patient Q&A</span>
+          </NavLink>
+        )}
 
         {hasAccess(user.role, 'policyChat') && (
           <NavLink to="/policy-assistant" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
             <MessageSquare size={18} />
             <span>Policy Assistant</span>
-          </NavLink>
-        )}
-
-        {hasAccess(user.role, 'policyUpload') && (
-          <NavLink to="/policy-upload" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
-            <UploadCloud size={18} />
-            <span>Upload Policy</span>
           </NavLink>
         )}
       </nav>

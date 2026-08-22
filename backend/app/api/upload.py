@@ -163,13 +163,17 @@ async def get_document_file(document_id: str, db: Session = Depends(get_db)):
     return FileResponse(raw_path, media_type=media_type)
 
 @router.get("", response_model=List[DocumentResponse])
-async def list_documents(db: Session = Depends(get_db)):
+async def list_documents(
+    needs_review: Optional[bool] = None,
+    document_type: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
     """
     GET /api/v1/documents
     
     Retrieve all uploaded patient documents with document ID, file path, file type, and pipeline status.
     """
-    docs = upload_service.get_all_documents(db)
+    docs = upload_service.get_all_documents(db, needs_review=needs_review, document_type=document_type)
     return [
         DocumentResponse(
             document_id=doc.document_id,
@@ -318,6 +322,9 @@ async def link_patient(
         patient_id = request.patient_id
         
     doc.patient_id = patient_id
+    from app.models.document import DocumentStatus
+    if doc.status == DocumentStatus.UNLINKED.value:
+        doc.status = DocumentStatus.EXTRACTED.value
 
     # Create a Visit row for this document
     visit_id = str(uuid.uuid4())

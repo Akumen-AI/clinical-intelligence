@@ -48,19 +48,22 @@ const LoginPage = () => {
       background: 'var(--bg-main, #0b0f19)',
       fontFamily: 'Inter, sans-serif'
     }}>
-      <div style={{
-        background: 'var(--bg-card, #1e293b)',
-        padding: '2.5rem',
-        borderRadius: '12px',
+      <div className="glass-card" style={{
         width: '100%',
         maxWidth: '400px',
-        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '2rem' }}>
-          <Activity size={24} color="var(--primary-cyan, #06b6d4)" style={{ marginRight: '0.5rem' }} />
-          <h2 style={{ color: 'var(--text-main, #f8fafc)', margin: 0 }}>Login</h2>
+        <div className="flex flex-col items-center justify-center mb-8">
+          <div className="brand-logo mb-5" style={{ width: '56px', height: '56px', borderRadius: '1rem', boxShadow: '0 0 25px rgba(6,182,212,0.2)' }}>
+            <Activity size={28} color="#ffffff" />
+          </div>
+          <div className="mb-2" style={{ fontFamily: 'var(--font-heading)', fontSize: '2rem', lineHeight: '1.2', letterSpacing: '-0.02em' }}>
+            <span style={{ color: '#ffffff', fontWeight: 500 }}>Clinical</span>
+            <span style={{ color: 'var(--primary-cyan)', fontWeight: 700 }}>Intelligence</span>
+          </div>
+          <p className="text-on-surface-variant text-sm text-center">
+            Sign in to access your secure workspace
+          </p>
         </div>
-        
         {error && (
           <div style={{
             background: 'rgba(244, 63, 94, 0.1)',

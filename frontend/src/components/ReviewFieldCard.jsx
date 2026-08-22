@@ -18,19 +18,6 @@ const COMPLEX_FIELDS = [
   'patient_identifier', 'ordering_physician', 'symptoms', 'procedures', 'patient_assignment'
 ];
 
-/**
- * ReviewFieldCard – right-panel component for the side-by-side review UI.
- *
- * Props:
- *  - item:          PendingReviewContextResponse object (from /context endpoint)
- *  - index:         0-based index of this item in the current document's pending list
- *  - total:         total pending items in the current document
- *  - onAccept(correctedValue|null): call with null to accept as-is, or string for edited value
- *  - onReject():    call to reject the field
- *  - onPrev():      navigate to previous field
- *  - onNext():      navigate to next field
- *  - isSubmitting:  boolean — disables actions while in-flight
- */
 export default function ReviewFieldCard({
   item,
   index,
@@ -46,13 +33,11 @@ export default function ReviewFieldCard({
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const editRef = useRef(null);
 
-  // Reset edit state when item changes
   useEffect(() => {
     setEditMode(false);
     setEditValue(item?.extracted_value ?? '');
   }, [item?.id]);
 
-  // Focus the edit input when entering edit mode
   useEffect(() => {
     if (editMode && editRef.current) {
       editRef.current.focus();
@@ -60,18 +45,13 @@ export default function ReviewFieldCard({
     }
   }, [editMode]);
 
-  // Keyboard shortcuts
   useEffect(() => {
     const handler = (e) => {
-      // Don't steal input while the reviewer is correcting a value.
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
       if (isSubmitting) return;
 
       switch (e.key.toLowerCase()) {
         case 'a':
-          e.preventDefault();
-          onAccept(null);
-          break;
         case ' ':
           e.preventDefault();
           onAccept(null);
@@ -104,11 +84,28 @@ export default function ReviewFieldCard({
 
   const conf = item.confidence_score;
   const confPct = (conf * 100).toFixed(1);
-  const confColor =
-    conf >= 0.8 ? '#10b981' : conf >= 0.5 ? '#f59e0b' : '#ef4444';
-  const confLabel = conf >= 0.8 ? 'High' : conf >= 0.5 ? 'Medium' : 'Low';
+  
+  let confColorClass = 'text-emerald-500';
+  let confBgClass = 'bg-emerald-500';
+  let confBorderClass = 'border-emerald-500/30';
+  let confContainerClass = 'bg-emerald-500/10';
+  let confLabel = 'High';
 
-  const progressPct = total > 0 ? ((index) / total) * 100 : 0;
+  if (conf < 0.5) {
+    confColorClass = 'text-error';
+    confBgClass = 'bg-error';
+    confBorderClass = 'border-error/30';
+    confContainerClass = 'bg-error-container/20';
+    confLabel = 'Low';
+  } else if (conf < 0.8) {
+    confColorClass = 'text-amber-500';
+    confBgClass = 'bg-amber-500';
+    confBorderClass = 'border-amber-500/30';
+    confContainerClass = 'bg-amber-500/10';
+    confLabel = 'Medium';
+  }
+
+  const progressPct = total > 0 ? ((index + 1) / total) * 100 : 0;
 
   const handleEditSubmit = () => {
     onAccept(editValue.trim() !== (item.extracted_value ?? '').trim() ? editValue.trim() : null);
@@ -140,228 +137,228 @@ export default function ReviewFieldCard({
   }
 
   return (
-    <div className="rfc-root">
-      {/* ── Document reference ── */}
-      <div className="rfc-doc-ref">
-        <FileText size={13} color="var(--text-dim)" />
-        <span className="rfc-doc-name">{item.document_filename || item.document_id}</span>
-        <span className="rfc-doc-type tag">{item.document_filetype?.toUpperCase() || 'DOC'}</span>
-      </div>
-
-      {/* ── Progress ── */}
-      <div className="rfc-progress-wrap">
-        <div className="rfc-progress-labels">
-          <span>Field {index + 1} of {total}</span>
-          <span style={{ color: 'var(--text-dim)' }}>{total - index - 1} remaining</span>
+    <div className="flex flex-col h-full bg-surface-container rounded-2xl border border-outline-variant/20 overflow-hidden">
+      
+      {/* Top Banner: Document Ref */}
+      <div className="flex justify-between items-center px-4 py-2 bg-surface-container-high border-b border-outline-variant/10">
+        <div className="flex items-center gap-2">
+          <FileText size={14} className="text-on-surface-variant" />
+          <span className="text-sm font-semibold text-on-surface truncate max-w-[200px]">{item.document_filename || item.document_id}</span>
         </div>
-        <div className="rfc-progress-track">
-          <div className="rfc-progress-fill" style={{ width: `${progressPct}%` }} />
+        <span className="px-2 py-0.5 rounded text-[10px] font-bold text-on-surface-variant bg-surface-variant uppercase border border-outline-variant/20">
+          {item.document_filetype || 'DOC'}
+        </span>
+      </div>
+
+      <div className="p-5 flex-grow flex flex-col">
+        {/* Progress Header */}
+        <div className="flex justify-between items-end mb-2">
+          <div className="text-sm font-semibold text-on-surface">Field {index + 1} of {total}</div>
+          <div className="text-xs text-on-surface-variant">{total - index - 1} remaining</div>
         </div>
-      </div>
-
-      {/* ── Field header ── */}
-      <div className="rfc-field-header">
-        <div className="rfc-field-name">{item.field_name}</div>
-        <div className="rfc-conf-badge" style={{ background: `${confColor}22`, border: `1px solid ${confColor}55` }}>
-          <span className="confidence-dot" style={{ background: confColor }} />
-          <span style={{ color: confColor, fontWeight: 700 }}>{confPct}%</span>
-          <span style={{ color: confColor, opacity: 0.8 }}>{confLabel}</span>
+        
+        {/* Progress Bar */}
+        <div className="h-1.5 w-full bg-outline-variant/20 rounded-full overflow-hidden mb-6">
+          <div className="h-full bg-primary transition-all duration-300" style={{ width: `${progressPct}%` }}></div>
         </div>
-      </div>
 
-      {/* ── Confidence bar ── */}
-      <div className="rfc-conf-bar-track">
-        <div className="rfc-conf-bar-fill" style={{ width: `${confPct}%`, background: confColor }} />
-      </div>
-
-      {/* ── Extracted value / edit ── */}
-      <div className="rfc-value-section">
-        <label className="rfc-value-label">
-          {editMode ? 'Corrected Value' : (isPatientAssignment ? 'Extracted Patient Info' : 'Extracted Value')}
-        </label>
-
-        {isPatientAssignment ? (
-          <div className="rfc-value-display">
-            {parsedAssignment ? (
-              <div>
-                <div><strong>Name:</strong> {parsedAssignment.name || 'N/A'}</div>
-                <div><strong>DOB:</strong> {parsedAssignment.dob || 'N/A'}</div>
-                <div><strong>Gender:</strong> {parsedAssignment.gender || 'N/A'}</div>
-              </div>
-            ) : (
-              <em style={{ color: 'var(--text-dim)' }}>No patient info extracted</em>
-            )}
-            <button 
-              className="btn btn-primary" 
-              style={{ marginTop: '1rem', width: '100%' }}
-              onClick={() => setIsLinkModalOpen(true)}
-              disabled={isSubmitting}
-            >
-              Assign Patient
-            </button>
-            <LinkPatientModal 
-              isOpen={isLinkModalOpen}
-              onClose={() => setIsLinkModalOpen(false)}
-              documentId={item.document_id}
-              suggestedPatientData={{
-                name: parsedAssignment?.name || '',
-                dob: parsedAssignment?.dob || '',
-                sex: parsedAssignment?.gender || '',
-                mrn: parsedAssignment?.patient_id || ''
-              }}
-              onLink={handleLinkPatient}
-            />
+        {/* Field Name & Confidence */}
+        <div className="flex justify-between items-start mb-4">
+          <h2 className="text-title-lg font-title-lg text-on-surface">{item.field_name}</h2>
+          
+          <div className={`flex items-center gap-2 px-2.5 py-1 rounded-full border ${confBorderClass} ${confContainerClass}`}>
+            <span className={`w-2 h-2 rounded-full ${confBgClass}`}></span>
+            <span className={`text-xs font-bold ${confColorClass}`}>{confPct}%</span>
+            <span className={`text-[10px] font-semibold ${confColorClass} uppercase opacity-80`}>{confLabel}</span>
           </div>
-        ) : editMode ? (
-          COMPLEX_FIELDS.includes(item.field_name) ? (
-            <DynamicJSONEditor
-              initialValue={item.extracted_value ?? ''}
-              fieldName={item.field_name}
-              onChange={setEditValue}
-              onSubmit={handleEditSubmit}
-              onCancel={() => {
-                setEditMode(false);
-                setEditValue(item.extracted_value ?? '');
-              }}
-            />
-          ) : (
-            <textarea
-              ref={editRef}
-              className="rfc-edit-input"
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleEditSubmit();
-                }
-                if (e.key === 'Escape') {
-                  setEditMode(false);
-                  setEditValue(item.extracted_value ?? '');
-                }
-              }}
-              rows={3}
-              placeholder="Enter corrected value…"
-            />
-          )
-        ) : (
-          <div className="rfc-value-display">
-            {item.extracted_value ?? <em style={{ color: 'var(--text-dim)' }}>null / not extracted</em>}
+        </div>
+
+        {/* Confidence Bar underneath */}
+        <div className="h-1 w-full bg-outline-variant/10 rounded-full overflow-hidden mb-6">
+          <div className={`h-full ${confBgClass}`} style={{ width: `${confPct}%` }}></div>
+        </div>
+
+        {/* Value Section */}
+        <div className="flex-grow flex flex-col mb-6">
+          <label className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">
+            {editMode ? 'Corrected Value' : (isPatientAssignment ? 'Extracted Patient Info' : 'Extracted Value')}
+          </label>
+          
+          <div className="flex-grow flex flex-col bg-surface-container-highest/20 rounded-xl border border-outline-variant/10 p-4 min-h-[120px]">
+            {isPatientAssignment ? (
+              <div className="flex flex-col justify-between h-full">
+                {parsedAssignment ? (
+                  <div className="text-sm text-on-surface space-y-1 mb-4">
+                    <div><span className="font-semibold text-on-surface-variant">Name:</span> {parsedAssignment.name || 'N/A'}</div>
+                    <div><span className="font-semibold text-on-surface-variant">DOB:</span> {parsedAssignment.dob || 'N/A'}</div>
+                    <div><span className="font-semibold text-on-surface-variant">Gender:</span> {parsedAssignment.gender || 'N/A'}</div>
+                  </div>
+                ) : (
+                  <em className="text-on-surface-variant/70 text-sm mb-4 block">No patient info extracted</em>
+                )}
+                <button 
+                  className="mt-auto py-2.5 w-full bg-primary text-on-primary rounded-lg font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  onClick={() => setIsLinkModalOpen(true)}
+                  disabled={isSubmitting}
+                >
+                  Assign Patient
+                </button>
+                <LinkPatientModal 
+                  isOpen={isLinkModalOpen}
+                  onClose={() => setIsLinkModalOpen(false)}
+                  documentId={item.document_id}
+                  suggestedPatientData={{
+                    name: parsedAssignment?.name || '',
+                    dob: parsedAssignment?.dob || '',
+                    sex: parsedAssignment?.gender || '',
+                    mrn: parsedAssignment?.patient_id || ''
+                  }}
+                  onLink={handleLinkPatient}
+                />
+              </div>
+            ) : editMode ? (
+              COMPLEX_FIELDS.includes(item.field_name) ? (
+                <div className="flex-grow">
+                  <DynamicJSONEditor
+                    initialValue={item.extracted_value ?? ''}
+                    fieldName={item.field_name}
+                    onChange={setEditValue}
+                    onSubmit={handleEditSubmit}
+                    onCancel={() => {
+                      setEditMode(false);
+                      setEditValue(item.extracted_value ?? '');
+                    }}
+                  />
+                </div>
+              ) : (
+                <textarea
+                  ref={editRef}
+                  className="w-full flex-grow bg-surface-container border border-outline-variant/40 rounded-lg p-3 text-on-surface text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary resize-none"
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleEditSubmit();
+                    }
+                    if (e.key === 'Escape') {
+                      setEditMode(false);
+                      setEditValue(item.extracted_value ?? '');
+                    }
+                  }}
+                  placeholder="Enter corrected value…"
+                />
+              )
+            ) : (
+              <div className="text-base text-on-surface leading-relaxed break-words whitespace-pre-wrap font-medium">
+                {item.extracted_value ?? <em className="text-on-surface-variant/50">null / not extracted</em>}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Confidence Warning */}
+        {conf < 0.5 && (
+          <div className="flex items-center gap-2 px-4 py-3 bg-error-container/10 border border-error/30 rounded-lg text-error text-sm font-medium mb-6">
+            <AlertTriangle size={16} />
+            <span>Low confidence — please verify carefully against the document image.</span>
           </div>
         )}
+
+        {/* Action Buttons */}
+        {isPatientAssignment ? null : editMode ? (
+          <div className="flex gap-3 mb-6">
+            <button
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
+              onClick={handleEditSubmit}
+              disabled={isSubmitting}
+              title="Submit correction and approve (Enter)"
+            >
+              <CheckCircle2 size={18} /> Submit Edit
+            </button>
+            <button
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-surface-variant hover:bg-surface-variant/80 text-on-surface rounded-lg font-semibold border border-outline-variant/30 transition-colors disabled:opacity-50"
+              onClick={() => { setEditMode(false); setEditValue(item.extracted_value ?? ''); }}
+              disabled={isSubmitting}
+              title="Cancel edit (Esc)"
+            >
+              <XCircle size={18} /> Cancel
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-2 mb-6">
+            <button
+              className="flex-1 flex flex-col items-center justify-center py-3 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 rounded-xl border border-emerald-500/30 transition-colors disabled:opacity-50 group"
+              onClick={() => onAccept(null)}
+              disabled={isSubmitting}
+              title="Accept extracted value (A)"
+            >
+              <div className="flex items-center gap-1.5 font-bold mb-1"><CheckCircle2 size={18} /> Accept</div>
+              <kbd className="text-[10px] font-mono px-1.5 py-0.5 bg-emerald-500/20 rounded border border-emerald-500/30 group-hover:bg-emerald-500 group-hover:text-white transition-colors">A</kbd>
+            </button>
+            <button
+              className="flex-1 flex flex-col items-center justify-center py-3 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl border border-primary/30 transition-colors disabled:opacity-50 group"
+              onClick={() => setEditMode(true)}
+              disabled={isSubmitting}
+              title="Edit value then approve (E)"
+            >
+              <div className="flex items-center gap-1.5 font-bold mb-1"><Edit3 size={18} /> Edit</div>
+              <kbd className="text-[10px] font-mono px-1.5 py-0.5 bg-primary/20 rounded border border-primary/30 group-hover:bg-primary group-hover:text-white transition-colors">E</kbd>
+            </button>
+            <button
+              className="flex-1 flex flex-col items-center justify-center py-3 bg-error-container/10 hover:bg-error-container/20 text-error rounded-xl border border-error/30 transition-colors disabled:opacity-50 group"
+              onClick={onReject}
+              disabled={isSubmitting}
+              title="Reject this field (R)"
+            >
+              <div className="flex items-center gap-1.5 font-bold mb-1"><XCircle size={18} /> Reject</div>
+              <kbd className="text-[10px] font-mono px-1.5 py-0.5 bg-error/20 rounded border border-error/30 group-hover:bg-error group-hover:text-white transition-colors">R</kbd>
+            </button>
+          </div>
+        )}
+
+        {/* Navigation */}
+        <div className="flex items-center justify-between pt-4 border-t border-outline-variant/10">
+          <button
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition-colors disabled:opacity-30 disabled:hover:bg-transparent group"
+            onClick={onPrev}
+            disabled={index === 0 || isSubmitting}
+          >
+            <ChevronLeft size={16} /> Prev <kbd className="hidden sm:inline-block text-[10px] font-mono px-1 border border-outline-variant/30 rounded ml-1 group-hover:bg-surface-variant group-hover:border-outline-variant">←</kbd>
+          </button>
+          
+          <div className="flex gap-1 items-center">
+            {Array.from({ length: Math.min(total, 7) }).map((_, i) => {
+              const isActive = i === index % 7;
+              return (
+                <div 
+                  key={i} 
+                  className={`w-1.5 h-1.5 rounded-full transition-colors ${isActive ? 'bg-primary scale-125' : 'bg-outline-variant/30'}`}
+                />
+              );
+            })}
+            {total > 7 && <span className="text-[10px] font-bold text-on-surface-variant ml-1">+{total - 7}</span>}
+          </div>
+
+          <button
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition-colors disabled:opacity-30 disabled:hover:bg-transparent group"
+            onClick={onNext}
+            disabled={index >= total - 1 || isSubmitting}
+          >
+            <kbd className="hidden sm:inline-block text-[10px] font-mono px-1 border border-outline-variant/30 rounded mr-1 group-hover:bg-surface-variant group-hover:border-outline-variant">→</kbd> Next <ChevronRight size={16} />
+          </button>
+        </div>
       </div>
 
-      {/* ── Confidence warning ── */}
-      {conf < 0.5 && (
-        <div className="rfc-low-conf-warn">
-          <AlertTriangle size={13} color="#f59e0b" />
-          <span>Low confidence — please verify carefully against the document image.</span>
-        </div>
-      )}
-
-      {/* ── Action buttons ── */}
-      {isPatientAssignment ? null : editMode ? (
-        <div className="rfc-actions">
-          <button
-            id="review-submit-edit-btn"
-            className="rfc-btn rfc-btn-accept"
-            onClick={handleEditSubmit}
-            disabled={isSubmitting}
-            title="Submit correction and approve (Enter)"
-          >
-            <CheckCircle2 size={16} />
-            Submit Edit
-          </button>
-          <button
-            className="rfc-btn rfc-btn-reject"
-            onClick={() => { setEditMode(false); setEditValue(item.extracted_value ?? ''); }}
-            disabled={isSubmitting}
-            title="Cancel edit (Esc)"
-          >
-            <XCircle size={16} />
-            Cancel
-          </button>
-        </div>
-      ) : (
-        <div className="rfc-actions">
-          <button
-            id="review-accept-btn"
-            className="rfc-btn rfc-btn-accept"
-            onClick={() => onAccept(null)}
-            disabled={isSubmitting}
-            title="Accept extracted value (A)"
-          >
-            <CheckCircle2 size={16} />
-            Accept
-            <kbd className="rfc-kbd">A</kbd>
-          </button>
-          <button
-            id="review-edit-btn"
-            className="rfc-btn rfc-btn-edit"
-            onClick={() => setEditMode(true)}
-            disabled={isSubmitting}
-            title="Edit value then approve (E)"
-          >
-            <Edit3 size={16} />
-            Edit
-            <kbd className="rfc-kbd">E</kbd>
-          </button>
-          <button
-            id="review-reject-btn"
-            className="rfc-btn rfc-btn-reject"
-            onClick={onReject}
-            disabled={isSubmitting}
-            title="Reject this field (R)"
-          >
-            <XCircle size={16} />
-            Reject
-            <kbd className="rfc-kbd">R</kbd>
-          </button>
-        </div>
-      )}
-
-      {/* ── Navigation ── */}
-      <div className="rfc-nav">
-        <button
-          id="review-prev-btn"
-          className="rfc-nav-btn"
-          onClick={onPrev}
-          disabled={index === 0 || isSubmitting}
-          title="Previous field (←)"
-        >
-          <ChevronLeft size={16} />
-          Prev
-          <kbd className="rfc-kbd">←</kbd>
-        </button>
-        <div className="rfc-nav-dots">
-          {Array.from({ length: Math.min(total, 9) }).map((_, i) => (
-            <span
-              key={i}
-              className="rfc-nav-dot"
-              style={{
-                background: i === index % 9 ? 'var(--primary-cyan)' : 'var(--border-light)',
-              }}
-            />
-          ))}
-          {total > 9 && <span style={{ color: 'var(--text-dim)', fontSize: '0.7rem' }}>+{total - 9}</span>}
-        </div>
-        <button
-          id="review-next-btn"
-          className="rfc-nav-btn"
-          onClick={onNext}
-          disabled={index >= total - 1 || isSubmitting}
-          title="Next field (→)"
-        >
-          Next
-          <kbd className="rfc-kbd">→</kbd>
-          <ChevronRight size={16} />
-        </button>
-      </div>
-
-      {/* ── Keyboard hint ── */}
-      <div className="rfc-hint-strip">
-        <Zap size={11} color="var(--primary-cyan)" />
-          <span>Shortcuts: <kbd className="rfc-kbd">A</kbd>/<kbd className="rfc-kbd">Space</kbd> accept · <kbd className="rfc-kbd">E</kbd> edit · <kbd className="rfc-kbd">R</kbd> reject · <kbd className="rfc-kbd">← →</kbd> navigate</span>
+      {/* Keyboard Hint Footer */}
+      <div className="bg-surface-container-high py-2 px-4 border-t border-outline-variant/10 flex items-center justify-center gap-1.5 text-xs font-medium text-on-surface-variant">
+        <Zap size={14} className="text-primary" />
+        <span>Keyboard:</span>
+        <kbd className="px-1 py-0.5 bg-surface-variant rounded border border-outline-variant/30">Space</kbd> <span>accept</span>
+        <span>·</span>
+        <kbd className="px-1 py-0.5 bg-surface-variant rounded border border-outline-variant/30">E</kbd> <span>edit</span>
+        <span>·</span>
+        <kbd className="px-1 py-0.5 bg-surface-variant rounded border border-outline-variant/30">R</kbd> <span>reject</span>
       </div>
     </div>
   );

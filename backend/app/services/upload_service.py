@@ -334,8 +334,13 @@ async def process_single_upload(
     
     return doc
 
-def get_all_documents(db: Session) -> List[Document]:
-    return db.query(Document).order_by(Document.uploaded_at.desc()).all()
+def get_all_documents(db: Session, needs_review: Optional[bool] = None, document_type: Optional[str] = None) -> List[Document]:
+    query = db.query(Document)
+    if needs_review is not None:
+        query = query.filter(Document.needs_manual_review == needs_review)
+    if document_type:
+        query = query.filter(Document.document_type == document_type)
+    return query.order_by(Document.uploaded_at.desc()).all()
 
 def get_document_by_id(db: Session, document_id: str) -> Optional[Document]:
     return db.query(Document).filter(Document.document_id == document_id).first()

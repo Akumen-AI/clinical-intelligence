@@ -20,7 +20,6 @@ export default function FileUploader({ onUploadSuccess }) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
-  const [uploadSummary, setUploadSummary] = useState(null);
   const fileInputRef = useRef(null);
 
   const getExtension = (filename) => {
@@ -33,7 +32,6 @@ export default function FileUploader({ onUploadSuccess }) {
     if (!files.length) return;
     setSelectedFiles((prev) => [...prev, ...files]);
     setErrorMessage(null);
-    setUploadSummary(null);
   };
 
   const handleDragOver = (e) => {
@@ -54,7 +52,6 @@ export default function FileUploader({ onUploadSuccess }) {
 
     setSelectedFiles((prev) => [...prev, ...files]);
     setErrorMessage(null);
-    setUploadSummary(null);
   };
 
   const removeFile = (indexToRemove) => {
@@ -67,7 +64,6 @@ export default function FileUploader({ onUploadSuccess }) {
     setIsUploading(true);
     setErrorMessage(null);
     setSuccessMessage(null);
-    setUploadSummary(null);
     setUploadProgress(30);
 
     try {
@@ -76,7 +72,6 @@ export default function FileUploader({ onUploadSuccess }) {
       setUploadProgress(100);
 
       if (result && typeof result === 'object') {
-        setUploadSummary(result);
         if (result.rejected_count > 0 && result.accepted_count > 0) {
           setErrorMessage(`Upload Warning: ${result.accepted_count} file(s) accepted & queued, ${result.rejected_count} file(s) rejected.`);
         } else if (result.accepted_count > 0) {
@@ -119,209 +114,141 @@ export default function FileUploader({ onUploadSuccess }) {
   };
 
   return (
-    <div className="glass-card" style={{ marginBottom: '2rem' }}>
-      <div className="section-header">
+    <div className="bg-surface-container rounded-2xl border border-outline-variant/20 overflow-hidden mb-8">
+      <div className="p-6 border-b border-outline-variant/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="section-title">Upload Clinical Documents</h2>
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+          <h3 className="text-headline-lg font-headline-lg text-on-surface mb-1">Upload Clinical Documents</h3>
+          <p className="text-body-md font-body-md text-on-surface-variant">
             Validation Service checks extension, MIME type, file size (&lt;20MB), and PDF/Image readability before queueing.
           </p>
         </div>
-        <span className="tag" style={{ background: 'rgba(56, 189, 248, 0.15)', color: 'var(--primary-cyan)' }}>
-          Epic 1.3 Validation Engine
-        </span>
+        <div className="px-3 py-1.5 rounded-md bg-surface-variant border border-outline-variant/30 text-label-caps font-label-caps text-secondary shrink-0">
+          Validation Engine
+        </div>
       </div>
 
       {errorMessage && (
-        <div className="alert-banner error" style={{ margin: '1rem 0' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <AlertTriangle size={20} color="#ef4444" />
+        <div className="mx-6 mt-6 px-4 py-3 rounded-lg bg-error-container/10 border border-error/30 text-error flex justify-between items-center text-sm">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={18} />
             <span>{errorMessage}</span>
           </div>
-          <button className="btn-icon" onClick={() => setErrorMessage(null)}><X size={16} /></button>
+          <button className="text-error/80 hover:text-error" onClick={() => setErrorMessage(null)}><X size={16} /></button>
         </div>
       )}
 
       {successMessage && (
-        <div className="alert-banner success" style={{ margin: '1rem 0' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <CheckCircle size={20} color="#10b981" />
+        <div className="mx-6 mt-6 px-4 py-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 flex justify-between items-center text-sm">
+          <div className="flex items-center gap-2">
+            <CheckCircle size={18} />
             <span>{successMessage}</span>
           </div>
-          <button className="btn-icon" onClick={() => setSuccessMessage(null)}><X size={16} /></button>
+          <button className="text-emerald-500/80 hover:text-emerald-500" onClick={() => setSuccessMessage(null)}><X size={16} /></button>
         </div>
       )}
-
-      {/* Batch Summary Box */}
-      {uploadSummary && (
-        <div className="glass-card" style={{ 
-          margin: '1rem 0', 
-          padding: '1.25rem', 
-          background: 'rgba(15, 23, 42, 0.8)', 
-          border: '1px solid var(--border-light)' 
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h4 style={{ margin: 0, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <FileCheck size={18} color="var(--primary-cyan)" />
-              Batch Upload Results ({uploadSummary.total_uploaded} Files Processed)
-            </h4>
-            <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.85rem' }}>
-              <span className="badge-status badge-QUEUED">
-                {uploadSummary.accepted_count} Accepted
-              </span>
-              {uploadSummary.rejected_count > 0 && (
-                <span className="badge-status badge-FAILED">
-                  {uploadSummary.rejected_count} Rejected
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {/* Accepted items list */}
-            {uploadSummary.accepted && uploadSummary.accepted.map((item, i) => (
-              <div key={`acc-${i}`} style={{
-                display: 'flex',
-                justify: 'space-between',
-                alignItems: 'center',
-                padding: '0.5rem 0.75rem',
-                background: 'rgba(16, 185, 129, 0.1)',
-                border: '1px solid rgba(16, 185, 129, 0.3)',
-                borderRadius: '6px',
-                fontSize: '0.85rem'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <CheckCircle size={16} color="#10b981" />
-                  <span style={{ fontWeight: '600', color: 'var(--text-main)' }}>{item.filename}</span>
-                </div>
-                <span className="tag" style={{ background: '#10b981', color: '#fff' }}>QUEUED</span>
-              </div>
-            ))}
-
-            {/* Rejected items list */}
-            {uploadSummary.rejected && uploadSummary.rejected.map((item, i) => (
-              <div key={`rej-${i}`} style={{
-                display: 'flex',
-                justify: 'space-between',
-                alignItems: 'center',
-                padding: '0.5rem 0.75rem',
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                borderRadius: '6px',
-                fontSize: '0.85rem'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <XCircle size={16} color="#ef4444" />
-                  <span style={{ fontWeight: '600', color: '#fca5a5' }}>{item.filename}</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ color: '#ef4444', fontSize: '0.8rem', fontWeight: '500' }}>
-                    ❌ {item.reason}
-                  </span>
-                  <span className="tag" style={{ background: '#ef4444', color: '#fff' }}>REJECTED</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Drag & Drop Zone */}
-      <div
-        className={`dropzone-container ${isDragging ? 'active' : ''}`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
-      >
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileSelect}
-          multiple
-          accept=".pdf,.png,.jpg,.jpeg,.tiff,.docx,.doc,.xls,.xlsx,.zip,.rar,.exe,.mp4,.mov"
-          style={{ display: 'none' }}
-        />
-        
-        <div className="upload-icon-wrapper">
-          <UploadCloud size={32} />
-        </div>
-        
-        <h3 className="dropzone-title">Drag & drop patient records here</h3>
-        <p className="dropzone-subtitle">or click to browse your filesystem (bulk & mixed uploads supported)</p>
-        
-        <div className="allowed-tags">
-          <span className="tag">PDF</span>
-          <span className="tag">PNG</span>
-          <span className="tag">JPG</span>
-          <span className="tag">JPEG</span>
-          <span className="tag">TIFF</span>
+      <div className="p-6 md:p-10">
+        <div
+          className={`border-2 border-dashed rounded-2xl bg-surface-container-highest/30 transition-colors duration-300 group cursor-pointer flex flex-col items-center justify-center py-16 px-6 text-center ${
+            isDragging ? 'border-primary/80 bg-primary/5' : 'border-outline-variant/50 hover:border-secondary/60'
+          }`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            multiple
+            accept=".pdf,.png,.jpg,.jpeg,.tiff,.docx,.doc,.xls,.xlsx,.zip,.rar,.exe,.mp4,.mov"
+            style={{ display: 'none' }}
+          />
+          
+          <div className="w-20 h-20 rounded-full bg-secondary-container/20 border border-secondary/30 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 shadow-[0_0_20px_rgba(37,99,235,0.2)]">
+            <UploadCloud className="text-4xl text-secondary w-10 h-10" />
+          </div>
+          
+          <h4 className="text-headline-md font-headline-md text-on-surface mb-2">Drag & drop patient records here</h4>
+          <p className="text-body-lg font-body-lg text-on-surface-variant mb-8">or click to browse your filesystem (bulk & mixed uploads supported)</p>
+          
+          <div className="flex flex-wrap justify-center gap-3">
+            <span className="px-3 py-1 rounded bg-surface-variant text-label-caps font-label-caps text-on-surface-variant border border-outline-variant/20">PDF</span>
+            <span className="px-3 py-1 rounded bg-surface-variant text-label-caps font-label-caps text-on-surface-variant border border-outline-variant/20">PNG</span>
+            <span className="px-3 py-1 rounded bg-surface-variant text-label-caps font-label-caps text-on-surface-variant border border-outline-variant/20">JPG</span>
+            <span className="px-3 py-1 rounded bg-surface-variant text-label-caps font-label-caps text-on-surface-variant border border-outline-variant/20">JPEG</span>
+            <span className="px-3 py-1 rounded bg-surface-variant text-label-caps font-label-caps text-on-surface-variant border border-outline-variant/20">TIFF</span>
+          </div>
         </div>
       </div>
 
       {/* Upload Progress Bar */}
       {isUploading && (
-        <div className="progress-bar-container">
-          <div className="progress-bar-fill" style={{ width: `${uploadProgress}%` }} />
+        <div className="h-1.5 w-full bg-outline-variant/30 overflow-hidden">
+          <div 
+            className="h-full bg-gradient-to-r from-primary to-secondary transition-all duration-300" 
+            style={{ width: `${uploadProgress}%` }} 
+          />
         </div>
       )}
 
       {/* Selected File List */}
       {selectedFiles.length > 0 && (
-        <div className="file-preview-list">
-          <div style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-muted)', margin: '0.5rem 0' }}>
+        <div className="px-6 md:px-10 pb-10">
+          <div className="text-sm font-semibold text-on-surface-variant mb-3">
             Files Ready for Validation & Upload ({selectedFiles.length})
           </div>
-          {selectedFiles.map((file, idx) => {
-            const ext = getExtension(file.name);
-            const isSupported = ALLOWED_TYPES.includes(ext);
-            return (
-              <div key={idx} className="file-preview-item" style={{
-                borderColor: !isSupported ? 'rgba(239, 68, 68, 0.4)' : undefined,
-                background: !isSupported ? 'rgba(239, 68, 68, 0.05)' : undefined
-              }}>
-                <div className="file-info">
-                  <FileText size={20} color={isSupported ? 'var(--primary-cyan)' : '#ef4444'} />
-                  <div>
-                    <div className="file-name" style={{ color: isSupported ? 'var(--text-main)' : '#fca5a5' }}>
-                      {file.name} {!isSupported && <span style={{ color: '#ef4444', fontSize: '0.75rem' }}>(Will be rejected)</span>}
-                    </div>
-                    <div className="file-size">
-                      {formatFileSize(file.size)} • {ext.toUpperCase() || 'UNKNOWN'}
+          <div className="flex flex-col gap-3">
+            {selectedFiles.map((file, idx) => {
+              const ext = getExtension(file.name);
+              const isSupported = ALLOWED_TYPES.includes(ext);
+              return (
+                <div key={idx} className={`flex items-center justify-between p-3 rounded-xl border ${
+                  isSupported ? 'bg-surface-variant/40 border-outline-variant/40' : 'bg-error-container/5 border-error/30'
+                }`}>
+                  <div className="flex items-center gap-3">
+                    <FileText size={20} className={isSupported ? 'text-primary' : 'text-error'} />
+                    <div>
+                      <div className={`text-sm font-medium ${isSupported ? 'text-on-surface' : 'text-error/90'}`}>
+                        {file.name} {!isSupported && <span className="text-error text-xs ml-2">(Will be rejected)</span>}
+                      </div>
+                      <div className="text-xs text-on-surface-variant/70">
+                        {formatFileSize(file.size)} • {ext.toUpperCase() || 'UNKNOWN'}
+                      </div>
                     </div>
                   </div>
+                  <button
+                    type="button"
+                    className="p-1.5 rounded-md text-on-surface-variant hover:text-error hover:bg-error-container/10 transition-colors"
+                    onClick={(e) => { e.stopPropagation(); removeFile(idx); }}
+                    disabled={isUploading}
+                  >
+                    <X size={18} />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  className="btn-icon"
-                  onClick={() => removeFile(idx)}
-                  title="Remove file"
-                  disabled={isUploading}
-                >
-                  <X size={18} />
-                </button>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1.25rem' }}>
+          <div className="flex justify-end gap-4 mt-6">
             <button
               type="button"
-              className="btn btn-secondary"
-              onClick={() => { setSelectedFiles([]); setUploadSummary(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+              className="px-5 py-2.5 rounded-lg font-semibold text-sm bg-surface-variant border border-outline-variant/30 text-on-surface hover:bg-surface-variant/80 transition-colors"
+              onClick={() => { setSelectedFiles([]); if (fileInputRef.current) fileInputRef.current.value = ''; }}
               disabled={isUploading}
             >
               Clear All
             </button>
             <button
               type="button"
-              className="btn btn-primary"
+              className="px-5 py-2.5 rounded-lg font-semibold text-sm bg-gradient-to-r from-primary to-secondary text-white shadow-lg shadow-primary/20 hover:opacity-90 transition-all flex items-center gap-2 disabled:opacity-50"
               onClick={handleUploadSubmit}
               disabled={isUploading}
             >
               {isUploading ? (
                 <>
-                  <Loader2 size={18} className="spin" style={{ animation: 'spin 1s linear infinite' }} />
+                  <Loader2 size={18} className="animate-spin" />
                   Validating & Ingesting...
                 </>
               ) : (
@@ -331,13 +258,6 @@ export default function FileUploader({ onUploadSuccess }) {
           </div>
         </div>
       )}
-
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 }

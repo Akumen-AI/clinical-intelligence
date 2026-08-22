@@ -6,23 +6,67 @@ import {
   Send,
   FileText,
   AlertTriangle,
-  Info
+  Info,
+  ExternalLink,
+  PlusCircle,
+  FileSearch
 } from 'lucide-react';
 import { askPatientQuestion, getDocumentFileUrl, fetchPatient } from '../services/api';
 import { useParams, useNavigate } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+const parseSnippetData = (snippet) => {
+  if (!snippet) return { type: 'text', text: '' };
+  
+  if (snippet.includes('"test_name"')) {
+    const labResults = [];
+    const parts = snippet.split('"test_name"');
+    for (let i = 1; i < parts.length; i++) {
+       const part = parts[i];
+       const nameMatch = part.match(/^\s*:\s*"([^"]+)"/);
+       const valMatch = part.match(/"value"\s*:\s*"?([^",}]+)"?/);
+       const unitMatch = part.match(/"unit"\s*:\s*"([^"]+)"/);
+       const flagMatch = part.match(/"flag"\s*:\s*"([^"]+)"/);
+       
+       if (nameMatch && valMatch) {
+         labResults.push({
+           name: nameMatch[1],
+           value: valMatch[1].replace(/"/g, ''),
+           unit: unitMatch ? unitMatch[1] : '',
+           flag: flagMatch && flagMatch[1] !== 'null' ? flagMatch[1] : ''
+         });
+       }
+    }
+    if (labResults.length > 0) {
+      return { type: 'labs', data: labResults };
+    }
+  }
+  
+  if (snippet.includes('":')) {
+    let clean = snippet.replace(/[{}]/g, '').trim();
+    clean = clean.replace(/"([^"]+)"\s*:/g, '$1:').replace(/"/g, '');
+    return { type: 'text', text: clean };
+  }
+  
+  return { type: 'text', text: snippet };
+};
 
 export default function PatientQAPage() {
   const { patientId } = useParams();
   const navigate = useNavigate();
   const [patientIdInput, setPatientIdInput] = useState(patientId || '');
   const [activePatientId, setActivePatientId] = useState('');
+  const [activePatient, setActivePatient] = useState(null);
   
   // Chat state
-  const [history, setHistory] = useState([]); // { role: 'user' | 'assistant', text: string, sources: [] }
+  const [history, setHistory] = useState([]); // { role: 'user' | 'assistant', text: string, sources: CitationSchema[] }
   const [question, setQuestion] = useState('');
+  const [conversationId, setConversationId] = useState(null);
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [errorType, setErrorType] = useState(null); // 'not_found', 'server_error', 'validation'
+  
   const chatEndRef = useRef(null);
 
   // Auto-scroll to bottom of chat
@@ -34,7 +78,6 @@ export default function PatientQAPage() {
   useEffect(() => {
     if (patientId && patientId !== activePatientId) {
       setPatientIdInput(patientId);
-      // Trigger load patient automatically if route changes
       loadPatientData(patientId);
     }
   }, [patientId]);
@@ -47,14 +90,16 @@ export default function PatientQAPage() {
     setErrorType(null);
     
     try {
-      await fetchPatient(idToLoad);
+      const patientData = await fetchPatient(idToLoad);
       setActivePatientId(idToLoad);
-      setHistory([]);
-      setQuestion('');
+      setActivePatient(patientData);
+      // Explicitly clear conversation context when switching patients
+      resetConversation();
     } catch (err) {
       setError(`Patient '${idToLoad}' not found. Please verify the ID/MRN.`);
       setErrorType('not_found');
       setActivePatientId('');
+      setActivePatient(null);
     } finally {
       setLoading(false);
     }
@@ -69,11 +114,17 @@ export default function PatientQAPage() {
   const handleClearPatient = () => {
     setPatientIdInput('');
     setActivePatientId('');
-    setHistory([]);
-    setQuestion('');
+    setActivePatient(null);
+    resetConversation();
     setError(null);
     setErrorType(null);
     navigate('/patients');
+  };
+
+  const resetConversation = () => {
+    setHistory([]);
+    setQuestion('');
+    setConversationId(null);
   };
 
   const handleAskQuestion = async (e) => {
@@ -88,11 +139,19 @@ export default function PatientQAPage() {
     setErrorType(null);
 
     try {
-      const data = await askPatientQuestion(activePatientId, userQuestion);
+      const data = await askPatientQuestion(activePatientId, userQuestion, conversationId);
+      
+      // Store the conversation ID returned by the backend for subsequent turns
+      if (data.conversation_id) {
+        setConversationId(data.conversation_id);
+      }
+
+      const sources = data.citations || data.source_documents || [];
+      
       setHistory(prev => [...prev, { 
         role: 'assistant', 
         text: data.answer,
-        sources: data.source_documents || []
+        sources: sources
       }]);
     } catch (err) {
       console.error('Failed to ask question:', err);
@@ -122,230 +181,329 @@ export default function PatientQAPage() {
     }
   };
 
+  // Derive the active contexts for the right-hand browser based on the *most recent* assistant response
+  const activeContexts = history.length > 0 && history[history.length - 1].role === 'assistant' 
+    ? history[history.length - 1].sources || [] 
+    : [];
+
+  // Group contexts by document_id to avoid duplicates
+  const groupedContexts = React.useMemo(() => {
+    const groups = {};
+    activeContexts.forEach(ctx => {
+      const docId = typeof ctx === 'string' ? ctx : ctx.document_id;
+      if (!groups[docId]) {
+        groups[docId] = {
+          docId,
+          snippets: []
+        };
+      }
+      if (typeof ctx === 'object') {
+        groups[docId].snippets.push(ctx);
+      }
+    });
+    return Object.values(groups);
+  }, [activeContexts]);
+
   return (
-    <div className="app-container" style={{ paddingBottom: '3rem', height: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div className="app-container flex-1 flex flex-col min-h-0">
+      
       {/* Header Section */}
-      <header className="app-header" style={{ flexShrink: 0 }}>
+      <header className="app-header">
         <div className="brand-wrapper">
-          <div className="brand-logo" style={{ background: 'linear-gradient(135deg, var(--primary-violet), var(--primary-cyan))' }}>
+          <div className="brand-logo" style={{ background: 'linear-gradient(135deg, var(--accent-emerald), var(--primary-cyan))' }}>
             <MessageCircleQuestion size={26} color="#ffffff" />
           </div>
           <div className="brand-title">
-            <h1>Patient Q&A</h1>
-            <p>Query clinical intelligence scoped to a specific patient</p>
+            <h1>Patient Clinical Q&A</h1>
+            <p>Query verified clinical intelligence scoped to a specific patient.</p>
           </div>
         </div>
-      </header>
 
-      {/* Patient Selection Toolbar */}
-      <div className="glass-card" style={{ marginBottom: '1.5rem', padding: '1.25rem 1.5rem', flexShrink: 0 }}>
-        <form onSubmit={handleLoadPatient} style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary-violet)', fontWeight: '600', fontSize: '0.9rem' }}>
+        {/* Patient Selection Form */}
+        <form onSubmit={handleLoadPatient} className="flex items-center gap-3 bg-surface-container-high px-4 py-1.5 rounded-xl border border-outline-variant/20">
+          <div className="flex items-center gap-2 text-sm font-semibold text-primary">
             <User size={16} />
-            <span>Target Patient:</span>
+            <span className="hidden sm:inline-block">Target Patient:</span>
           </div>
 
-          <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
-            <User size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+          <div className="relative w-48">
             <input
               type="text"
-              placeholder="Enter Patient ID (e.g. P001)..."
+              placeholder="e.g. P001..."
               value={patientIdInput}
               onChange={(e) => setPatientIdInput(e.target.value)}
               disabled={!!activePatientId}
-              style={{
-                width: '100%',
-                padding: '0.6rem 0.85rem 0.6rem 2.5rem',
-                background: 'rgba(15, 23, 42, 0.7)',
-                border: '1px solid var(--border-light)',
-                borderRadius: 'var(--radius-md)',
-                color: 'var(--text-main)',
-                fontSize: '0.875rem',
-                outline: 'none',
-                opacity: activePatientId ? 0.6 : 1
-              }}
+              className="w-full pl-3 pr-3 py-1.5 bg-surface-container-highest/50 border border-outline-variant/40 rounded-lg text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-60"
             />
           </div>
 
           {!activePatientId ? (
-            <button type="submit" className="btn btn-primary" disabled={loading} style={{ padding: '0.6rem 1.25rem', fontSize: '0.85rem', background: 'linear-gradient(135deg, var(--primary-violet), var(--primary-blue))', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              {loading && <RefreshCw size={14} className="spin" />}
-              {loading ? 'Loading...' : 'Load Patient'}
+            <button type="submit" disabled={loading} className="btn btn-primary px-4 py-1.5 text-sm whitespace-nowrap flex items-center gap-2">
+              {loading && <RefreshCw size={14} className="animate-spin" />}
+              {loading ? 'Loading...' : 'Load'}
             </button>
           ) : (
-            <button type="button" className="btn btn-secondary" onClick={handleClearPatient} style={{ padding: '0.6rem 1rem', fontSize: '0.85rem' }}>
-              Change Patient
+            <button type="button" onClick={handleClearPatient} className="btn btn-secondary px-4 py-1.5 text-sm whitespace-nowrap">
+              Change
             </button>
           )}
         </form>
-      </div>
+      </header>
 
-      {/* Global Error Banner for Patient Loading */}
+      {/* Global Error for Patient Loading */}
       {error && !activePatientId && (
-        <div 
-          className={`alert-banner ${errorType === 'server_error' ? 'error' : ''}`} 
-          style={{ 
-            marginBottom: '1.5rem',
-            ...(errorType !== 'server_error' ? { 
-              background: 'rgba(245, 158, 11, 0.12)', 
-              border: '1px solid rgba(245, 158, 11, 0.3)', 
-              color: '#FCD34D' 
-            } : {})
-          }}
-        >
-          {errorType === 'server_error' ? <AlertTriangle size={18} style={{ flexShrink: 0 }} /> : <Info size={18} style={{ flexShrink: 0 }} />}
-          <span style={{ marginLeft: '0.75rem' }}>{error}</span>
+        <div className={`p-4 mb-6 rounded-xl border flex items-start gap-3 ${errorType === 'server_error' ? 'bg-error-container/20 border-error/30 text-error' : 'bg-amber-500/10 border-amber-500/30 text-amber-500'}`}>
+          {errorType === 'server_error' ? <AlertTriangle size={20} className="shrink-0 mt-0.5" /> : <Info size={20} className="shrink-0 mt-0.5" />}
+          <span className="font-medium">{error}</span>
         </div>
       )}
 
-      {/* Main Chat Area */}
       {!activePatientId ? (
-        <div className="glass-card" style={{ textAlign: 'center', padding: '5rem 1.5rem', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-          <MessageCircleQuestion size={48} color="var(--text-muted)" style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
-          <h3 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--text-main)' }}>
-            No patient loaded
-          </h3>
-          <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', maxWidth: '460px', margin: '0 auto' }}>
-            Enter a Patient ID above to start asking questions about their clinical records.
-          </p>
+        <div className="flex-1 flex flex-col items-center justify-center bg-surface-container rounded-2xl border border-outline-variant/20 p-8 text-center mt-4">
+          <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
+            <MessageCircleQuestion size={40} className="text-primary" />
+          </div>
+          <h2 className="text-headline-sm font-headline-sm text-on-surface mb-2">No patient loaded</h2>
+          <p className="text-on-surface-variant max-w-md">Enter a Patient ID above to securely query their clinical documents and records via RAG.</p>
         </div>
       ) : (
-        <div className="glass-card" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}>
+        <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0">
           
-          {/* Chat History */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            {history.length === 0 && !loading && !error && (
-              <div style={{ textAlign: 'center', margin: 'auto', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                <p>Ask a question about Patient <strong>{activePatientId}</strong>.</p>
-                <p style={{ fontSize: '0.8rem', marginTop: '0.5rem', opacity: 0.7 }}>e.g., "What medications is the patient taking?"</p>
-              </div>
-            )}
-
-            {history.map((msg, i) => (
-              <div key={i} style={{ 
-                alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                maxWidth: '85%',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.5rem'
-              }}>
-                <div style={{
-                  background: msg.role === 'user' 
-                    ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(59, 130, 246, 0.2))' 
-                    : 'rgba(15, 23, 42, 0.6)',
-                  border: `1px solid ${msg.role === 'user' ? 'rgba(139, 92, 246, 0.4)' : 'var(--border-light)'}`,
-                  borderRadius: 'var(--radius-md)',
-                  padding: '1rem 1.25rem',
-                  color: 'var(--text-main)',
-                  fontSize: '0.95rem',
-                  lineHeight: '1.5',
-                  whiteSpace: 'pre-wrap'
-                }}>
-                  {msg.text}
+          {/* ── Left Pane: Chat Thread ── */}
+          <div className="flex-1 flex flex-col bg-surface-container rounded-2xl border border-outline-variant/20 overflow-hidden relative shadow-sm min-h-[500px]">
+            
+            {/* Patient Context Header */}
+            {activePatient && (
+              <div className="bg-surface-container-highest/40 border-b border-outline-variant/10 px-5 py-4 flex justify-between items-center shrink-0">
+                <div>
+                  <h2 className="text-lg font-bold text-on-surface">
+                    Patient Context: {activePatient.name || 'Unknown Name'}
+                  </h2>
+                  <div className="text-sm text-on-surface-variant flex items-center gap-2 mt-1">
+                    <span>MRN: #{activePatient.mrn || activePatient.patient_number || activePatient.patient_id.slice(0, 8)}</span>
+                    <span>&bull;</span>
+                    <span>{activePatient.sex || 'Unknown'}</span>
+                    <span>&bull;</span>
+                    <span>{activePatient.dob ? `${Math.floor((new Date() - new Date(activePatient.dob)) / 31557600000)}y` : 'Age Unknown'}</span>
+                  </div>
                 </div>
-                
-                {/* Sources Chips */}
-                {msg.sources && msg.sources.length > 0 && (() => {
-                  const uniqueDocIds = Array.from(new Set(msg.sources.map(source => typeof source === 'string' ? source : source.document_id)));
-                  return (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', paddingLeft: '0.25rem' }}>
-                      {uniqueDocIds.map((docId, idx) => (
-                        <a
-                          key={`${docId}-${idx}`}
-                          href={getDocumentFileUrl(docId)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.3rem',
-                            background: 'rgba(6, 182, 212, 0.1)',
-                            border: '1px solid rgba(6, 182, 212, 0.25)',
-                            padding: '0.2rem 0.6rem',
-                            borderRadius: 'var(--radius-full)',
-                            fontSize: '0.75rem',
-                            color: 'var(--primary-cyan)',
-                            textDecoration: 'none',
-                            transition: 'all 0.2s'
-                          }}
-                          onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(6, 182, 212, 0.2)'; e.currentTarget.style.borderColor = 'rgba(6, 182, 212, 0.4)'; }}
-                          onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(6, 182, 212, 0.1)'; e.currentTarget.style.borderColor = 'rgba(6, 182, 212, 0.25)'; }}
-                        >
-                          <FileText size={12} />
-                          Source {idx + 1}
-                        </a>
-                      ))}
-                    </div>
-                  );
-                })()}
-              </div>
-            ))}
-
-            {loading && (
-              <div style={{ alignSelf: 'flex-start', background: 'rgba(15, 23, 42, 0.6)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '1rem 1.25rem' }}>
-                <RefreshCw size={20} className="spin" color="var(--primary-cyan)" />
+                <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  AI Active
+                </div>
               </div>
             )}
             
-            {error && (
-              <div 
-                className={`alert-banner ${errorType === 'server_error' ? 'error' : ''}`} 
-                style={{ 
-                  alignSelf: 'center', 
-                  maxWidth: '85%', 
-                  marginBottom: 0,
-                  ...(errorType !== 'server_error' ? { 
-                    background: 'rgba(245, 158, 11, 0.12)', 
-                    border: '1px solid rgba(245, 158, 11, 0.3)', 
-                    color: '#FCD34D' 
-                  } : {})
-                }}
-              >
-                {errorType === 'server_error' ? <AlertTriangle size={18} style={{ flexShrink: 0 }} /> : <Info size={18} style={{ flexShrink: 0 }} />}
-                <span style={{ marginLeft: '0.75rem' }}>{error}</span>
+            {/* Chat Toolbar */}
+            <div className="flex justify-between items-center px-4 py-2 bg-surface-container-high border-b border-outline-variant/10 shadow-sm shrink-0">
+              <div className="flex items-center gap-2">
+                {/* Replaced by AI Active badge in header, but keeping this for spacing/legacy if needed, or remove it */}
               </div>
-            )}
+              <div className="flex items-center gap-4 ml-auto">
+                {conversationId && (
+                  <span className="text-xs font-mono text-on-surface-variant/50 hidden sm:inline-block border border-outline-variant/20 px-2 py-0.5 rounded">
+                    Conv: {conversationId.slice(0, 8)}...
+                  </span>
+                )}
+                <button onClick={resetConversation} className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 transition-colors">
+                  <PlusCircle size={14} /> New Conversation
+                </button>
+              </div>
+            </div>
 
-            <div ref={chatEndRef} />
+            {/* Messages Area */}
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 flex flex-col gap-6 scroll-smooth bg-surface-container-highest/20">
+              {history.length === 0 && !loading && !error && (
+                <div className="m-auto text-center flex flex-col items-center">
+                  <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4 border border-primary/20">
+                    <MessageCircleQuestion size={32} className="text-primary" />
+                  </div>
+                  <h3 className="text-lg font-bold text-on-surface mb-2">How can I help you?</h3>
+                  <p className="text-on-surface-variant text-sm mb-4">Ask a question about Patient <strong className="text-on-surface">{activePatientId}</strong>.</p>
+                  <div className="flex flex-col gap-2 w-full max-w-sm">
+                    <button onClick={() => setQuestion("What are the patient's active medications?")} className="px-4 py-2 bg-surface-container hover:bg-surface-variant rounded-lg border border-outline-variant/20 text-sm font-medium text-left transition-colors">
+                      "What are the patient's active medications?"
+                    </button>
+                    <button onClick={() => setQuestion("What were the latest lab results?")} className="px-4 py-2 bg-surface-container hover:bg-surface-variant rounded-lg border border-outline-variant/20 text-sm font-medium text-left transition-colors">
+                      "What were the latest lab results?"
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {history.map((msg, i) => {
+                const isUser = msg.role === 'user';
+                const hasSources = msg.sources && msg.sources.length > 0;
+                // Treat as fallback if assistant has 0 sources (ungrounded)
+                const isFallback = !isUser && !hasSources;
+
+                return (
+                  <div key={i} className={`flex flex-col max-w-[90%] sm:max-w-[85%] ${isUser ? 'self-end' : 'self-start'} group animate-fade-in-up`}>
+                    
+                    {/* Bubble */}
+                    <div className={`p-4 md:p-5 rounded-2xl shadow-sm text-sm md:text-base leading-relaxed break-words ${
+                      isUser 
+                        ? 'bg-primary text-on-primary rounded-tr-sm' 
+                        : isFallback 
+                          ? 'bg-amber-500/10 border border-amber-500/30 text-amber-500 rounded-tl-sm' 
+                          : 'bg-surface-container-high border border-outline-variant/30 text-on-surface rounded-tl-sm'
+                    }`}>
+                      {isFallback && (
+                        <div className="flex items-center gap-2 mb-2 font-bold uppercase tracking-wider text-[10px] text-amber-500/80">
+                          <AlertTriangle size={12} /> No Grounded Sources Found
+                        </div>
+                      )}
+                      <div className="markdown-content">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {msg.text}
+                        </ReactMarkdown>
+                      </div>
+                    </div>
+                    
+                    {/* Inline Citation Chips */}
+                    {!isUser && hasSources && (
+                      <div className="flex flex-wrap gap-2 mt-2 pl-1">
+                        {Array.from(new Set(msg.sources.map(s => typeof s === 'string' ? s : s.document_id))).map((docId, idx) => (
+                          <a
+                            key={`${docId}-${idx}`}
+                            href={getDocumentFileUrl(docId)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-surface-variant/50 hover:bg-primary/10 border border-outline-variant/30 hover:border-primary/30 rounded-full text-[11px] font-bold text-on-surface-variant hover:text-primary transition-colors no-underline"
+                            title={`View source document (ID: ${docId})`}
+                          >
+                            <FileText size={12} />
+                            Source {idx + 1}
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {loading && (
+                <div className="self-start max-w-[85%] bg-surface-container-high border border-outline-variant/30 rounded-2xl rounded-tl-sm p-5 shadow-sm animate-fade-in-up">
+                  <div className="flex items-center gap-3 text-primary">
+                    <RefreshCw size={18} className="animate-spin" />
+                    <span className="text-sm font-semibold">Analyzing clinical records...</span>
+                  </div>
+                </div>
+              )}
+              
+              {error && (
+                <div className={`self-center max-w-[85%] w-full p-4 rounded-xl border flex items-start gap-3 mt-4 ${errorType === 'server_error' ? 'bg-error-container/20 border-error/30 text-error' : 'bg-amber-500/10 border-amber-500/30 text-amber-500'}`}>
+                  {errorType === 'server_error' ? <AlertTriangle size={18} className="shrink-0 mt-0.5" /> : <Info size={18} className="shrink-0 mt-0.5" />}
+                  <span className="font-medium text-sm">{error}</span>
+                </div>
+              )}
+
+              <div ref={chatEndRef} className="h-4" />
+            </div>
+
+            {/* Disclaimer & Input Area */}
+            <div className="bg-surface-container-high border-t border-outline-variant/10 shrink-0 relative z-10 p-4">
+              <div className="text-[10px] sm:text-xs text-center text-on-surface-variant/60 font-medium mb-3 uppercase tracking-wider flex items-center justify-center gap-2">
+                <AlertTriangle size={12} className="opacity-70" /> 
+                AI generated responses should be verified against primary sources.
+              </div>
+              
+              <form onSubmit={handleAskQuestion} className="flex gap-3 relative max-w-4xl mx-auto">
+                <input
+                  type="text"
+                  placeholder={`Ask a question about Patient ${activePatientId}...`}
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  disabled={loading}
+                  className="flex-1 bg-surface-container-highest/60 border border-outline-variant/40 rounded-xl px-5 py-3.5 text-sm md:text-base text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all disabled:opacity-60 shadow-inner"
+                />
+                <button
+                  type="submit"
+                  disabled={!question.trim() || loading}
+                  className="btn btn-primary px-6 rounded-xl flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg active:scale-95 bg-gradient-to-r from-primary to-secondary"
+                >
+                  <Send size={18} className="text-white" />
+                </button>
+              </form>
+            </div>
           </div>
 
-          {/* Input Area */}
-          <div style={{ padding: '1.25rem', borderTop: '1px solid var(--border-light)', background: 'rgba(8, 12, 20, 0.4)' }}>
-            <form onSubmit={handleAskQuestion} style={{ display: 'flex', gap: '0.75rem' }}>
-              <input
-                type="text"
-                placeholder={`Ask a question about Patient ${activePatientId}...`}
-                value={question}
-                onChange={(e) => setQuestion(e.target.value)}
-                disabled={loading}
-                style={{
-                  flex: 1,
-                  padding: '0.85rem 1.25rem',
-                  background: 'rgba(15, 23, 42, 0.7)',
-                  border: '1px solid var(--border-light)',
-                  borderRadius: 'var(--radius-md)',
-                  color: 'var(--text-main)',
-                  fontSize: '0.95rem',
-                  outline: 'none',
-                  transition: 'border-color 0.2s'
-                }}
-                onFocus={(e) => e.target.style.borderColor = 'var(--primary-violet)'}
-                onBlur={(e) => e.target.style.borderColor = 'var(--border-light)'}
-              />
-              <button
-                type="submit"
-                disabled={!question.trim() || loading}
-                className="btn btn-primary"
-                style={{ 
-                  padding: '0 1.5rem',
-                  background: 'linear-gradient(135deg, var(--primary-violet), var(--primary-blue))',
-                  opacity: (!question.trim() || loading) ? 0.5 : 1
-                }}
-              >
-                <Send size={18} />
-              </button>
-            </form>
+          {/* ── Right Pane: Context Browser ── */}
+          <div className="w-full lg:w-[400px] xl:w-[450px] shrink-0 flex flex-col bg-surface-container rounded-2xl border border-outline-variant/20 overflow-hidden shadow-sm min-h-[400px]">
+            <div className="flex justify-between items-center px-5 py-4 bg-surface-container-high border-b border-outline-variant/10 shadow-sm shrink-0">
+              <h3 className="text-title-sm font-title-sm text-on-surface flex items-center gap-2">
+                <FileSearch className="text-secondary" size={18} /> Context Browser
+              </h3>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 bg-surface-container-highest/10 flex flex-col gap-4">
+              {groupedContexts.length === 0 ? (
+                <div className="m-auto text-center flex flex-col items-center justify-center h-full opacity-60">
+                  <FileSearch size={32} className="text-on-surface-variant mb-3" />
+                  <p className="text-sm font-semibold text-on-surface">No context available</p>
+                  <p className="text-xs text-on-surface-variant mt-1 max-w-[200px]">Sources for the AI's response will appear here.</p>
+                </div>
+              ) : (
+                groupedContexts.map((group, idx) => {
+                  const docId = group.docId;
+                  const fileUrl = getDocumentFileUrl(docId);
+
+                  return (
+                    <div key={docId} className="bg-surface-container-high border border-outline-variant/30 rounded-xl shadow-sm overflow-hidden flex flex-col animate-fade-in-up" style={{ animationDelay: `${idx * 100}ms` }}>
+                      <div className="flex justify-between items-center px-3 py-2 bg-surface-variant/40 border-b border-outline-variant/20">
+                        <div className="flex items-center gap-2">
+                          <FileText size={14} className="text-on-surface-variant" />
+                          <span className="text-xs font-bold text-on-surface truncate max-w-[200px]" title={docId}>
+                            Document {docId.slice(0, 8)}
+                          </span>
+                        </div>
+                        {fileUrl && (
+                          <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80 transition-colors" title="View Source">
+                            <ExternalLink size={14} />
+                          </a>
+                        )}
+                      </div>
+                      
+                      <div className="p-3 flex flex-col gap-3">
+                        {group.snippets.map((ctx, sIdx) => {
+                          const parsed = parseSnippetData(ctx.snippet);
+                          return (
+                            <div key={sIdx} className="text-sm text-on-surface/90">
+                              {parsed.type === 'labs' ? (
+                                <table className="w-full text-xs">
+                                  <tbody>
+                                    {parsed.data.map((lab, lIdx) => (
+                                      <tr key={lIdx} className="border-b border-outline-variant/10 last:border-0">
+                                        <td className="py-1.5 pr-2 font-medium">{lab.name}</td>
+                                        <td className={`py-1.5 text-right whitespace-nowrap ${lab.flag && lab.flag.toLowerCase() !== 'normal' ? 'text-amber-400 font-bold bg-amber-400/10 px-1 rounded' : ''}`}>
+                                          {lab.value} {lab.unit}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              ) : (
+                                <p className="italic font-serif leading-relaxed text-[13px] opacity-90 break-words border-l-2 border-primary/30 pl-2">
+                                  "{parsed.text}"
+                                </p>
+                              )}
+                              {ctx.location && (
+                                <div className="mt-2 text-[10px] text-on-surface-variant flex items-center gap-1 font-mono">
+                                  <span className="w-1 h-1 rounded-full bg-secondary/50"></span>
+                                  Loc: {ctx.location}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
+
         </div>
       )}
     </div>
