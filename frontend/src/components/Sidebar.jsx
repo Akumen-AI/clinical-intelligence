@@ -17,6 +17,7 @@ export const RBAC_MATRIX = {
   review: ['doctor', 'nurse', 'hospital_admin'],
   canonical: ['doctor', 'nurse', 'hospital_admin'],
   patients: ['doctor', 'nurse', 'hospital_admin'],
+  dashboards: ['hospital_admin', 'department_head'],
   policyChat: ['doctor', 'nurse', 'hospital_admin'],
   policyUpload: ['hospital_admin', 'it', 'compliance'],
 };
@@ -64,6 +65,12 @@ export default function Sidebar() {
           </NavLink>
         )}
 
+        {hasAccess(user.role, 'dashboards') && (
+          <NavLink to="/operations-dashboard" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+            <Activity size={18} />
+            <span>Operations Dashboard</span>
+          </NavLink>
+        )}
 
         <div className="sidebar-divider"></div>
         <div className="sidebar-section-title">Tools</div>
