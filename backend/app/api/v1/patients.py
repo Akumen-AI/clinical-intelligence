@@ -6,7 +6,7 @@ from sqlalchemy import or_
 from app.database import get_db
 from app.models.patient import Patient
 from app.models.document import Document
-from app.models.clinical_entities import Diagnosis, Medication, LabResult
+from app.models.clinical_entities import Diagnosis, Medication, LabResult, Allergy
 from app.schemas.patient import PatientCreate, PatientUpdate, PatientResponse, PatientProfileResponse, AskRequest, AskResponse
 from app.core.security import User
 from app.models.user import UserRole
@@ -72,13 +72,15 @@ def get_patient_records(
     diagnoses = db.query(Diagnosis).filter(Diagnosis.patient_id == patient_id).all()
     medications = db.query(Medication).filter(Medication.patient_id == patient_id).all()
     lab_results = db.query(LabResult).filter(LabResult.patient_id == patient_id).all()
+    allergies = db.query(Allergy).filter(Allergy.patient_id == patient_id).all()
 
     return {
         "patient": patient,
         "documents": documents,
         "diagnoses": diagnoses,
         "medications": medications,
-        "lab_results": lab_results
+        "lab_results": lab_results,
+        "allergies": allergies
     }
 
 

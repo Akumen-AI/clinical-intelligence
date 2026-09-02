@@ -6,6 +6,7 @@ import UploadPage from './pages/UploadPage';
 import ReviewQueuePage from './pages/ReviewQueuePage';
 
 import TimelinePage from './pages/TimelinePage';
+import PatientDashboardPage from './pages/PatientDashboardPage';
 import PolicyChatbot from './components/PolicyChatbot';
 import PolicyDocumentUploader from './components/PolicyDocumentUploader';
 import { Activity, ClipboardCheck, Database, Clock, MessageCircleQuestion, Users, LogOut } from 'lucide-react';
@@ -121,8 +122,14 @@ function App() {
           } />
           
           {/* Patient Details Redirection */}
-          <Route path="patients/:patientId" element={<Navigate to="/patients/:patientId/timeline" replace />} />
+          <Route path="patients/:patientId" element={<Navigate to="/patients/:patientId/dashboard" replace />} />
           
+          <Route path="patients/:patientId/dashboard" element={
+            <RoleProtectedRoute routeKey="patientDashboard">
+              <PatientDashboardPage />
+            </RoleProtectedRoute>
+          } />
+
           <Route path="patients/:patientId/timeline" element={
             <RoleProtectedRoute routeKey="patients">
               <TimelinePage />

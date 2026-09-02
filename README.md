@@ -111,6 +111,7 @@ clinical-intelligence/
 │   │   │   ├── v1/                        # V1 endpoints (Auth, Audit, Patients, etc.)
 │   │   │   │   ├── auth.py                # JWT authentication & login
 │   │   │   │   ├── audit_log.py           # Comprehensive system audit trails
+│   │   │   │   ├── dashboards.py          # Clinical dashboard composition & analytics
 │   │   │   │   ├── patients.py            # Patient record access with RBAC
 │   │   │   │   └── correction_logs.py     # Manual field correction history
 │   │   │   ├── upload.py                  # Document intake & status
@@ -160,10 +161,13 @@ clinical-intelligence/
 │   │   │   ├── ExtractedFieldsModal.jsx
 │   │   │   ├── DynamicJSONEditor.jsx      # Manual JSON correction modal
 │   │   │   ├── PolicyChatbot.jsx          # Embedded RAG policy chat UI
+│   │   │   ├── LabTrendChart.jsx          # Recharts-based clinical lab trends
+│   │   │   ├── PatientHeaderBanner.jsx    # Standardized patient context header
 │   │   │   └── PolicyDocumentUploader.jsx # RAG policy admin uploader
 │   │   ├── pages/
 │   │   │   ├── UploadPage.jsx             # Document management
 │   │   │   ├── PatientsPage.jsx           # Global patient directory
+│   │   │   ├── PatientDashboardPage.jsx   # Holistic patient clinical dashboard
 │   │   │   ├── TimelinePage.jsx           # Patient clinical timeline visualization
 │   │   │   ├── ReviewQueuePage.jsx        # Low confidence manual review queue
 │   │   │   └── PatientQAPage.jsx          # Context-aware patient QA
@@ -265,6 +269,26 @@ The backend will be available at **http://localhost:8000**.
 | [http://localhost:8000/docs](http://localhost:8000/docs) | Interactive Swagger API documentation |
 | [http://localhost:8000/redoc](http://localhost:8000/redoc) | ReDoc API specification |
 | [http://localhost:8000/ui](http://localhost:8000/ui) | Built-in standalone web interface |
+
+### Demo Patient Data
+
+The platform includes a script to seed a rich, believable clinical dataset into the database for demonstration and testing purposes. All data is purely synthetic with no real PHI, and uses a fixed random seed for reproducibility.
+
+Run the seed script in dev mode (it will automatically seed users if needed, then seed the patient data):
+```bash
+DEV_MODE=true python scripts/seed_all_demo_data.py
+```
+
+This single command populates the database with the following patient roster:
+- **MRN-2001, "Meena Pillai"**: Type 2 Diabetes Mellitus with a 5-point declining HbA1c trend and a medication switch (Glimepiride to Metformin) explicitly narrated in clinical notes for RAG querying.
+- **MRN-2002, "Thomas Varghese"**: Essential Hypertension with a rising Creatinine lab trend indicating declining renal function.
+- **MRN-2003, "Aleyamma Jacob"**: Asthma with stable Peak Flow measurements and multiple active inhalers.
+- **MRN-2004, "Rajeev Menon"**: Status post total knee replacement, demonstrating post-op medication discontinuation and document type variety (Admission Form, Discharge Summary, Referral).
+- **MRN-2005, "Kunjamma Thomas"**: Complex patient with CHF, CKD stage 3, and Type 2 Diabetes, featuring multiple lab trends (rising HbA1c, declining eGFR) and severe allergies.
+- **MRN-2006, "Sara K. Abraham"** and **MRN-2007, "Sara Abraham"**: A near-duplicate pair testing patient matching logic.
+- **MRN-2008, "Neha Fernandes"**: Prenatal patient showcasing non-standard document types (Admission Form and Referral).
+- **MRN-2009, "Vinod Kurian"**: Includes a document in `PENDING_REVIEW` state to populate the Review Queue, testing verification threshold gating.
+- **MRN-2010, "Priya Nair"**: Contains a human-verified correction log entry tracing a fixed OCR misread.
 
 ---
 
@@ -375,6 +399,7 @@ All document routes are served under `/api/v1/documents`.
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/api/v1/patients/{patient_id}` | Retrieve canonical patient records (RBAC protected). |
+| `GET` | `/api/v1/dashboards/{patient_id}` | Retrieve comprehensive clinical dashboard data including lab trends and active medications (RBAC protected). |
 | `POST` | `/api/v1/policy-chatbot/query` | Ask clinical and operational policy questions (RAG). |
 
 ---

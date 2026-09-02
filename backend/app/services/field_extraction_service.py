@@ -88,6 +88,7 @@ def extract_and_persist_fields(
         "lab_results": [l.model_dump() for l in fields.lab_results] if fields.lab_results else None,
         "symptoms": fields.symptoms if fields.symptoms else None,
         "procedures": fields.procedures if fields.procedures else None,
+        "allergies": [a.model_dump() for a in fields.allergies] if fields.allergies else None,
     }
 
     # Build string-valued field_map for cross-field consistency check

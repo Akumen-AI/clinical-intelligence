@@ -17,6 +17,7 @@ export const RBAC_MATRIX = {
   review: ['doctor', 'nurse', 'hospital_admin'],
   canonical: ['doctor', 'nurse', 'hospital_admin'],
   patients: ['doctor', 'nurse', 'hospital_admin'],
+  patientDashboard: ['doctor', 'hospital_admin'],
   policyChat: ['doctor', 'nurse', 'hospital_admin'],
   policyUpload: ['hospital_admin', 'it', 'compliance'],
 };
