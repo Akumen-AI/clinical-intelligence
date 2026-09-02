@@ -12,6 +12,7 @@ import PolicyDocumentUploader from './components/PolicyDocumentUploader';
 import { Activity, ClipboardCheck, Database, Clock, MessageCircleQuestion, Users, LogOut } from 'lucide-react';
 import PatientQAPage from './pages/PatientQAPage';
 import PatientsPage from './pages/PatientsPage';
+import OperationsDashboardPage from './pages/OperationsDashboardPage';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -118,6 +119,12 @@ function App() {
           <Route path="patients" element={
             <RoleProtectedRoute routeKey="patients">
               <PatientsPage />
+            </RoleProtectedRoute>
+          } />
+
+          <Route path="operations-dashboard" element={
+            <RoleProtectedRoute routeKey="dashboards">
+              <OperationsDashboardPage />
             </RoleProtectedRoute>
           } />
           

@@ -39,10 +39,11 @@ from app.api import layout
 from app.api import fields
 from app.api import timeline
 from app.api import canonical_records
+from app.api.dashboards import router as ops_dashboards_router
 from app.routers import review
 from app.routers.policy_chatbot import router as policy_chatbot_router
 from app.api.v1.patients import router as patients_router
-from app.api.v1.dashboards import router as dashboards_router
+from app.api.v1.dashboards import router as patient_dashboards_router
 from app.api.v1.correction_logs import router as correction_logs_router
 from app.api.v1.audit_log import router as audit_log_router
 from app.api.v1.auth import router as auth_router
@@ -187,11 +188,12 @@ app.include_router(layout.router, prefix="/api/v1", dependencies=[Depends(check_
 app.include_router(fields.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 app.include_router(timeline.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 app.include_router(canonical_records.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
+app.include_router(ops_dashboards_router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 app.include_router(review.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 app.include_router(correction_logs_router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 app.include_router(audit_log_router, prefix="/api/v1/audit-log", tags=["Audit Log"], dependencies=[Depends(check_rbac)])
 app.include_router(patients_router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
-app.include_router(dashboards_router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
+app.include_router(patient_dashboards_router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["Auth"])
 
 static_dir = os.path.join(os.path.dirname(__file__), "static")

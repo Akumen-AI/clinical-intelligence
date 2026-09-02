@@ -12,6 +12,7 @@ RBAC_MATRIX: Dict[str, Set[UserRole]] = {
     "/api/v1/timeline": {UserRole.DOCTOR, UserRole.NURSE, UserRole.HOSPITAL_ADMIN},
     "/api/v1/canonical-records": {UserRole.DOCTOR, UserRole.NURSE, UserRole.HOSPITAL_ADMIN},
     "/api/v1/review": {UserRole.DOCTOR, UserRole.NURSE, UserRole.HOSPITAL_ADMIN},
+    "/api/v1/dashboards": {UserRole.HOSPITAL_ADMIN, UserRole.DEPARTMENT_HEAD},
 
     # Patients (read, create, update, ask)
     "/api/v1/patients": {UserRole.DOCTOR, UserRole.NURSE, UserRole.HOSPITAL_ADMIN},
