@@ -50,6 +50,12 @@ class LabResultItemSchema(BaseModel):
     flag: Optional[str] = None  # e.g. Normal, High, Low, Abnormal
 
 
+class AllergyItemSchema(BaseModel):
+    allergen: str
+    reaction: Optional[str] = None
+    severity: Optional[str] = None
+
+
 class ClinicalFieldsSchema(BaseModel):
     """
     Standard structured schema for all extracted key clinical fields.
@@ -65,6 +71,7 @@ class ClinicalFieldsSchema(BaseModel):
     lab_results: Optional[List[LabResultItemSchema]] = None
     symptoms: Optional[List[str]] = None
     procedures: Optional[List[str]] = None
+    allergies: Optional[List[AllergyItemSchema]] = None
 
 
 class ExtractedFieldRecordSchema(BaseModel):

@@ -36,9 +36,10 @@ def route_to_normalized_tables(
                     db.add(Medication(
                         patient_id=patient_id,
                         source_field_id=field_id,
-                        raw_text=item.get("medication_name", str(item))
+                        raw_text=item.get("medication_name", str(item)),
+                        status="active"
                     ))
-        elif field_name == "diagnoses":
+        elif field_name in ("diagnoses", "diagnosis"):
             from app.models.clinical_entities import Diagnosis
             db.query(Diagnosis).filter(Diagnosis.source_field_id == field_id).delete()
             for item in final_value:
@@ -49,15 +50,55 @@ def route_to_normalized_tables(
                         raw_text=item.get("condition_name", str(item)),
                         icd10_code=item.get("icd10_code")
                     ))
-        elif field_name == "lab_results":
-            from app.models.clinical_entities import LabResult
-            db.query(LabResult).filter(LabResult.source_field_id == field_id).delete()
+        elif field_name == "allergies":
+            from app.models.clinical_entities import Allergy
+            db.query(Allergy).filter(Allergy.source_field_id == field_id).delete()
             for item in final_value:
                 if isinstance(item, dict):
+                    db.add(Allergy(
+                        patient_id=patient_id,
+                        source_field_id=field_id,
+                        raw_text=str(item),
+                        allergen=item.get("allergen"),
+                        reaction=item.get("reaction"),
+                        severity=item.get("severity")
+                    ))
+        elif field_name == "lab_results":
+            from app.models.clinical_entities import LabResult
+            from app.models.canonical_patient_record import CanonicalPatientRecord
+            db.query(LabResult).filter(LabResult.source_field_id == field_id).delete()
+            
+            # Find sibling document_date
+            doc_date_record = db.query(CanonicalPatientRecord).filter(
+                CanonicalPatientRecord.document_id == db.query(ExtractedField.document_id).filter(ExtractedField.field_id == field_id).scalar_subquery(),
+                CanonicalPatientRecord.field_name == "document_date"
+            ).first()
+            recorded_at = doc_date_record.value if doc_date_record else None
+
+            for item in final_value:
+                if isinstance(item, dict):
+                    import re
+                    val_text = item.get("value")
+                    val_num = None
+                    if val_text:
+                        num_match = re.search(r"[-+]?(?:\d*\.*\d+)", val_text)
+                        if num_match:
+                            try:
+                                val_num = float(num_match.group(0))
+                            except ValueError:
+                                pass
+
                     db.add(LabResult(
                         patient_id=patient_id,
                         source_field_id=field_id,
-                        raw_text=str(item)
+                        raw_text=str(item),
+                        test_name=item.get("test_name"),
+                        value_text=val_text,
+                        value_numeric=val_num,
+                        unit=item.get("unit"),
+                        reference_range=item.get("reference_range"),
+                        flag=item.get("flag"),
+                        recorded_at=str(recorded_at) if recorded_at else None
                     ))
         elif field_name == "procedures":
             from app.models.clinical_entities import Procedure
@@ -116,7 +157,7 @@ def write_field_to_canonical_record(
     final_value = field.verified_value if value is None and field.verified_value is not None else (field.raw_value if value is None else value)
 
     # Fallback/un-normalized fields or if no patient is linked yet
-    if not patient_id or field.field_name not in {"medications", "diagnoses", "lab_results", "vitals", "procedures"}:
+    if not patient_id or field.field_name not in {"medications", "diagnoses", "diagnosis", "allergies", "lab_results", "vitals", "procedures"}:
         canonical = (
             db.query(CanonicalPatientRecord)
             .filter(
@@ -245,7 +286,7 @@ def migrate_generic_records_to_normalized(document_id: str, patient_id: str, db:
     ).all()
 
     for record in records:
-        if record.field_name in {"medications", "diagnoses", "lab_results", "vitals", "procedures"}:
+        if record.field_name in {"medications", "diagnoses", "diagnosis", "allergies", "lab_results", "vitals", "procedures"}:
             route_to_normalized_tables(
                 db=db,
                 patient_id=patient_id,

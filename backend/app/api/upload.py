@@ -355,7 +355,7 @@ async def link_patient(
     db.add(new_visit)
 
     # Migrate flat clinical entities to normalized tables
-    migratable_fields = {"medications", "diagnoses", "lab_results", "vitals", "procedures"}
+    migratable_fields = {"medications", "diagnoses", "diagnosis", "allergies", "lab_results", "vitals", "procedures"}
     flat_records = db.query(CanonicalPatientRecord).filter(
         CanonicalPatientRecord.document_id == document_id,
         CanonicalPatientRecord.field_name.in_(migratable_fields)

@@ -27,7 +27,7 @@ from app.models.correction_log import CorrectionLog
 from app.models.user import User
 from app.models.patient import Patient
 from app.models.visit import Visit
-from app.models.clinical_entities import Medication, Diagnosis, LabResult, Vital, Procedure
+from app.models.clinical_entities import Medication, Diagnosis, LabResult, Vital, Procedure, Allergy
 from app.models.rag_chunk import PatientRAGChunk
 from app.models.rag_conversation import RAGConversation
 
@@ -39,9 +39,11 @@ from app.api import layout
 from app.api import fields
 from app.api import timeline
 from app.api import canonical_records
+from app.api.dashboards import router as ops_dashboards_router
 from app.routers import review
 from app.routers.policy_chatbot import router as policy_chatbot_router
 from app.api.v1.patients import router as patients_router
+from app.api.v1.dashboards import router as patient_dashboards_router
 from app.api.v1.correction_logs import router as correction_logs_router
 from app.api.v1.audit_log import router as audit_log_router
 from app.api.v1.auth import router as auth_router
@@ -80,6 +82,61 @@ with engine.connect() as conn:
         pass
     try:
         conn.execute(text("ALTER TABLE documents ADD COLUMN needs_manual_review BOOLEAN NOT NULL DEFAULT 0;"))
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE lab_results ADD COLUMN test_name VARCHAR(255);"))
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE lab_results ADD COLUMN value_text VARCHAR(255);"))
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE lab_results ADD COLUMN value_numeric FLOAT;"))
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE lab_results ADD COLUMN unit VARCHAR(50);"))
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE lab_results ADD COLUMN reference_range VARCHAR(100);"))
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE lab_results ADD COLUMN flag VARCHAR(20);"))
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE lab_results ADD COLUMN recorded_at VARCHAR(100);"))
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE medications ADD COLUMN status VARCHAR(20) DEFAULT 'active';"))
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE medications ADD COLUMN discontinued_reason VARCHAR(500);"))
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE medications ADD COLUMN discontinued_date VARCHAR(100);"))
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE medications ADD COLUMN started_date VARCHAR(100);"))
         conn.commit()
     except Exception:
         pass
@@ -131,10 +188,12 @@ app.include_router(layout.router, prefix="/api/v1", dependencies=[Depends(check_
 app.include_router(fields.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 app.include_router(timeline.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 app.include_router(canonical_records.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
+app.include_router(ops_dashboards_router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 app.include_router(review.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 app.include_router(correction_logs_router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 app.include_router(audit_log_router, prefix="/api/v1/audit-log", tags=["Audit Log"], dependencies=[Depends(check_rbac)])
 app.include_router(patients_router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
+app.include_router(patient_dashboards_router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["Auth"])
 
 static_dir = os.path.join(os.path.dirname(__file__), "static")

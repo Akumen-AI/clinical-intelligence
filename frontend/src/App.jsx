@@ -6,11 +6,13 @@ import UploadPage from './pages/UploadPage';
 import ReviewQueuePage from './pages/ReviewQueuePage';
 
 import TimelinePage from './pages/TimelinePage';
+import PatientDashboardPage from './pages/PatientDashboardPage';
 import PolicyChatbot from './components/PolicyChatbot';
 import PolicyDocumentUploader from './components/PolicyDocumentUploader';
 import { Activity, ClipboardCheck, Database, Clock, MessageCircleQuestion, Users, LogOut } from 'lucide-react';
 import PatientQAPage from './pages/PatientQAPage';
 import PatientsPage from './pages/PatientsPage';
+import OperationsDashboardPage from './pages/OperationsDashboardPage';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -119,10 +121,22 @@ function App() {
               <PatientsPage />
             </RoleProtectedRoute>
           } />
+
+          <Route path="operations-dashboard" element={
+            <RoleProtectedRoute routeKey="dashboards">
+              <OperationsDashboardPage />
+            </RoleProtectedRoute>
+          } />
           
           {/* Patient Details Redirection */}
-          <Route path="patients/:patientId" element={<Navigate to="/patients/:patientId/timeline" replace />} />
+          <Route path="patients/:patientId" element={<Navigate to="/patients/:patientId/dashboard" replace />} />
           
+          <Route path="patients/:patientId/dashboard" element={
+            <RoleProtectedRoute routeKey="patientDashboard">
+              <PatientDashboardPage />
+            </RoleProtectedRoute>
+          } />
+
           <Route path="patients/:patientId/timeline" element={
             <RoleProtectedRoute routeKey="patients">
               <TimelinePage />

@@ -111,7 +111,7 @@ export default function PatientsPage() {
                 key={patient.patient_id} 
               className="glass-card patient-card-hover" 
               style={{ padding: '1.5rem', position: 'relative', overflow: 'hidden', cursor: 'pointer', transition: 'all 0.2s ease' }}
-              onClick={() => navigate(`/patients/${patient.patient_id}/timeline`)}
+              onClick={() => navigate(`/patients/${patient.patient_id}/dashboard`)}
             >
               <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-emerald)' }}></div>
               

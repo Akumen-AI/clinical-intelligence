@@ -14,6 +14,7 @@ import {
   Microscope,
   ShieldAlert,
   MessageCircleQuestion,
+  CheckCircle2,
 } from 'lucide-react';
 import { 
   fetchTimeline, 
@@ -23,84 +24,8 @@ import {
 } from '../services/api';
 import { useParams, useNavigate } from 'react-router-dom';
 
-const getEventConfig = (eventType) => {
-  const type = (eventType || '').toLowerCase();
-  
-  if (type.includes('medication') || type.includes('med-change') || type.includes('prescription')) {
-    return {
-      color: 'text-emerald-500',
-      bg: 'bg-emerald-500',
-      border: 'border-emerald-500/30',
-      containerBg: 'bg-emerald-500/10',
-      icon: <Pill size={16} />,
-      label: 'Medication'
-    };
-  }
-  
-  if (type.includes('lab') || type.includes('test')) {
-    return {
-      color: 'text-violet-500',
-      bg: 'bg-violet-500',
-      border: 'border-violet-500/30',
-      containerBg: 'bg-violet-500/10',
-      icon: <Microscope size={16} />,
-      label: 'Lab Result'
-    };
-  }
-  
-  if (type.includes('diagnos') || type.includes('condition')) {
-    return {
-      color: 'text-amber-500',
-      bg: 'bg-amber-500',
-      border: 'border-amber-500/30',
-      containerBg: 'bg-amber-500/10',
-      icon: <Activity size={16} />,
-      label: 'Diagnosis'
-    };
-  }
-  
-  if (type.includes('vital')) {
-    return {
-      color: 'text-cyan-500',
-      bg: 'bg-cyan-500',
-      border: 'border-cyan-500/30',
-      containerBg: 'bg-cyan-500/10',
-      icon: <Activity size={16} />,
-      label: 'Vitals'
-    };
-  }
-  
-  if (type.includes('procedure') || type.includes('surgery')) {
-    return {
-      color: 'text-rose-500',
-      bg: 'bg-rose-500',
-      border: 'border-rose-500/30',
-      containerBg: 'bg-rose-500/10',
-      icon: <Syringe size={16} />,
-      label: 'Procedure'
-    };
-  }
-  
-  if (type.includes('visit') || type.includes('consult')) {
-    return {
-      color: 'text-indigo-500',
-      bg: 'bg-indigo-500',
-      border: 'border-indigo-500/30',
-      containerBg: 'bg-indigo-500/10',
-      icon: <Stethoscope size={16} />,
-      label: 'Clinical Visit'
-    };
-  }
-
-  return {
-    color: 'text-primary',
-    bg: 'bg-primary',
-    border: 'border-primary/30',
-    containerBg: 'bg-primary/10',
-    icon: <FileText size={16} />,
-    label: eventType || 'Clinical Document'
-  };
-};
+import { getEventConfig } from '../utils/timelineEventConfig';
+import PatientHeaderBanner from '../components/PatientHeaderBanner';
 
 export default function TimelinePage() {
   const { patientId } = useParams();
@@ -155,16 +80,7 @@ export default function TimelinePage() {
           setMedications(recordsRes.medications || []);
           setLabResults(recordsRes.lab_results || []);
           setDocuments(recordsRes.documents || []);
-          
-          if (recordsRes.patient && recordsRes.patient.allergies) {
-             setAllergies(recordsRes.patient.allergies);
-          } else if (recordsRes.items) {
-             const allergyRecords = recordsRes.items.filter(r => r.field_name === 'allergies');
-             if (allergyRecords.length > 0) {
-                const parsed = allergyRecords.map(a => typeof a.value === 'string' ? a.value : JSON.stringify(a.value));
-                setAllergies(parsed);
-             }
-          }
+          setAllergies(recordsRes.allergies || []);
         }
       } catch (err) {
         console.warn("Could not load canonical records", err);
@@ -225,60 +141,7 @@ export default function TimelinePage() {
     <div className="app-container flex flex-col gap-6">
       
       {/* ── Patient Header Banner ── */}
-      {patient && (
-        <div className="bg-surface-container-high rounded-2xl border border-outline-variant/30 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex items-start gap-4">
-            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center shrink-0 shadow-inner">
-              <User size={28} className="text-on-primary" />
-            </div>
-            <div>
-              <h1 className="text-headline-md font-headline-md text-on-surface leading-tight mb-1">
-                {patient.name || 'Unknown Patient'}
-              </h1>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-medium text-on-surface-variant">
-                <div className="flex items-center gap-1.5">
-                  <span className="opacity-70">MRN:</span>
-                  <span className="text-on-surface">{patient.mrn || patientId}</span>
-                </div>
-                {patient.dob && (
-                  <>
-                    <div className="w-1 h-1 rounded-full bg-outline-variant"></div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="opacity-70">DOB:</span>
-                      <span className="text-on-surface">{patient.dob}</span>
-                    </div>
-                  </>
-                )}
-                {patient.sex && (
-                  <>
-                    <div className="w-1 h-1 rounded-full bg-outline-variant"></div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="opacity-70">Sex:</span>
-                      <span className="text-on-surface capitalize">{patient.sex}</span>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Allergies / Badges */}
-          <div className="flex flex-col items-start md:items-end gap-2">
-            <div className="text-xs font-bold uppercase tracking-wider text-on-surface-variant/70">Allergies</div>
-            <div className="flex flex-wrap gap-2 justify-end">
-              {allergies.length > 0 ? allergies.map((allergy, i) => (
-                <span key={i} className="px-3 py-1 bg-error-container/20 text-error border border-error/30 rounded-full text-xs font-bold">
-                  {allergy}
-                </span>
-              )) : (
-                <span className="px-3 py-1 bg-surface-variant text-on-surface-variant border border-outline-variant/30 rounded-full text-xs font-semibold">
-                  No Known Allergies
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <PatientHeaderBanner patient={patient} allergies={allergies} />
 
       {error && (
         <div className="p-4 bg-error-container/20 text-error border border-error/30 rounded-xl flex items-center gap-3">

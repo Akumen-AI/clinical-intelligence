@@ -37,6 +37,10 @@ class MedicationResponse(BaseModel):
     id: str
     raw_text: str
     rxnorm_code: Optional[str] = None
+    status: Optional[str] = None
+    discontinued_reason: Optional[str] = None
+    discontinued_date: Optional[str] = None
+    started_date: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -51,6 +55,19 @@ class LabResultResponse(BaseModel):
     id: str
     raw_text: str
     loinc_code: Optional[str] = None
+    test_name: Optional[str] = None
+    value_text: Optional[str] = None
+    value_numeric: Optional[float] = None
+    unit: Optional[str] = None
+    flag: Optional[str] = None
+    recorded_at: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class AllergyResponse(BaseModel):
+    id: str
+    allergen: str
+    reaction: Optional[str] = None
+    severity: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -67,6 +84,7 @@ class PatientProfileResponse(BaseModel):
     diagnoses: List[DiagnosisResponse] = []
     medications: List[MedicationResponse] = []
     lab_results: List[LabResultResponse] = []
+    allergies: List[AllergyResponse] = []
     documents: List[DocumentResponse] = []
     model_config = ConfigDict(from_attributes=True)
 
