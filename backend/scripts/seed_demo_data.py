@@ -281,10 +281,13 @@ def seed_demo_data():
             {"text": "Bone Fracture", "code": "S82.8"}
         ]
         
+        first_names = ["Rahul", "Priya", "Amit", "Sneha", "Vikram", "Anjali", "Karan", "Pooja", "Rohan", "Neha", "Arjun", "Kavya", "Siddharth", "Aisha", "Aditya", "Riya", "Ravi", "Meera", "Sanjay", "Tara"]
+        last_names = ["Sharma", "Verma", "Gupta", "Nair", "Patel", "Reddy", "Singh", "Kumar", "Das", "Bose", "Menon", "Pillai", "Iyer", "Rao", "Joshi", "Deshmukh", "Chopra", "Malhotra", "Kapoor"]
+        
         base_date = datetime(2026, 8, 1)
         for i in range(50):
             mrn = f"MRN-30{i:02d}"
-            pt_name = f"Generated Patient {i}"
+            pt_name = f"{random.choice(first_names)} {random.choice(last_names)}"
             dob = get_iso_date(random.randint(1940, 2000), random.randint(1, 12), random.randint(1, 28))
             sex = random.choice(["Male", "Female"])
             num_visits = random.randint(1, 3)
@@ -352,12 +355,17 @@ def seed_demo_data():
                 # Create corresponding Visit record for operations dashboard
                 departments = ["Cardiology", "Neurology", "Emergency", "Orthopedics"]
                 dept_index = sum(ord(c) for c in patient_data["name"]) % len(departments)
+                
+                v_date = datetime.fromisoformat(doc_data["date"])
+                
                 from app.models.visit import Visit
                 visit = Visit(
                     visit_id=str(uuid.uuid4()),
                     patient_id=custom_id,
                     document_id=doc_id,
-                    visit_date=datetime.fromisoformat(doc_data["date"]),
+                    visit_date=v_date,
+                    admission_date=v_date,
+                    discharge_date=v_date + timedelta(days=random.randint(1, 7)),
                     visit_type=doc_data["type"],
                     provider_name="Dr. Smith",
                     department=departments[dept_index]
