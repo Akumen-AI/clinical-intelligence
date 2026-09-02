@@ -8,7 +8,8 @@ import {
   Users,
   MessageSquare,
   UploadCloud,
-  LogOut
+  LogOut,
+  BarChart2
 } from 'lucide-react';
 
 // Source of truth mapping route keys to allowed roles, reflecting backend rbac.py
@@ -68,7 +69,7 @@ export default function Sidebar() {
 
         {hasAccess(user.role, 'dashboards') && (
           <NavLink to="/operations-dashboard" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
-            <Activity size={18} />
+            <BarChart2 size={18} />
             <span>Operations Dashboard</span>
           </NavLink>
         )}
