@@ -85,6 +85,73 @@ def get_occupancy_metric(db: Session, department: Optional[str], start_date: Opt
         "available": True,
     }
 
+def get_disease_distribution_metric(db: Session, department: Optional[str], start_date: Optional[str], end_date: Optional[str]) -> Dict[str, Any]:
+    query = (
+        db.query(Diagnosis.raw_text, func.count(Diagnosis.id).label("count"))
+        .join(ExtractedField, Diagnosis.source_field_id == ExtractedField.field_id)
+        .join(Document, ExtractedField.document_id == Document.document_id)
+        .join(Visit, Visit.document_id == Document.document_id)
+        .filter(Diagnosis.raw_text.isnot(None))
+        .filter(Document.status == DocumentStatus.COMMITTED.value)
+    )
+    if department:
+        query = query.filter(Visit.department == department)
+    start_dt = _coerce_date(start_date)
+    end_dt = _coerce_date(end_date)
+    if start_dt:
+        query = query.filter(Visit.visit_date >= start_dt)
+    if end_dt:
+        query = query.filter(Visit.visit_date < (end_dt + timedelta(days=1)))
+    query = query.group_by(Diagnosis.raw_text).order_by(func.count(Diagnosis.id).desc())
+    rows = query.all()
+    series = [{"name": raw_text, "count": int(count)} for raw_text, count in rows]
+    return {
+        "key": "disease_distribution",
+        "label": "Disease Distribution",
+        "value": series[0]["count"] if series else 0,
+        "unit": "patients",
+        "chart": series,
+        "series": series,
+        "available": True,
+    }
+
+
+def get_readmission_rate_metric(db: Session, department: Optional[str], start_date: Optional[str], end_date: Optional[str]) -> Dict[str, Any]:
+    visit_query = (
+        db.query(Visit.patient_id, Visit.visit_date, Visit.department)
+        .join(Document, Visit.document_id == Document.document_id)
+        .filter(Document.status == DocumentStatus.COMMITTED.value)
+    )
+    if department:
+        visit_query = visit_query.filter(Visit.department == department)
+    start_dt = _coerce_date(start_date)
+    end_dt = _coerce_date(end_date)
+    if start_dt:
+        visit_query = visit_query.filter(Visit.visit_date >= start_dt)
+    if end_dt:
+        visit_query = visit_query.filter(Visit.visit_date < (end_dt + timedelta(days=1)))
+    visits = visit_query.order_by(Visit.patient_id, Visit.visit_date).all()
+    patient_counts: Dict[str, int] = {}
+    for patient_id, _, _ in visits:
+        if not patient_id:
+            continue
+        patient_counts.setdefault(patient_id, 0)
+        patient_counts[patient_id] += 1
+
+    repeat_visits = sum(count - 1 for count in patient_counts.values() if count > 1)
+    total_visits = len(visits)
+    rate = (repeat_visits / total_visits * 100.0) if total_visits else 0.0
+    chart = [{"label": "Repeat visits", "value": repeat_visits}, {"label": "Unique visits", "value": total_visits - repeat_visits}]
+    return {
+        "key": "readmission_rate",
+        "label": "Readmission Rate",
+        "value": round(rate, 2),
+        "unit": "%",
+        "chart": chart,
+        "series": chart,
+        "available": True,
+    }
+
 def get_average_stay_metric(db: Session, department: Optional[str], start_date: Optional[str], end_date: Optional[str]) -> Dict[str, Any]:
     query = (
         db.query(Visit)
