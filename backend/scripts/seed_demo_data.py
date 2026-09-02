@@ -304,6 +304,21 @@ def seed_demo_data():
                     document_type=doc_data["type"]
                 )
                 db.add(doc)
+                
+                # Create corresponding Visit record for operations dashboard
+                departments = ["Cardiology", "Neurology", "Emergency", "Orthopedics"]
+                dept_index = sum(ord(c) for c in patient_data["name"]) % len(departments)
+                from app.models.visit import Visit
+                visit = Visit(
+                    visit_id=str(uuid.uuid4()),
+                    patient_id=custom_id,
+                    document_id=doc_id,
+                    visit_date=datetime.fromisoformat(doc_data["date"]),
+                    visit_type=doc_data["type"],
+                    provider_name="Dr. Smith",
+                    department=departments[dept_index]
+                )
+                db.add(visit)
                 inserted_count["documents"] += 1
 
                 def create_entity(EntityClass, text, field_name, attr_mapping, extra_cpr=None, is_unverified=False, corrected_from=None):

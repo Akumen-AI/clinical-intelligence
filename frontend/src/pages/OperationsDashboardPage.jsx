@@ -131,11 +131,15 @@ export default function OperationsDashboardPage() {
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', color: '#cbd5e1', fontSize: '0.8rem' }}>
             Start date
-            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} style={{ borderRadius: '10px', padding: '0.6rem 0.8rem', background: '#0f172a', color: '#e2e8f0', border: '1px solid #334155' }} />
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} style={{ borderRadius: '10px', padding: '0.6rem 0.8rem', paddingRight: '2rem', background: '#0f172a', color: '#e2e8f0', border: '1px solid #334155', colorScheme: 'dark', width: '100%' }} />
+            </div>
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', color: '#cbd5e1', fontSize: '0.8rem' }}>
             End date
-            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} style={{ borderRadius: '10px', padding: '0.6rem 0.8rem', background: '#0f172a', color: '#e2e8f0', border: '1px solid #334155' }} />
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} style={{ borderRadius: '10px', padding: '0.6rem 0.8rem', paddingRight: '2rem', background: '#0f172a', color: '#e2e8f0', border: '1px solid #334155', colorScheme: 'dark', width: '100%' }} />
+            </div>
           </label>
         </div>
       </div>
