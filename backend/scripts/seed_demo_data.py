@@ -269,6 +269,50 @@ def seed_demo_data():
         skipped_count = 0
         current_pt_number = 2001
 
+        # Generate 50 high-volume randomized patients for the dashboard
+        from datetime import timedelta
+        disease_pool = [
+            {"text": "Pneumonia", "code": "J18.9"},
+            {"text": "COVID-19", "code": "U07.1"},
+            {"text": "Essential Hypertension", "code": "I10"},
+            {"text": "Type 2 Diabetes", "code": "E11.9"},
+            {"text": "Asthma", "code": "J45.909"},
+            {"text": "Migraine", "code": "G43.9"},
+            {"text": "Bone Fracture", "code": "S82.8"}
+        ]
+        
+        base_date = datetime(2026, 8, 1)
+        for i in range(50):
+            mrn = f"MRN-30{i:02d}"
+            pt_name = f"Generated Patient {i}"
+            dob = get_iso_date(random.randint(1940, 2000), random.randint(1, 12), random.randint(1, 28))
+            sex = random.choice(["Male", "Female"])
+            num_visits = random.randint(1, 3)
+            docs = []
+            
+            disease = random.choice(disease_pool)
+            
+            for v in range(num_visits):
+                v_date = base_date + timedelta(days=random.randint(0, 31))
+                docs.append({
+                    "date": v_date.strftime("%Y-%m-%d"),
+                    "type": "Clinical Note",
+                    "diagnoses": [disease] if v == 0 else [], # diagnose on first visit
+                    "labs": [{"text": "Heart Rate: 80 bpm", "test_name": "Heart Rate", "value": 80 + random.randint(-10, 20), "unit": "bpm", "code": "8867-4", "flag": "Normal"}]
+                })
+            
+            # Sort docs by date
+            docs.sort(key=lambda x: x["date"])
+            
+            SYNTHETIC_PATIENTS.append({
+                "mrn": mrn,
+                "name": pt_name,
+                "dob": dob,
+                "sex": sex,
+                "note": f"Generated patient with {disease['text']}",
+                "documents": docs
+            })
+
         for patient_data in SYNTHETIC_PATIENTS:
             existing = db.query(Patient).filter(Patient.mrn == patient_data["mrn"]).first()
             if existing:
