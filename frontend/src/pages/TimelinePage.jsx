@@ -14,14 +14,19 @@ import {
   Microscope,
   ShieldAlert,
   MessageCircleQuestion,
+  ClipboardList,
 } from 'lucide-react';
 import { 
   fetchTimeline, 
   getDocumentFileUrl, 
   fetchPatient,
-  fetchPatientRecords
+  fetchPatientRecords,
+  fetchContextPanel,
 } from '../services/api';
+import ClinicalContextPanel from '../components/ClinicalContextPanel';
+import AddNote from '../components/AddNote';
 import { useParams, useNavigate } from 'react-router-dom';
+
 
 const getEventConfig = (eventType) => {
   const type = (eventType || '').toLowerCase();
@@ -122,6 +127,12 @@ export default function TimelinePage() {
   const [authError, setAuthError] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState(null);
 
+  const [contextPanel, setContextPanel] = useState(null);
+  const [contextPanelLoading, setContextPanelLoading] = useState(true);
+  const [contextPanelError, setContextPanelError] = useState(null);
+  const [noteText, setNoteText] = useState('');
+  const [showNoteEntry, setShowNoteEntry] = useState(false);
+
   const loadData = useCallback(async (isPolling = false) => {
     if (!patientId) {
       setError("No Patient ID provided in route.");
@@ -168,6 +179,19 @@ export default function TimelinePage() {
         }
       } catch (err) {
         console.warn("Could not load canonical records", err);
+      }
+
+      // Story 10.1 — load proactive context panel
+      try {
+        setContextPanelLoading(true);
+        const cpRes = await fetchContextPanel(patientId);
+        setContextPanel(cpRes);
+        setContextPanelError(null);
+      } catch (cpErr) {
+        console.warn('Could not load context panel', cpErr);
+        setContextPanelError('Could not load context panel.');
+      } finally {
+        setContextPanelLoading(false);
       }
 
     } catch (err) {
@@ -381,6 +405,15 @@ export default function TimelinePage() {
           )}
           
           <button
+            className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg font-semibold hover:bg-emerald-500/20 transition-colors text-sm"
+            onClick={() => setShowNoteEntry(true)}
+            data-testid="open-note-entry-btn"
+          >
+            <ClipboardList size={14} />
+            Add Note
+          </button>
+
+          <button
             className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-lg font-semibold hover:bg-primary/20 transition-colors text-sm"
             onClick={() => navigate(`/patients/${patientId}/ask`)}
           >
@@ -491,6 +524,60 @@ export default function TimelinePage() {
           </div>
         )}
       </div>
+
+      {/* ── Story 10.1: Note-Entry Screen with Clinical Context Panel ── */}
+      {showNoteEntry && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          data-testid="note-entry-overlay"
+        >
+          <div className="w-full max-w-5xl max-h-[90vh] overflow-y-auto bg-surface rounded-2xl border border-outline-variant/30 shadow-2xl flex flex-col">
+
+            {/* Overlay Header */}
+            <div className="flex items-center justify-between p-5 border-b border-outline-variant/20">
+              <div className="flex items-center gap-3">
+                <ClipboardList size={20} className="text-primary" />
+                <div>
+                  <h2 className="text-base font-bold text-on-surface">New Clinical Note</h2>
+                  <p className="text-xs text-on-surface-variant">
+                    {patient?.name ?? 'Patient'} — {patient?.mrn ?? patientId}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowNoteEntry(false)}
+                className="p-2 rounded-lg hover:bg-surface-variant transition-colors text-on-surface-variant"
+                aria-label="Close note entry"
+                data-testid="close-note-entry-btn"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Two-column body: note area (left) + context panel (right) */}
+            <div className="flex flex-col md:flex-row gap-0 flex-1 overflow-hidden">
+
+              {/* Note Text Area */}
+              <div className="flex-1 p-5 overflow-y-auto">
+                <AddNote patientId={patientId} />
+              </div>
+
+
+              {/* Context Panel */}
+              <div
+                className="md:w-80 shrink-0 border-t md:border-t-0 md:border-l border-outline-variant/20 p-5 overflow-y-auto"
+                data-testid="context-panel-column"
+              >
+                <ClinicalContextPanel
+                  panel={contextPanel}
+                  loading={contextPanelLoading}
+                  error={contextPanelError}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

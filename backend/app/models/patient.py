@@ -20,3 +20,8 @@ class Patient(Base):
     sex = Column(String(50), nullable=True)
     duplicate_of = Column(String(36), ForeignKey("patients.patient_id"), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    @property
+    def id(self):
+        return self.patient_id
+

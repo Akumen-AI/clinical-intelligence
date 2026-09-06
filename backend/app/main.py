@@ -45,11 +45,18 @@ from app.api.v1.patients import router as patients_router
 from app.api.v1.correction_logs import router as correction_logs_router
 from app.api.v1.audit_log import router as audit_log_router
 from app.api.v1.auth import router as auth_router
+from app.routers.notes import router as notes_router
+from app.routers.rag_context_compliance import router as rag_context_compliance_router
+from app.core.compliance import ComplianceViolationError
 from app.core.rbac import check_rbac
 from app.services.upload_service import ensure_upload_directory_exists
 
+from fastapi.responses import JSONResponse, FileResponse
+
+
 # Create database tables automatically on startup
 Base.metadata.create_all(bind=engine)
+
 
 # Add column safety migration for existing DB files
 with engine.connect() as conn:
@@ -136,6 +143,14 @@ app.include_router(correction_logs_router, prefix="/api/v1", dependencies=[Depen
 app.include_router(audit_log_router, prefix="/api/v1/audit-log", tags=["Audit Log"], dependencies=[Depends(check_rbac)])
 app.include_router(patients_router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["Auth"])
+app.include_router(notes_router)
+app.include_router(rag_context_compliance_router)
+
+
+@app.exception_handler(ComplianceViolationError)
+async def compliance_violation_handler(request, exc):
+    return JSONResponse(status_code=422, content={"detail": str(exc)})
+
 
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_dir):

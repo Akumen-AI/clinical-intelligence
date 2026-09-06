@@ -247,6 +247,16 @@ export const fetchPatientRecords = async (patientId) => {
   return response.data;
 };
 
+/**
+ * Story 10.1 — Fetch the proactive context panel for a patient.
+ * Returns { medications, allergies, prior_results, history, source }.
+ * Diagnoses are intentionally absent from the response (AC-3).
+ */
+export const fetchContextPanel = async (patientId) => {
+  const response = await apiClient.get(`/patients/${patientId}/context-panel`);
+  return response.data;
+};
+
 // ── Canonical Patient Records ──────────────────────────────────────────────
 
 /**
