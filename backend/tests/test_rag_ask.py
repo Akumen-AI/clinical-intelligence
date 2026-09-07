@@ -66,17 +66,17 @@ def test_ask_patient_question(mock_genai_client):
     mock_client_instance.models.embed_content.return_value = mock_embed_response
     
     mock_generate_response = MagicMock()
-    mock_generate_response.text = "The patient has a history of asthma."
+    mock_generate_response.text = "The individual's history indicates asthma."
     mock_client_instance.models.generate_content.return_value = mock_generate_response
-    
+
     response = client.post(
         "/api/v1/patients/test_rag_patient/ask",
         json={"question": "What is the patient's medical history?"}
     )
-    
+
     assert response.status_code == 200
     data = response.json()
-    assert data["answer"] == "The patient has a history of asthma."
+    assert data["answer"] == "The individual's history indicates asthma."
     assert len(data["source_documents"]) > 0
     assert data["source_documents"][0]["document_id"] == "doc1"
     assert data["source_documents"][0]["snippet"] == "Patient has a history of asthma."
@@ -117,12 +117,12 @@ def test_rag_citation_object_structure(mock_genai_client):
     mock_client_instance.models.embed_content.return_value = mock_embed_response
     
     mock_generate_response = MagicMock()
-    mock_generate_response.text = "The patient was prescribed Amoxicillin 500mg daily."
+    mock_generate_response.text = "Amoxicillin 500mg daily was noted."
     mock_client_instance.models.generate_content.return_value = mock_generate_response
     
     response = client.post(
         "/api/v1/patients/patient_citation_test/ask",
-        json={"question": "What medication was prescribed?"}
+        json={"question": "What medication was noted?"}
     )
     
     assert response.status_code == 200
@@ -185,7 +185,7 @@ def test_ask_patient_isolation(mock_genai_client):
         json={"question": "Does the patient have diabetes?"}
     )
     
-    assert response.status_code == 200
+    assert response.status_code == 200, response.text
     data = response.json()
     assert "could not find any relevant information" in data["answer"].lower()
     
@@ -231,7 +231,7 @@ def test_ask_zero_chunks(mock_genai_client):
         json={"question": "What is the history?"}
     )
     
-    assert response.status_code == 200
+    assert response.status_code == 200, response.text
     data = response.json()
     assert "could not find any relevant information" in data["answer"].lower()
     
