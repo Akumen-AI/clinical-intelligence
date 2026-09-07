@@ -391,6 +391,15 @@ def review_pending_field(
                     patient_id=doc.patient_id,
                     db=db
                 )
+                audit_service.write_entry(
+                    db=db,
+                    actor_user_id=http_request.state.user.id,
+                    action_type="document_linked_to_patient",
+                    target_entity=f"document:{doc.document_id}",
+                    patient_id=doc.patient_id,
+                    rationale="Document linked to patient via review correction"
+                )
+                audit_service.backfill_patient_id_for_document(db, doc.document_id, doc.patient_id)
         else:
             # Use corrected value when reviewer edited, otherwise fall back to extracted
             value_to_write = (
@@ -432,6 +441,7 @@ def review_pending_field(
         actor_user_id=http_request.state.user.id,
         action_type=f"review_{payload.action}",
         target_entity=f"pending_review:{review_rec.id}",
+        patient_id=doc.patient_id if doc else None,
         rationale=f"Reviewer {payload.action}ed field '{review_rec.field_name}'"
     )
 

@@ -107,6 +107,7 @@ class CorrectionLogService:
         self,
         db: AsyncSession,
         limit: int = 1000,
+        actor_user_id: uuid.UUID | None = None,
     ) -> ExportBatchResponse:
         """
         Export un-exported correction logs as PHI-safe retraining rows.
@@ -154,6 +155,16 @@ class CorrectionLogService:
                 .values(retraining_exported=True, export_batch_id=batch_id)
             )
             await db.commit()
+
+            from app.services import audit_service
+            await audit_service.write_entry_async(
+                db=db,
+                actor_user_id=actor_user_id or audit_service.SYSTEM_ACTOR_ID,
+                action_type="correction_log_export",
+                target_entity=f"export_batch:{batch_id}",
+                patient_id=None,
+                rationale=f"Exported {len(rows)} corrections in batch {batch_id}"
+            )
 
         return ExportBatchResponse(
             batch_id=batch_id,

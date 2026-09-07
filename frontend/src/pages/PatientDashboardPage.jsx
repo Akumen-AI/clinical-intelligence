@@ -97,6 +97,17 @@ export default function PatientDashboardPage() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="p-6 md:p-8 max-w-[1200px] mx-auto">
+        <div className="p-4 bg-error-container/20 text-error border border-error/30 rounded-xl flex items-center gap-3">
+          <AlertTriangle size={24} />
+          <span className="font-medium text-sm">{error}</span>
+        </div>
+      </div>
+    );
+  }
+
   if (!dashboard || !dashboard.patient) {
     return null; // Should not reach here unless error was set
   }

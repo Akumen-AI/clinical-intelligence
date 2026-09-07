@@ -95,6 +95,16 @@ def get_patient_dashboard(
     total_events = timeline_response.total_events
     recent_events = list(reversed(timeline_response.events))[:10]
 
+    from app.services import audit_service
+    audit_service.write_entry(
+        db=db,
+        actor_user_id=current_user.id,
+        action_type="patient_dashboard_viewed",
+        target_entity=f"patient:{patient.patient_id}",
+        patient_id=patient.patient_id,
+        rationale=f"Viewed patient dashboard. Surfaced {len(current_medications)} medications, {len(allergies)} allergies, {len(all_labs)} lab results, and {total_events} events."
+    )
+
     return PatientDashboardResponse(
         patient=patient,
         allergies=allergies,

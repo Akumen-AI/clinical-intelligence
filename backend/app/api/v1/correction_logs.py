@@ -44,11 +44,12 @@ async def create_correction_log(
     summary="Trigger PHI-safe export",
 )
 async def export_retraining_logs_post(
+    request: Request,
     limit: int = Query(default=1000, ge=1, le=10000),
     db: AsyncSession = Depends(get_async_db),
 ):
     service = CorrectionLogService()
-    return await service.export_for_retraining(db, limit=limit)
+    return await service.export_for_retraining(db, limit=limit, actor_user_id=request.state.user.id)
 
 @router.get(
     "/export/retraining",
@@ -57,11 +58,12 @@ async def export_retraining_logs_post(
     summary="Trigger PHI-safe export (GET variant)",
 )
 async def export_retraining_logs_get(
+    request: Request,
     limit: int = Query(default=1000, ge=1, le=10000),
     db: AsyncSession = Depends(get_async_db),
 ):
     service = CorrectionLogService()
-    return await service.export_for_retraining(db, limit=limit)
+    return await service.export_for_retraining(db, limit=limit, actor_user_id=request.state.user.id)
 
 @router.get(
     "/document/{document_id}",
