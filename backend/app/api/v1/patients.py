@@ -12,6 +12,7 @@ from app.core.security import User
 from app.models.user import UserRole
 from app.core.patient_access_guard import RbacAccessGuard, AccessDeniedError
 from fastapi import Request
+from app.services.context_panel_service import ContextPanelService
 
 router = APIRouter(
     prefix="/patients",
@@ -172,6 +173,43 @@ def update_patient(patient_id: str, patient_in: PatientUpdate, http_request: Req
     db.commit()
     db.refresh(patient)
     return patient
+
+
+@router.get("/{patient_id}/context-panel")
+def get_context_panel(
+    patient_id: str,
+    http_request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Story 10.1 / FR-32 — Proactive context panel.
+
+    Returns medications, allergies, prior lab results, and history
+    sourced exclusively from the canonical record.
+
+    AC-3 contract: Diagnoses are NEVER included in this response.
+    No icd10_code or condition label is returned.
+    """
+    # ── RBAC gate (must be first) ──────────────────────────────────────
+    patient = db.query(Patient).filter(
+        or_(
+            Patient.patient_id == patient_id,
+            Patient.patient_number == patient_id,
+            Patient.mrn == patient_id,
+        )
+    ).first()
+    if not patient:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found.")
+
+    current_user = http_request.state.user
+    try:
+        RbacAccessGuard().assert_can_query_patient(current_user, patient.patient_id)
+    except AccessDeniedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+
+    # ── Build panel (AC-2: canonical DB only, AC-3: no diagnoses) ─────
+    panel = ContextPanelService().build_context(db, patient.patient_id)
+    return panel.to_dict()
 
 
 @router.post("/{patient_id}/ask", response_model=AskResponse)

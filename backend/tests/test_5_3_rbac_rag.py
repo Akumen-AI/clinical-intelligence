@@ -71,8 +71,9 @@ def test_allowed_role_reaches_rag(mock_genai, role):
         embeddings=[MagicMock(values=[0.1, 0.2, 0.3])]
     )
     mock_instance.models.generate_content.return_value = MagicMock(
-        text="Metformin 500mg was prescribed."
+        text="Metformin 500mg recorded on file."
     )
+
 
     try:
         resp = client.post(
