@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { Activity, CalendarRange, Building2, Stethoscope } from 'lucide-react';
+import { Activity, Building2, Download } from 'lucide-react';
 import apiClient from '../services/api-client';
 
 const COLORS = ['#22c55e', '#38bdf8', '#f59e0b', '#a78bfa', '#f472b6', '#fb7185'];
@@ -72,6 +72,7 @@ export default function OperationsDashboardPage() {
   const [metrics, setMetrics] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [exportingFormat, setExportingFormat] = useState('');
 
   const fetchDashboard = async () => {
     setLoading(true);
@@ -93,6 +94,29 @@ export default function OperationsDashboardPage() {
   useEffect(() => {
     fetchDashboard();
   }, [department, startDate, endDate]);
+
+  const exportDashboard = async (format) => {
+    setExportingFormat(format);
+    setError('');
+    try {
+      const response = await apiClient.get('/dashboards/hospital/export', {
+        params: { format, department: department || undefined, start_date: startDate, end_date: endDate },
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `operations-dashboard.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError('Unable to export dashboard.');
+    } finally {
+      setExportingFormat('');
+    }
+  };
 
   const summary = useMemo(() => {
     const map = Object.fromEntries(metrics.map((metric) => [metric.key, metric]));
@@ -141,6 +165,21 @@ export default function OperationsDashboardPage() {
               <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} style={{ borderRadius: '10px', padding: '0.6rem 0.8rem', paddingRight: '2rem', background: '#0f172a', color: '#e2e8f0', border: '1px solid #334155', colorScheme: 'dark', width: '100%' }} />
             </div>
           </label>
+          <div style={{ display: 'flex', gap: '0.5rem', alignSelf: 'flex-end', flexWrap: 'wrap' }}>
+            {['pdf', 'csv', 'xlsx'].map((format) => (
+              <button
+                key={format}
+                type="button"
+                onClick={() => exportDashboard(format)}
+                disabled={Boolean(exportingFormat)}
+                title={`Export ${format.toUpperCase()}`}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', border: '1px solid #38bdf8', borderRadius: '10px', padding: '0.6rem 0.8rem', background: '#082f49', color: '#e0f2fe', cursor: exportingFormat ? 'wait' : 'pointer' }}
+              >
+                <Download size={15} />
+                {exportingFormat === format ? 'Exporting…' : `Export ${format.toUpperCase()}`}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

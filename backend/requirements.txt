@@ -13,6 +13,8 @@ Pillow>=10.0.0
 # PaddleX/PaddleOCR currently has better compatibility with the pandas 2.x
 # native wheels on Windows than with pandas 3.x.
 pandas<3.0
+openpyxl>=3.1.0
+reportlab>=4.0.0
 
 opencv-python-headless>=4.8.0
 pymupdf>=1.22.0
