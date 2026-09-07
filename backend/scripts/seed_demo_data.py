@@ -19,6 +19,8 @@ from app.models.canonical_patient_record import CanonicalPatientRecord
 from app.models.rag_chunk import PatientRAGChunk
 from app.models.user import User
 from app.models.audit_log import AuditLogEntry
+from app.models.correction_log import CorrectionLog
+from app.models.note import Note
 
 # Ensure tables exist
 Base.metadata.create_all(bind=engine)
