@@ -12,5 +12,6 @@ class AuditLogEntry(Base):
     actor_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     action_type: Mapped[str] = mapped_column(String, nullable=False, index=True)
     target_entity: Mapped[str] = mapped_column(String, nullable=False)
+    patient_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     rationale: Mapped[str | None] = mapped_column(String, nullable=True)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), index=True)

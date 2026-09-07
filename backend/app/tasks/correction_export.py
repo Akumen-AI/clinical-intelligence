@@ -15,4 +15,5 @@ def export_retraining_batch(limit: int = 1000) -> dict:
 async def _run_export(service: CorrectionLogService, limit: int):
     from app.db.session import AsyncSessionLocal
     async with AsyncSessionLocal() as db:
+        # Scheduled exports are attributed to the system actor by design.
         return await service.export_for_retraining(db, limit=limit)

@@ -187,6 +187,7 @@ def write_field_to_canonical_record(
                 actor_user_id=actor_user_id,
                 action_type="canonical_record_write",
                 target_entity=f"canonical_record:{canonical.record_id}",
+                patient_id=patient_id,
                 rationale=f"Wrote field '{field.field_name}' to generic canonical record."
             )
             
@@ -210,6 +211,7 @@ def write_field_to_canonical_record(
             actor_user_id=actor_user_id,
             action_type="canonical_record_write",
             target_entity=f"canonical_record_normalized:{field.field_name}",
+            patient_id=patient_id,
             rationale=f"Wrote field '{field.field_name}' to normalized clinical entities."
         )
         

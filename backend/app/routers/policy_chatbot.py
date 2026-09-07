@@ -49,6 +49,7 @@ def policy_chat(
         actor_user_id=current_user.id,
         action_type="policy_rag_query",
         target_entity="policy_index",
+        patient_id=None,
         rationale=f"Asked: '{request.question}'. Grounded answer found: {has_answer}"
     )
 
@@ -70,7 +71,7 @@ def policy_chat(
 
 
 @router.get("/api/v1/policy-chat/source/{filename}", include_in_schema=False)
-def get_policy_source(filename: str, current_user: User = Depends(check_rbac)) -> FileResponse:
+def get_policy_source(filename: str, current_user: User = Depends(check_rbac), db: Session = Depends(get_db)) -> FileResponse:
     """Serve only an ingested policy file as the citation target."""
     documents_dir = Path(DEFAULT_POLICY_DOCUMENTS_DIR).resolve()
     source_path = (documents_dir / Path(filename).name).resolve()
@@ -78,6 +79,15 @@ def get_policy_source(filename: str, current_user: User = Depends(check_rbac)) -
         raise HTTPException(status_code=404, detail="Policy source not found.")
     if not source_path.is_file():
         raise HTTPException(status_code=404, detail="Policy source not found.")
+    audit_service.write_entry(
+        db=db,
+        actor_user_id=current_user.id,
+        action_type="policy_source_viewed",
+        target_entity=f"policy_document:{filename}",
+        patient_id=None,
+        rationale=f"Viewed policy document source: {filename}"
+    )
+
     return FileResponse(
         source_path,
         media_type="text/plain; charset=utf-8",
@@ -127,6 +137,7 @@ async def upload_policy_documents(
             actor_user_id=current_user.id,
             action_type="policy_document_ingested",
             target_entity=f"policy_document:{filename}",
+            patient_id=None,
             rationale=f"Policy document '{filename}' was uploaded and ingested."
         )
 

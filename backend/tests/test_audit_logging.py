@@ -67,9 +67,11 @@ def test_audit_log_document_upload_and_extract():
     
     assert len(upload_logs) == 1, "Expected exactly one document_uploaded log"
     assert upload_logs[0].target_entity == f"document:{doc_id}"
+    assert upload_logs[0].patient_id is None
     
     assert len(extract_logs) == 1, "Expected exactly one document_extracted log"
     assert extract_logs[0].target_entity == f"document:{doc_id}"
+    assert extract_logs[0].patient_id is None
     
     db.close()
 
@@ -112,8 +114,11 @@ def test_audit_log_review_action_and_canonical_write():
 
     assert len(review_logs) == 1, "Expected exactly one review_approve log"
     assert review_logs[0].target_entity == f"pending_review:{review_id}"
+    assert review_logs[0].patient_id == "test_audit_patient"
 
     assert len(canonical_logs) >= 1, "Expected canonical_record_write log on approve"
+    for clog in canonical_logs:
+        assert clog.patient_id == "test_audit_patient"
     db.close()
 
 
@@ -155,3 +160,65 @@ def test_audit_log_rag_query(mock_genai_client):
     assert "Grounded answer found: False" in rag_logs[0].rationale
     
     db.close()
+
+def test_audit_log_write_entry_with_patient_id():
+    db = TestingSessionLocal()
+    db.query(AuditLogEntry).delete()
+    db.commit()
+
+    entry = audit_service.write_entry(
+        db=db,
+        actor_user_id=uuid.UUID(TEST_USER_ID),
+        action_type="test_action",
+        target_entity="test_entity",
+        patient_id="patient_123"
+    )
+    
+    assert entry.patient_id == "patient_123"
+    
+    db.close()
+
+def test_audit_log_write_entry_without_patient_id():
+    db = TestingSessionLocal()
+    db.query(AuditLogEntry).delete()
+    db.commit()
+
+    entry = audit_service.write_entry(
+        db=db,
+        actor_user_id=uuid.UUID(TEST_USER_ID),
+        action_type="test_action",
+        target_entity="test_entity"
+    )
+    
+    assert entry.patient_id is None
+    
+    db.close()
+
+@pytest.mark.asyncio
+async def test_audit_log_write_entry_async(db_session):
+    # db_session is provided by the conftest fixture
+    from sqlalchemy import delete
+    await db_session.execute(delete(AuditLogEntry))
+    await db_session.commit()
+    
+    actor_id = uuid.uuid4()
+    entry = await audit_service.write_entry_async(
+        db=db_session,
+        actor_user_id=actor_id,
+        action_type="async_test_action",
+        target_entity="async_test_entity",
+        patient_id="async_patient_123"
+    )
+    
+    assert entry.action_type == "async_test_action"
+    assert entry.target_entity == "async_test_entity"
+    assert entry.patient_id == "async_patient_123"
+    assert entry.actor_user_id == actor_id
+
+    # Verify retrieval
+    from sqlalchemy import select
+    result = await db_session.execute(select(AuditLogEntry).where(AuditLogEntry.log_id == entry.log_id))
+    fetched_entry = result.scalar_one_or_none()
+    assert fetched_entry is not None
+    assert fetched_entry.patient_id == "async_patient_123"
+

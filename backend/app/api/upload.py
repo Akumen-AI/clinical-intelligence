@@ -269,6 +269,7 @@ async def link_patient(
     document_id: str,
     request: PatientLinkRequest,
     background_tasks: BackgroundTasks,
+    http_request: Request,
     db: Session = Depends(get_db)
 ):
     """
@@ -373,6 +374,17 @@ async def link_patient(
 
     db.commit()
     db.refresh(doc)
+    
+    from app.services import audit_service
+    audit_service.write_entry(
+        db=db,
+        actor_user_id=http_request.state.user.id,
+        action_type="document_linked_to_patient",
+        target_entity=f"document:{doc.document_id}",
+        patient_id=patient_id,
+        rationale=f"Document linked to {'new' if request.create_new else 'existing'} patient"
+    )
+    audit_service.backfill_patient_id_for_document(db, doc.document_id, patient_id)
     
     # Trigger RAG Indexing in the background
     from app.tasks.rag_tasks import index_document_task

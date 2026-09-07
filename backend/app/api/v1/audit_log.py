@@ -48,7 +48,7 @@ def get_patient_audit_logs(
     Full reconstruction of audit logs for one patient.
     """
     query = db.query(AuditLogEntry).filter(
-        AuditLogEntry.target_entity == f"patient:{id}"
+        AuditLogEntry.patient_id == id
     )
     query = query.order_by(AuditLogEntry.timestamp.desc())
     return query.offset(skip).limit(limit).all()

@@ -29,6 +29,15 @@ async def department_dashboard(
     db: Session = Depends(get_db),
     _current_user: User = Depends(_require_dashboard_access),
 ):
+    from app.services import audit_service
+    audit_service.write_entry(
+        db=db,
+        actor_user_id=_current_user.id,
+        action_type="department_dashboard_viewed",
+        target_entity=f"department:{department}" if department else "hospital",
+        patient_id=None,
+        rationale=f"Viewed department dashboard. Filters applied: department={department}, start_date={start_date}, end_date={end_date}"
+    )
     return get_department_dashboard(db, department=department, start_date=start_date, end_date=end_date)
 
 
@@ -39,4 +48,13 @@ async def hospital_dashboard(
     db: Session = Depends(get_db),
     _current_user: User = Depends(_require_dashboard_access),
 ):
+    from app.services import audit_service
+    audit_service.write_entry(
+        db=db,
+        actor_user_id=_current_user.id,
+        action_type="hospital_dashboard_viewed",
+        target_entity="hospital",
+        patient_id=None,
+        rationale=f"Viewed hospital dashboard. Filters applied: start_date={start_date}, end_date={end_date}"
+    )
     return get_hospital_dashboard(db, start_date=start_date, end_date=end_date)

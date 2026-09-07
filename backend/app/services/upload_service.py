@@ -82,22 +82,24 @@ def process_document(db: Session, document_id: str, actor_user_id: Optional[uuid
     """
     try:
         from app.services import audit_service
-        if actor_user_id:
-            audit_service.write_entry(
-                db=db,
-                actor_user_id=actor_user_id,
-                action_type="document_extracted",
-                target_entity=f"document:{document_id}",
-                rationale="Started preprocessing and extraction"
-            )
-            
-        print(f"[Epic 1.2 Hook Triggered] Document ID '{document_id}' is queued for preprocessing.")
         from app.services.preprocessing_service import preprocess_document_file
 
         doc = get_document_by_id(db, document_id)
         if not doc:
             print(f"[Epic 1.2 Hook Error] Document ID '{document_id}' not found in database.")
             return
+
+        if actor_user_id:
+            audit_service.write_entry(
+                db=db,
+                actor_user_id=actor_user_id,
+                action_type="document_extracted",
+                target_entity=f"document:{document_id}",
+                patient_id=doc.patient_id if doc else None,
+                rationale="Started preprocessing and extraction"
+            )
+            
+        print(f"[Epic 1.2 Hook Triggered] Document ID '{document_id}' is queued for preprocessing.")
 
         doc.status = DocumentStatus.PREPROCESSING.value
         db.commit()
@@ -327,6 +329,7 @@ async def process_single_upload(
         actor_user_id=actor_user_id,
         action_type="document_uploaded",
         target_entity=f"document:{doc.document_id}",
+        patient_id=None,
         rationale=f"Uploaded document {file.filename}"
     )
     

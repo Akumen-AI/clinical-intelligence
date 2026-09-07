@@ -7,6 +7,7 @@ class AuditLogResponse(BaseModel):
     actor_user_id: uuid.UUID
     action_type: str
     target_entity: str
+    patient_id: str | None = None
     rationale: str | None = None
     timestamp: datetime
 

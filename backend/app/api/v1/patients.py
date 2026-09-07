@@ -225,6 +225,7 @@ def ask_patient_question(
             actor_user_id=current_user.id,
             action_type="rag_query",
             target_entity=f"patient:{patient.patient_id}",
+            patient_id=patient.patient_id,
             rationale=f"Asked: '{request.question}'. Grounded answer found: {has_answer}"
         )
         

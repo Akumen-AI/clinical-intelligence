@@ -18,40 +18,7 @@ from app.models.correction_log import CorrectionLog
 from app.models.user import User, UserRole
 from app.schemas.correction_log import CorrectionAction
 
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
-@pytest_asyncio.fixture
-async def test_engine():
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-    await engine.dispose()
-
-@pytest_asyncio.fixture
-async def db_session(test_engine):
-    async_session_factory = async_sessionmaker(
-        bind=test_engine, class_=AsyncSession, expire_on_commit=False
-    )
-    async with async_session_factory() as session:
-        yield session
-
-@pytest_asyncio.fixture
-async def async_client(db_session):
-    async def override_get_async_db():
-        yield db_session
-
-    old_override = app.dependency_overrides.get(get_async_db)
-    app.dependency_overrides[get_async_db] = override_get_async_db
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
-        yield client
-    if old_override:
-        app.dependency_overrides[get_async_db] = old_override
-    else:
-        del app.dependency_overrides[get_async_db]
 
 @pytest.fixture
 def reviewer_id():
@@ -353,3 +320,69 @@ async def test_unauthenticated_request_returns_401(async_client, seed_extracted_
     }
     res = await async_client.post("/api/v1/correction-logs/", json=payload)
     assert res.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_api_export_writes_audit_log(async_client, auth_headers, db_session, seed_extracted_field, reviewer_id):
+    """Triggering export via API logs the export with the human actor's ID."""
+    from app.models.audit_log import AuditLogEntry
+    # clear audit log
+    await db_session.execute(select(AuditLogEntry).filter(AuditLogEntry.action_type == "correction_log_export"))
+    
+    payload = {
+        "extracted_field_id": str(seed_extracted_field["extracted_field_id"]),
+        "document_id": str(seed_extracted_field["document_id"]),
+        "action": "accept",
+        "before_value": "TestVal",
+        "field_name": "test_field",
+    }
+    await async_client.post("/api/v1/correction-logs/", json=payload, headers=auth_headers)
+
+    export_res = await async_client.post("/api/v1/correction-logs/export/retraining", headers=auth_headers)
+    assert export_res.status_code == 200
+    batch_id = export_res.json()["batch_id"]
+
+    result = await db_session.execute(
+        select(AuditLogEntry).filter(AuditLogEntry.action_type == "correction_log_export")
+    )
+    logs = result.scalars().all()
+    assert len(logs) == 1
+    
+    audit_log = logs[0]
+    assert audit_log.actor_user_id == reviewer_id
+    assert audit_log.target_entity == f"export_batch:{batch_id}"
+    assert audit_log.patient_id is None
+    assert f"Exported 1 corrections in batch {batch_id}" in audit_log.rationale
+
+
+@pytest.mark.asyncio
+async def test_scheduled_export_writes_audit_log_with_system_actor(async_client, auth_headers, db_session, seed_extracted_field):
+    """Calling export_for_retraining with actor_user_id=None logs it as the SYSTEM_ACTOR_ID."""
+    from app.models.audit_log import AuditLogEntry
+    from app.services.correction_log_service import CorrectionLogService
+    from app.services.audit_service import SYSTEM_ACTOR_ID
+
+    payload = {
+        "extracted_field_id": str(seed_extracted_field["extracted_field_id"]),
+        "document_id": str(seed_extracted_field["document_id"]),
+        "action": "edit",
+        "before_value": "TestVal",
+        "after_value": "TestVal2",
+        "field_name": "test_field2",
+    }
+    await async_client.post("/api/v1/correction-logs/", json=payload, headers=auth_headers)
+
+    service = CorrectionLogService()
+    batch_res = await service.export_for_retraining(db_session)
+    batch_id = batch_res.batch_id
+
+    result = await db_session.execute(
+        select(AuditLogEntry).filter(AuditLogEntry.action_type == "correction_log_export").order_by(AuditLogEntry.timestamp.desc())
+    )
+    logs = result.scalars().all()
+    assert len(logs) >= 1
+    
+    audit_log = logs[0]
+    assert audit_log.actor_user_id == SYSTEM_ACTOR_ID
+    assert audit_log.target_entity == f"export_batch:{batch_id}"
+    assert f"Exported" in audit_log.rationale
