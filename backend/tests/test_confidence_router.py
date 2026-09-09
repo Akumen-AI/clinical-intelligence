@@ -37,6 +37,7 @@ def setup_test_database():
         test_doc = Document(
             document_id="test-doc-123",
             filename="test.pdf",
+            patient_id="PAT-12345",
             raw_uri="/uploads/test.pdf",
             filetype="pdf",
             status=DocumentStatus.EXTRACTED.value,
@@ -235,7 +236,8 @@ def test_get_pending_reviews_endpoint(client):
     assert data["items"][0]["status"] == "PENDING"
 
 
-def test_patch_review_approve_and_reject(client):
+def test_patch_review_approve_and_reject(client_as):
+    client = client_as("nurse", patient_access=["PAT-12345"])
     """PATCH /api/v1/review/pending/{id} approves or rejects items and invokes canonical record service on approve."""
     db = TestingSessionLocal()
     rec1 = PendingReview(

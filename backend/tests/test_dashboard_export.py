@@ -69,3 +69,6 @@ def test_dashboard_export_denies_unauthorized_role():
     response = client.get("/api/v1/dashboards/hospital/export", params={"format": "csv"})
 
     assert response.status_code == 403
+def test_dashboard_export_denied_for_doctor(client_as):
+    client = client_as("doctor")
+    assert client.get("/api/v1/dashboards/hospital/export").status_code == 403

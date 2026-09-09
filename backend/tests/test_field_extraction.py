@@ -310,7 +310,8 @@ def test_get_document_fields_api(client, monkeypatch, tmp_path):
         db.close()
 
 
-def test_trigger_extract_fields_api(client, monkeypatch, tmp_path):
+def test_trigger_extract_fields_api(client_as, monkeypatch, tmp_path):
+    client = client_as("nurse", patient_access=["*"])
     """Test POST /api/v1/documents/{document_id}/extract endpoint."""
     dummy_file = tmp_path / "sample_lab.txt"
     dummy_file.write_text(SAMPLE_LAB_REPORT_TEXT)

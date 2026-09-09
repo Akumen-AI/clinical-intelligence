@@ -22,6 +22,7 @@ export const RBAC_MATRIX = {
   dashboards: ['hospital_admin', 'department_head'],
   policyChat: ['doctor', 'nurse', 'hospital_admin'],
   policyUpload: ['hospital_admin', 'it', 'compliance'],
+  patientQA: ['doctor'],
 };
 
 const hasAccess = (role, routeKey) => {
@@ -77,7 +78,7 @@ export default function Sidebar() {
         <div className="sidebar-divider"></div>
         <div className="sidebar-section-title">Tools</div>
 
-        {hasAccess(user.role, 'patients') && (
+        {hasAccess(user.role, 'patientQA') && (
           <NavLink to="/patients/ask" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
             <MessageSquare size={18} />
             <span>Patient Q&A</span>

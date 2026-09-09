@@ -92,6 +92,9 @@ export default function PolicyChatbot() {
   const allowedUploadRoles = ['hospital_admin', 'it', 'compliance'];
   const canUpload = user && user.role && allowedUploadRoles.includes(user.role.toLowerCase());
 
+  const allowedChatRoles = ['doctor', 'nurse', 'hospital_admin'];
+  const canChat = user && user.role && allowedChatRoles.includes(user.role.toLowerCase());
+
   return (
     <div className="app-container flex-1 flex flex-col min-h-0">
       
@@ -122,6 +125,7 @@ export default function PolicyChatbot() {
       </header>
 
       {/* Main Container */}
+      {canChat && (
       <div className="flex-1 flex flex-col bg-surface-container rounded-2xl border border-outline-variant/20 overflow-hidden relative shadow-sm min-h-[500px]">
         
         {/* Chat Toolbar */}
@@ -240,6 +244,7 @@ export default function PolicyChatbot() {
           </form>
         </div>
       </div>
+      )}
       
     </div>
   );

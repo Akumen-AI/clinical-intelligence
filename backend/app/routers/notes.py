@@ -1,7 +1,7 @@
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from app.database import get_db
-from app.dependencies.auth import get_current_user
+from app.core.rbac import check_rbac
 from app.schemas.note import NoteCreate, NoteRead
 from app.services.notes_service import create_note, list_notes_for_patient
 from app.core.compliance import ComplianceViolationError
@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/v1/notes", tags=["notes"])
 @router.post("", response_model=NoteRead, status_code=status.HTTP_201_CREATED)
 async def add_note(
     payload: NoteCreate,
-    current_user=Depends(get_current_user),
+    current_user=Depends(check_rbac),
     db=Depends(get_db),
 ):
     try:
@@ -35,7 +35,7 @@ async def add_note(
 @router.get("/{patient_id}", response_model=list[NoteRead])
 async def get_notes(
     patient_id: uuid.UUID,
-    current_user=Depends(get_current_user),
+    current_user=Depends(check_rbac),
     db=Depends(get_db),
 ):
     try:

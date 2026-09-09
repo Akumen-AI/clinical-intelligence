@@ -284,7 +284,8 @@ Signature: Dr. Robert Adams
 class TestScorePersistedNotTransient:
     """AC-2: confidence_score is stored in the DB at extraction time."""
 
-    def test_score_persisted_via_api(self, client, monkeypatch, tmp_path):
+    def test_score_persisted_via_api(self, client_as, monkeypatch, tmp_path):
+        client = client_as("nurse", patient_access=["*"])
         """POST extract → GET fields → every field_record has a valid confidence_score."""
         dummy_file = tmp_path / "sample_doc.txt"
         dummy_file.write_text(SAMPLE_PRESCRIPTION_TEXT)

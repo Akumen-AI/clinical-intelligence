@@ -75,3 +75,7 @@ def test_policy_chatbot_audit_logging(auth_headers, policy_dir, monkeypatch):
     assert logs[0].target_entity == "policy_document:test_policy.md"
     assert logs[0].patient_id is None
     db.close()
+
+def test_policy_chat_source_denied_for_it(client_as):
+    client = client_as("it")
+    assert client.get("/api/v1/policy-chat/source/somefile.pdf").status_code == 403

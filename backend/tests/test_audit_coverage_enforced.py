@@ -17,8 +17,10 @@ from tests.test_upload import make_valid_pdf_bytes, wait_for_document_processing
 client = TestClient(app)
 TEST_USER_ID = str(uuid.uuid4())
 
+CURRENT_TEST_ROLE = UserRole.HOSPITAL_ADMIN
+
 def override_get_current_user():
-    u = User(id=uuid.UUID(TEST_USER_ID), email="audit_enforcer@clinic.org", role=UserRole.HOSPITAL_ADMIN)
+    u = User(id=uuid.UUID(TEST_USER_ID), email="audit_enforcer@clinic.org", role=CURRENT_TEST_ROLE)
     u.patient_access = ["e2e_patient", "dec_patient", "dec_patient_review"]
     return u
 
@@ -77,6 +79,8 @@ def test_declarative_link_patient(clear_audit_log):
 
 
 def test_declarative_review_patch(clear_audit_log):
+    global CURRENT_TEST_ROLE
+    CURRENT_TEST_ROLE = UserRole.NURSE
     db = TestingSessionLocal()
     patient = Patient(patient_id="dec_patient_review", mrn="MRN-DEC-REV", name="Dec Patient")
     doc = Document(document_id="dec_doc_review", patient_id="dec_patient_review", filename="dec.pdf", raw_uri="/test/uri", filetype="application/pdf", status="PROCESSED")
@@ -102,6 +106,8 @@ def test_declarative_review_patch(clear_audit_log):
 
 
 def test_declarative_dashboards(clear_audit_log):
+    global CURRENT_TEST_ROLE
+    CURRENT_TEST_ROLE = UserRole.HOSPITAL_ADMIN
     db = TestingSessionLocal()
     patient = Patient(patient_id="dec_patient", mrn="MRN-DEC", name="Dec Patient")
     db.merge(patient)
@@ -126,6 +132,8 @@ def test_declarative_dashboards(clear_audit_log):
 
 @pytest.mark.asyncio
 async def test_declarative_correction_export(async_client, clear_audit_log, db_session):
+    global CURRENT_TEST_ROLE
+    CURRENT_TEST_ROLE = UserRole.HOSPITAL_ADMIN
     from app.models.correction_log import CorrectionLog
     from datetime import datetime, timezone
     
@@ -152,6 +160,8 @@ async def test_declarative_correction_export(async_client, clear_audit_log, db_s
 
 
 def test_declarative_policy(clear_audit_log, tmp_path, monkeypatch):
+    global CURRENT_TEST_ROLE
+    CURRENT_TEST_ROLE = UserRole.HOSPITAL_ADMIN
     import app.routers.policy_chatbot
     monkeypatch.setattr(app.routers.policy_chatbot, "DEFAULT_POLICY_DOCUMENTS_DIR", str(tmp_path))
 
@@ -184,6 +194,8 @@ def test_declarative_policy(clear_audit_log, tmp_path, monkeypatch):
 @patch("app.config.settings.GEMINI_API_KEY", "dummy_key")
 @patch("google.genai.Client")
 def test_declarative_rag(mock_genai_client, clear_audit_log):
+    global CURRENT_TEST_ROLE
+    CURRENT_TEST_ROLE = UserRole.DOCTOR
     db = TestingSessionLocal()
     patient = Patient(patient_id="dec_patient", mrn="MRN-DEC", name="Dec Patient")
     db.merge(patient)
@@ -211,6 +223,7 @@ def test_declarative_rag(mock_genai_client, clear_audit_log):
 @patch("app.config.settings.GEMINI_API_KEY", "dummy_key")
 @patch("google.genai.Client")
 def test_e2e_patient_audit_reconstruction(mock_genai_client, clear_audit_log):
+    global CURRENT_TEST_ROLE
     class MockEmbedding:
         def __init__(self):
             self.values = [0.1] * 768
@@ -226,6 +239,7 @@ def test_e2e_patient_audit_reconstruction(mock_genai_client, clear_audit_log):
     db.commit()
     db.close()
 
+    CURRENT_TEST_ROLE = UserRole.DOCTOR
     # 1. Upload a document
     file_content = make_valid_pdf_bytes()
     upload_res = client.post(
@@ -251,6 +265,7 @@ def test_e2e_patient_audit_reconstruction(mock_genai_client, clear_audit_log):
     db.commit()
     db.close()
 
+    CURRENT_TEST_ROLE = UserRole.NURSE
     # 3. Approve review item
     appr_res = client.patch(
         f"/api/v1/review/pending/{rev_id}",
@@ -258,6 +273,7 @@ def test_e2e_patient_audit_reconstruction(mock_genai_client, clear_audit_log):
     )
     assert appr_res.status_code == 200
 
+    CURRENT_TEST_ROLE = UserRole.DOCTOR
     # 4. View patient dashboard
     dash_res = client.get("/api/v1/dashboards/patient/e2e_patient")
     assert dash_res.status_code == 200

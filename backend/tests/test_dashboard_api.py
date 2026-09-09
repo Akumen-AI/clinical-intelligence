@@ -134,3 +134,7 @@ def test_dashboard_performance(db_session: Session, test_patient):
     assert duration < 2.0  # Must respond in under 2 seconds
     data = res.json()
     assert data["total_events"] >= 30
+
+def test_dashboard_patient_denied_for_nurse(client_as):
+    client = client_as("nurse")
+    assert client.get("/api/v1/dashboards/patient/123").status_code == 403

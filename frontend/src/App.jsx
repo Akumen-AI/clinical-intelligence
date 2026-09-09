@@ -144,13 +144,13 @@ function App() {
           } />
           
           <Route path="patients/:patientId/ask" element={
-            <RoleProtectedRoute routeKey="patients">
+            <RoleProtectedRoute routeKey="patientQA">
               <PatientQAPage />
             </RoleProtectedRoute>
           } />
           
           <Route path="patients/ask" element={
-            <RoleProtectedRoute routeKey="patients">
+            <RoleProtectedRoute routeKey="patientQA">
               <PatientQAPage />
             </RoleProtectedRoute>
           } />
@@ -158,7 +158,7 @@ function App() {
 
           
           <Route path="policy-assistant" element={
-            <RoleProtectedRoute routeKey="policyChat">
+            <RoleProtectedRoute routeKeys={['policyChat', 'policyUpload']}>
               <PolicyChatbot />
             </RoleProtectedRoute>
           } />
