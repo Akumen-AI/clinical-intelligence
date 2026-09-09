@@ -16,6 +16,8 @@ class Medication(Base):
     source_field_id = Column(String(36), ForeignKey("extracted_fields.field_id"), nullable=False, index=True)
     raw_text = Column(String(500), nullable=False)
     rxnorm_code = Column(String(100), nullable=True)
+    mapping_source = Column(String(100), nullable=True)
+    mapping_version = Column(String(50), nullable=True)
     status = Column(String(20), nullable=True, default="active")
     discontinued_reason = Column(String(500), nullable=True)
     discontinued_date = Column(String(100), nullable=True)
@@ -30,6 +32,8 @@ class Diagnosis(Base):
     source_field_id = Column(String(36), ForeignKey("extracted_fields.field_id"), nullable=False, index=True)
     raw_text = Column(String(500), nullable=False)
     icd10_code = Column(String(100), nullable=True)
+    mapping_source = Column(String(100), nullable=True)
+    mapping_version = Column(String(50), nullable=True)
 
 
 class Allergy(Base):

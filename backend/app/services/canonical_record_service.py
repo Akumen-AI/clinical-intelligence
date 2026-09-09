@@ -30,25 +30,36 @@ def route_to_normalized_tables(
     if final_value and isinstance(final_value, list):
         if field_name == "medications":
             from app.models.clinical_entities import Medication
+            from app.services.terminology_service import normalize_medication
             db.query(Medication).filter(Medication.source_field_id == field_id).delete()
             for item in final_value:
                 if isinstance(item, dict):
+                    raw_text = item.get("medication_name", str(item))
+                    mapping = normalize_medication(raw_text)
                     db.add(Medication(
                         patient_id=patient_id,
                         source_field_id=field_id,
-                        raw_text=item.get("medication_name", str(item)),
+                        raw_text=raw_text,
+                        rxnorm_code=mapping.code if mapping else None,
+                        mapping_source=mapping.mapping_source if mapping else None,
+                        mapping_version=mapping.mapping_version if mapping else None,
                         status="active"
                     ))
         elif field_name in ("diagnoses", "diagnosis"):
             from app.models.clinical_entities import Diagnosis
+            from app.services.terminology_service import normalize_diagnosis
             db.query(Diagnosis).filter(Diagnosis.source_field_id == field_id).delete()
             for item in final_value:
                 if isinstance(item, dict):
+                    raw_text = item.get("condition_name", str(item))
+                    mapping = normalize_diagnosis(raw_text)
                     db.add(Diagnosis(
                         patient_id=patient_id,
                         source_field_id=field_id,
-                        raw_text=item.get("condition_name", str(item)),
-                        icd10_code=item.get("icd10_code")
+                        raw_text=raw_text,
+                        icd10_code=mapping.code if mapping else None,
+                        mapping_source=mapping.mapping_source if mapping else None,
+                        mapping_version=mapping.mapping_version if mapping else None,
                     ))
         elif field_name == "allergies":
             from app.models.clinical_entities import Allergy

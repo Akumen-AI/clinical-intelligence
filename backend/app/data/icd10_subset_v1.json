@@ -1,0 +1,22 @@
+[
+  {"terms": ["hypertension", "essential hypertension", "high blood pressure"], "code": "I10", "display_name": "Essential (primary) hypertension"},
+  {"terms": ["type 2 diabetes", "type 2 diabetes mellitus", "diabetes mellitus type 2", "dm2"], "code": "E11.9", "display_name": "Type 2 diabetes mellitus without complications"},
+  {"terms": ["type 1 diabetes", "type 1 diabetes mellitus", "diabetes mellitus type 1", "dm1"], "code": "E10.9", "display_name": "Type 1 diabetes mellitus without complications"},
+  {"terms": ["asthma", "unspecified asthma"], "code": "J45.909", "display_name": "Unspecified asthma, uncomplicated"},
+  {"terms": ["pneumonia", "community acquired pneumonia", "cap"], "code": "J18.9", "display_name": "Pneumonia, unspecified organism"},
+  {"terms": ["acute bronchitis"], "code": "J20.9", "display_name": "Acute bronchitis, unspecified"},
+  {"terms": ["copd", "chronic obstructive pulmonary disease"], "code": "J44.9", "display_name": "Chronic obstructive pulmonary disease, unspecified"},
+  {"terms": ["hyperlipidemia", "high cholesterol", "dyslipidemia"], "code": "E78.5", "display_name": "Hyperlipidemia, unspecified"},
+  {"terms": ["hypothyroidism", "underactive thyroid"], "code": "E03.9", "display_name": "Hypothyroidism, unspecified"},
+  {"terms": ["chest pain"], "code": "R07.9", "display_name": "Chest pain, unspecified"},
+  {"terms": ["fever"], "code": "R50.9", "display_name": "Fever, unspecified"},
+  {"terms": ["headache"], "code": "R51.9", "display_name": "Headache, unspecified"},
+  {"terms": ["gastroesophageal reflux disease", "gerd", "acid reflux"], "code": "K21.9", "display_name": "Gastro-esophageal reflux disease without esophagitis"},
+  {"terms": ["urinary tract infection", "uti"], "code": "N39.0", "display_name": "Urinary tract infection, site not specified"},
+  {"terms": ["migraine"], "code": "G43.909", "display_name": "Migraine, unspecified, not intractable"},
+  {"terms": ["osteoarthritis", " osteoarthritis of knee"], "code": "M19.90", "display_name": "Osteoarthritis, unspecified site"},
+  {"terms": ["anemia"], "code": "D64.9", "display_name": "Anemia, unspecified"},
+  {"terms": ["acute kidney injury", "aki"], "code": "N17.9", "display_name": "Acute kidney failure, unspecified"},
+  {"terms": ["coronary artery disease", "cad"], "code": "I25.10", "display_name": "Atherosclerotic heart disease of native coronary artery without angina pectoris"},
+  {"terms": ["heart failure", "congestive heart failure", "chf"], "code": "I50.9", "display_name": "Heart failure, unspecified"}
+]

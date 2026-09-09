@@ -1,0 +1,22 @@
+[
+  {"terms": ["metformin", "metformin hcl", "glucophage"], "code": "6809", "display_name": "Metformin"},
+  {"terms": ["lisinopril", "zestril", "prinivil"], "code": "314077", "display_name": "Lisinopril"},
+  {"terms": ["atorvastatin", "lipitor"], "code": "83367", "display_name": "Atorvastatin"},
+  {"terms": ["amlodipine", "norvasc"], "code": "308135", "display_name": "Amlodipine"},
+  {"terms": ["losartan", "cozaar"], "code": "52175", "display_name": "Losartan"},
+  {"terms": ["simvastatin", "zocor"], "code": "36567", "display_name": "Simvastatin"},
+  {"terms": ["pravastatin", "pravachol"], "code": "42463", "display_name": "Pravastatin"},
+  {"terms": ["glipizide", "glucotrol"], "code": "4815", "display_name": "Glipizide"},
+  {"terms": ["omeprazole", "prilosec"], "code": "7646", "display_name": "Omeprazole"},
+  {"terms": ["aspirin", "acetylsalicylic acid"], "code": "1191", "display_name": "Aspirin"},
+  {"terms": ["warfarin", "coumadin"], "code": "11289", "display_name": "Warfarin"},
+  {"terms": ["furosemide", "lasix"], "code": "4603", "display_name": "Furosemide"},
+  {"terms": ["prednisone"], "code": "8640", "display_name": "Prednisone"},
+  {"terms": ["gabapentin", "neurontin"], "code": "25480", "display_name": "Gabapentin"},
+  {"terms": ["sertraline", "zoloft"], "code": "36437", "display_name": "Sertraline"},
+  {"terms": ["albuterol", "salbutamol", "ventolin"], "code": "435", "display_name": "Albuterol"},
+  {"terms": ["amoxicillin"], "code": "723", "display_name": "Amoxicillin"},
+  {"terms": ["azithromycin", "zithromax"], "code": "18631", "display_name": "Azithromycin"},
+  {"terms": ["levothyroxine", "synthroid"], "code": "966247", "display_name": "Levothyroxine"},
+  {"terms": ["insulin glargine", "lantus"], "code": "274783", "display_name": "Insulin glargine"}
+]

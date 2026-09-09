@@ -76,7 +76,9 @@ def test_link_patient_migrates_flat_records_and_creates_visit(client):
         assert len(diagnoses_after) == 1
         assert diagnoses_after[0].patient_id == patient_id
         assert diagnoses_after[0].raw_text == "Asthma"
-        assert diagnoses_after[0].icd10_code == "J45.9"
+        assert diagnoses_after[0].icd10_code == "J45.909"
+        assert diagnoses_after[0].mapping_source == "demo-subset"
+        assert diagnoses_after[0].mapping_version == "v1"
 
         # Verify: Visit row created
         visit = db.query(Visit).filter(Visit.document_id == doc_id).first()

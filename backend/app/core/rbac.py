@@ -18,7 +18,7 @@ RBAC_MATRIX: Dict[str, Set[UserRole]] = {
     "/api/v1/patients": {UserRole.DOCTOR, UserRole.NURSE, UserRole.HOSPITAL_ADMIN},
     
     # Dashboards
-    "/api/v1/dashboards": {UserRole.DOCTOR, UserRole.HOSPITAL_ADMIN},
+    "/api/v1/dashboards": {UserRole.DOCTOR, UserRole.HOSPITAL_ADMIN, UserRole.DEPARTMENT_HEAD},
     
     # Policy Chatbot
     "/api/v1/policy-chat/upload": {UserRole.HOSPITAL_ADMIN, UserRole.IT, UserRole.COMPLIANCE},
