@@ -128,3 +128,43 @@ def test_review_pending_list_filtered(db_session: Session, test_patient, test_do
     res = client.get("/api/v1/review/pending")
     assert res.status_code == 200
     assert len(res.json()["items"]) == 0
+
+def test_correction_submitting_routes_denied_for_doctor(db_session: Session, test_patient, test_document):
+    client = get_auth_client(db_session, UserRole.DOCTOR, patient_access=[test_patient.patient_id])
+    
+    # Allowed GETs
+    res_layout = client.get(f"/api/v1/documents/{test_document.document_id}/layout")
+    assert res_layout.status_code != 403  # May be 404 if data doesn't exist, but not 403
+
+    # Denied POST/PATCH
+    res_fields = client.post(f"/api/v1/documents/{test_document.document_id}/extract")
+    assert res_fields.status_code == 403
+    
+    res_review = client.patch(f"/api/v1/review/pending/some-review-id", json={"status": "APPROVED"})
+    assert res_review.status_code == 403
+
+def test_correction_submitting_routes_denied_for_hospital_admin(db_session: Session, test_patient, test_document):
+    client = get_auth_client(db_session, UserRole.HOSPITAL_ADMIN, patient_access=[])
+    
+    # Allowed GETs
+    res_layout = client.get(f"/api/v1/documents/{test_document.document_id}/layout")
+    assert res_layout.status_code != 403
+    
+    res_fields = client.post(f"/api/v1/documents/{test_document.document_id}/extract")
+    assert res_fields.status_code == 403
+    
+    res_review = client.patch(f"/api/v1/review/pending/some-review-id", json={"status": "APPROVED"})
+    assert res_review.status_code == 403
+    
+    # Allowed PUT config
+    res_config = client.put("/api/v1/review/config/threshold", json={"threshold": 0.95})
+    assert res_config.status_code != 403
+
+def test_notes_endpoints_denied_for_it(client_as):
+    client = client_as("it")
+    assert client.post("/api/v1/notes", json={"patient_id": "123", "content": "hello"}).status_code == 403
+    assert client.get("/api/v1/notes/123").status_code == 403
+
+def test_notes_post_denied_for_department_head(client_as):
+    client = client_as("department_head")
+    assert client.post("/api/v1/notes", json={"patient_id": "123", "content": "hello"}).status_code == 403

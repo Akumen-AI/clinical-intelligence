@@ -72,3 +72,7 @@ def test_get_patient_audit_logs():
     logs_other = response_other.json()
     assert len(logs_other) == 1
     assert logs_other[0]["patient_id"] == other_patient_id
+
+def test_get_patient_audit_logs_doctor_role_forbidden(client_as):
+    client = client_as("doctor")
+    assert client.get("/api/v1/audit-log/patient/123").status_code == 403

@@ -22,8 +22,10 @@ client = TestClient(app)
 
 TEST_USER_ID = str(uuid.uuid4())
 
+CURRENT_TEST_ROLE = UserRole.NURSE
+
 def override_get_current_user():
-    u = User(id=uuid.UUID(TEST_USER_ID), email="audit_test@clinic.org", role=UserRole.DOCTOR)
+    u = User(id=uuid.UUID(TEST_USER_ID), email="audit_test@clinic.org", role=CURRENT_TEST_ROLE)
     u.patient_access = ["test_rag_patient", "test_audit_patient"]
     return u
 
@@ -125,6 +127,8 @@ def test_audit_log_review_action_and_canonical_write():
 @patch("app.config.settings.GEMINI_API_KEY", "dummy_key")
 @patch("google.genai.Client")
 def test_audit_log_rag_query(mock_genai_client):
+    global CURRENT_TEST_ROLE
+    CURRENT_TEST_ROLE = UserRole.DOCTOR
     """Test that a RAG query (even without grounded answer) triggers rag_query log."""
     db = TestingSessionLocal()
     db.query(AuditLogEntry).delete()

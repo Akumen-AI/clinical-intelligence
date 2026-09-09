@@ -386,3 +386,9 @@ async def test_scheduled_export_writes_audit_log_with_system_actor(async_client,
     assert audit_log.actor_user_id == SYSTEM_ACTOR_ID
     assert audit_log.target_entity == f"export_batch:{batch_id}"
     assert f"Exported" in audit_log.rationale
+
+def test_correction_logs_denied_for_doctor(client_as):
+    client = client_as("doctor")
+    assert client.post("/api/v1/correction-logs/").status_code == 403
+    assert client.get("/api/v1/correction-logs/123").status_code == 403
+    assert client.get("/api/v1/correction-logs/document/doc123").status_code == 403

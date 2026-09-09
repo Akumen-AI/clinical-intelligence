@@ -92,7 +92,7 @@ class MockDoctor:
     id = uuid.UUID("00000000-0000-0000-0000-000000000001")
     role = "doctor"
     email = "doctor@clinic.org"
-    patient_access = []
+    patient_access = ["00000000-0000-0000-0000-000000000099"]
 
 
 @pytest.fixture
@@ -106,6 +106,17 @@ def doctor_client():
 def db_session():
     db = TestingSessionLocal()
     try:
+        from app.models.patient import Patient
+        p = Patient(
+            patient_id="00000000-0000-0000-0000-000000000099",
+            patient_number="PT-TEST-0099",
+            mrn="MRN-0099",
+            name="Test Patient",
+            dob="1980-01-01",
+            sex="F"
+        )
+        db.add(p)
+        db.commit()
         yield db
     finally:
         db.close()
@@ -130,7 +141,7 @@ DIAGNOSTIC_RAG_ANSWERS = [
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("injected_answer", DIAGNOSTIC_RAG_ANSWERS)
-async def test_rag_endpoint_blocks_diagnostic_answer(doctor_client, injected_answer):
+async def test_rag_endpoint_blocks_diagnostic_answer(doctor_client, injected_answer, db_session):
     """
     Even if the underlying LLM produces a diagnostic answer,
     the enforce_ac3 layer must block it before it reaches the client.
@@ -150,7 +161,7 @@ async def test_rag_endpoint_blocks_diagnostic_answer(doctor_client, injected_ans
 
 
 @pytest.mark.asyncio
-async def test_rag_endpoint_safe_answer_passes(doctor_client):
+async def test_rag_endpoint_safe_answer_passes(doctor_client, db_session):
     safe = "Blood pressure was 130/85 on last visit. No prior test results available."
     with patch(
         "app.services.rag_service.run_rag_chain",
@@ -176,7 +187,7 @@ DIAGNOSTIC_PANEL_TEXTS = [
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("injected_text", DIAGNOSTIC_PANEL_TEXTS)
-async def test_context_panel_blocks_diagnostic_text(doctor_client, injected_text):
+async def test_context_panel_blocks_diagnostic_text(doctor_client, injected_text, db_session):
     with patch(
         "app.services.context_panel_service.build_panel_text",
         new=AsyncMock(return_value=injected_text),
@@ -191,7 +202,7 @@ async def test_context_panel_blocks_diagnostic_text(doctor_client, injected_text
 
 
 @pytest.mark.asyncio
-async def test_context_panel_safe_content_passes(doctor_client):
+async def test_context_panel_safe_content_passes(doctor_client, db_session):
     safe_panel = {
         "history": ["Visited 2024-01-10 — BP 130/85"],
         "medications": ["Metformin 500 mg"],

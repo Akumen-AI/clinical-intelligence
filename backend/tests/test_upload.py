@@ -85,6 +85,8 @@ def test_upload_bulk_valid_files(client):
         assert item["status"] == "QUEUED"
         assert item["document_id"] is not None
 
+
+
 def test_get_all_documents(client):
     file_content = make_valid_pdf_bytes()
     files = [("files", ("blood_work.pdf", io.BytesIO(file_content), "application/pdf"))]

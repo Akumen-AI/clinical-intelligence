@@ -13,7 +13,7 @@ def test_rbac_enforced_on_every_router():
         ("GET", "/api/v1/documents"),
         ("POST", "/api/v1/documents/upload"),
         ("GET", "/api/v1/documents/123/layout"),
-        ("GET", "/api/v1/documents/123/fields"),
+        ("POST", "/api/v1/documents/123/extract"),
         ("GET", "/api/v1/timeline"),
         ("GET", "/api/v1/canonical-records"),
         ("GET", "/api/v1/review/pending"),

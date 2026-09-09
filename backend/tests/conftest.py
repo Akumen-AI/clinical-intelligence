@@ -73,6 +73,18 @@ def client():
     c.headers.update({"Authorization": f"Bearer {token}"})
     return c
 
+@pytest.fixture
+def client_as():
+    def _make(role: str, **claims):
+        token = create_access_token({
+            "sub": str(uuid.uuid4()), "role": role,
+            "email": f"{role}@test.clinic.org", **claims
+        })
+        c = TestClient(app)
+        c.headers.update({"Authorization": f"Bearer {token}"})
+        return c
+    return _make
+
 
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport

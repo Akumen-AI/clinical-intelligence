@@ -126,3 +126,8 @@ def test_dashboard_requires_admin_or_department_head(role):
 
     response = client.get("/api/v1/dashboards/hospital")
     assert response.status_code == 403, response.text
+
+def test_dashboard_routes_denied_for_doctor(client_as):
+    client = client_as("doctor")
+    assert client.get("/api/v1/dashboards/department").status_code == 403
+    assert client.get("/api/v1/dashboards/hospital").status_code == 403

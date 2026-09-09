@@ -128,11 +128,12 @@ def test_multiple_upload_mixed_valid_and_invalid(client):
     assert "invalid.docx" in rejected_names
     assert "broken.pdf" in rejected_names
 
-def test_upload_logs_audit_trail(client):
+def test_upload_logs_audit_trail(client, client_as):
     client.post("/api/v1/documents/upload", files=[("files", ("good.png", io.BytesIO(make_valid_png_bytes()), "image/png"))])
     client.post("/api/v1/documents/upload", files=[("files", ("bad.docx", io.BytesIO(b"data"), "application/docx"))])
 
-    response = client.get("/api/v1/documents/upload-logs")
+    comp_client = client_as("compliance")
+    response = comp_client.get("/api/v1/documents/upload-logs")
     assert response.status_code == 200
     logs = response.json()
     assert len(logs) >= 2
