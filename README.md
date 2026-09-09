@@ -333,6 +333,25 @@ PYTHONPATH=. pytest tests/ -v
 
 ---
 
+## 🔐 Role-Based Access Control (RBAC)
+
+The platform enforces strict Role-Based Access Control (RBAC) at both the API routing layer and the frontend navigation layer. All requests are authenticated via JWT tokens.
+
+### User Roles & Capabilities
+| Role | Permissions |
+|---|---|
+| **Doctor** | Access to document intake, review queue, canonical patient records, patient timelines, patient Q&A, and clinical policy queries. Limited to their assigned patients. |
+| **Nurse** | Access to document intake, canonical patient records, and clinical policy queries. Can perform manual corrections in the review queue. Limited to their assigned patients. |
+| **Hospital Admin** | System-wide visibility. Full access to document intake, review queue, canonical patient records, operations dashboards, and policy management (upload and query). |
+| **Department Head** | Read-only access to aggregated department and hospital operations dashboards. |
+| **IT** | System maintenance access, including uploading new hospital policies to the RAG knowledge base. |
+| **Compliance** | Access to system-wide audit logs and policy management (uploading policies). |
+
+### Patient-Level Access Guardrails
+Beyond endpoint-level role protection, the system enforces **record-level access controls** for clinical roles (`Doctor`, `Nurse`). If an authenticated clinical user attempts to access a patient record, document, or RAG context panel for a patient not explicitly bound to their access list, the `RbacAccessGuard` rejects the request with a `403 Forbidden` error.
+
+---
+
 ## ⚙️ Configuration
 
 Configure backend settings via environment variables or a `backend/.env` file:
