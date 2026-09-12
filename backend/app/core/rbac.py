@@ -11,6 +11,7 @@ RBAC_MATRIX: Dict[str, Union[Set[UserRole], Dict[str, Set[UserRole]]]] = {
     "/api/v1/documents/{id}/extract": {
         "POST": {UserRole.NURSE}
     },
+    "/api/v1/documents/config/watched-folder": {UserRole.HOSPITAL_ADMIN},
     "/api/v1/documents/upload-logs": {UserRole.COMPLIANCE},
     "/api/v1/documents": {UserRole.DOCTOR, UserRole.NURSE, UserRole.HOSPITAL_ADMIN},
     "/api/v1/timeline": {UserRole.DOCTOR, UserRole.NURSE, UserRole.HOSPITAL_ADMIN},

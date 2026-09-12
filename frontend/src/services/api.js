@@ -110,6 +110,16 @@ export const fetchUploadLogs = async () => {
   return response.data;
 };
 
+export const getWatchedFolderConfig = async () => {
+  const response = await apiClient.get('/documents/config/watched-folder');
+  return response.data;
+};
+
+export const updateWatchedFolderConfig = async (path) => {
+  const response = await apiClient.put('/documents/config/watched-folder', { path });
+  return response.data;
+};
+
 export const fetchDocumentFields = async (documentId) => {
   const response = await apiClient.get(`/documents/${documentId}/fields`);
   return response.data;

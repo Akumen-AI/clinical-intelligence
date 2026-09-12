@@ -7,7 +7,7 @@ An enterprise-grade clinical document intake, computer vision preprocessing, dua
 ## 🌟 Key Capabilities
 
 - **Document Intake & Multi-Layer Validation**  
-  Accepts single or bulk document uploads (`PDF`, `PNG`, `JPG`, `JPEG`, `TIFF`, up to 20 MB). Validates file signatures, MIME types, file sizes, and corruption before processing. Maintains an audit trail of all accepted and rejected attempts in an `UploadLog` table.
+  Accepts single or bulk document uploads (`PDF`, `PNG`, `JPG`, `JPEG`, `TIFF`, up to 20 MB). Validates file signatures, MIME types, file sizes, and corruption before processing. Maintains an audit trail of all accepted and rejected attempts in an `UploadLog` table. Includes an automated **Background Folder Watcher** that continuously monitors a configured local directory for new scanned documents and ingests them directly.
 
 - **Computer Vision Preprocessing Pipeline**  
   Automated document cleanup using OpenCV and PyMuPDF: deskewing, noise reduction, contrast enhancement (CLAHE), adaptive binarization, and multi-page PDF rendering.
@@ -369,6 +369,8 @@ Configure backend settings via environment variables or a `backend/.env` file:
 | `HANDWRITING_OCR_CONFIDENCE_THRESHOLD` | `float` | `0.85` | Per-fragment OCR score below which text is marked as low confidence. |
 | `HANDWRITING_LOW_CONFIDENCE_PROPORTION` | `float` | `0.15` | Minimum ratio of low-confidence fragments that triggers handwriting routing. |
 | `HANDWRITING_CONSECUTIVE_LOW_CONFIDENCE_COUNT` | `int` | `3` | Number of consecutive low-confidence fragments that triggers handwriting routing regardless of total page proportion. |
+| `WATCHED_FOLDER_PATH` | `string` | `./data/scanner_intake` | Local directory path for the background scanner to monitor for new incoming documents. |
+| `WATCHED_FOLDER_POLL_INTERVAL_SECONDS` | `int` | `30` | Polling interval (in seconds) for the background folder watcher task. |
 
 ---
 
@@ -387,6 +389,8 @@ All document routes are served under `/api/v1/documents`.
 | `GET` | `/api/v1/documents/upload-logs` | Retrieve the intake audit trail (accepted and rejected attempts). |
 | `DELETE` | `/api/v1/documents/{document_id}` | Delete a document record and purge its files from storage. |
 | `DELETE` | `/api/v1/documents` | Purge all documents and clear the uploads storage directory. |
+| `GET` | `/api/v1/documents/config/watched-folder` | Retrieve active watched folder path and poll interval. |
+| `PUT` | `/api/v1/documents/config/watched-folder` | Update watched folder path dynamically. (Hospital Admin only) |
 
 ### Clinical Field Extraction & Layout
 

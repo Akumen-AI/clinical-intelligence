@@ -161,12 +161,64 @@ with engine.connect() as conn:
 # Ensure upload storage folder exists
 upload_dir = ensure_upload_directory_exists()
 
+# Ensure watched folder exists
+try:
+    from app.services.watched_folder_config_service import get_watched_folder_path_info
+    import logging
+    logger = logging.getLogger("app.main")
+    watched_path, _ = get_watched_folder_path_info()
+    os.makedirs(watched_path, exist_ok=True)
+    logger.info(f"Verified watched folder exists at: {watched_path}")
+except Exception as e:
+    # If logger is not fully configured yet, print as fallback
+    print(f"Failed to ensure watched folder exists: {e}")
+
+import asyncio
+from contextlib import asynccontextmanager
+
+async def folder_watcher_loop():
+    from app.services.audit_service import SYSTEM_ACTOR_ID
+    from app.database import SessionLocal
+    from app.services.folder_watcher_service import scan_watched_folder
+    from app.services.watched_folder_config_service import get_watched_folder_interval
+    import logging
+    logger = logging.getLogger("app.main.folder_watcher")
+    
+    logger.info("[FolderWatcher] Background task started.")
+    try:
+        while True:
+            interval = get_watched_folder_interval()
+            await asyncio.sleep(interval)
+            
+            db = SessionLocal()
+            try:
+                result = await asyncio.to_thread(scan_watched_folder, db, SYSTEM_ACTOR_ID)
+                if result.get("queued") or result.get("failed"):
+                    logger.info(f"[FolderWatcher] Cycle complete. Queued: {len(result['queued'])}, Failed: {len(result['failed'])}")
+            except Exception as e:
+                logger.error(f"[FolderWatcher] Cycle error: {e}")
+            finally:
+                db.close()
+    except asyncio.CancelledError:
+        logger.info("[FolderWatcher] Background task stopped.")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    watcher_task = asyncio.create_task(folder_watcher_loop())
+    yield
+    watcher_task.cancel()
+    try:
+        await watcher_task
+    except asyncio.CancelledError:
+        pass
+
 app = FastAPI(
     title="AI Clinical Intelligence Platform API",
     description="Document Intake & File Validation Module (Epic 1.1 FR-01 & Epic 1.3 FR-04)",
     version="1.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan
 )
 
 # Configure CORS for frontend access

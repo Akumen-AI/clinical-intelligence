@@ -18,11 +18,40 @@ from app.schemas.upload import (
 from app.services import upload_service
 from app.services.validation_service import ValidationService
 from app.utils.validators import FileValidationError
+from pydantic import BaseModel
+
+class WatchedFolderConfigResponse(BaseModel):
+    path: str
+    source: str
+    poll_interval_seconds: Optional[int] = None
+
+class WatchedFolderUpdateRequest(BaseModel):
+    path: str
 
 router = APIRouter(
     prefix="/documents",
     tags=["Document Intake & Validation (Epic 1.1 & 1.3)"]
 )
+
+@router.get("/config/watched-folder", response_model=WatchedFolderConfigResponse)
+async def get_watched_folder_config(db: Session = Depends(get_db)):
+    from app.services.watched_folder_config_service import get_watched_folder_path_info, get_watched_folder_interval
+    path, source = get_watched_folder_path_info(db)
+    interval = get_watched_folder_interval(db)
+    return WatchedFolderConfigResponse(path=path, source=source, poll_interval_seconds=interval)
+
+@router.put("/config/watched-folder", response_model=WatchedFolderConfigResponse)
+async def update_watched_folder_config(
+    request: WatchedFolderUpdateRequest,
+    db: Session = Depends(get_db)
+):
+    from app.services.watched_folder_config_service import set_watched_folder_path, get_watched_folder_interval
+    try:
+        path, source = set_watched_folder_path(request.path, db)
+        interval = get_watched_folder_interval(db)
+        return WatchedFolderConfigResponse(path=path, source=source, poll_interval_seconds=interval)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.post(
     "/upload",

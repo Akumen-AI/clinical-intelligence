@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   Activity, 
   FileCheck, 
@@ -19,7 +20,7 @@ import {
 } from 'lucide-react';
 import FileUploader from '../components/FileUploader';
 import ExtractedFieldsModal from '../components/ExtractedFieldsModal';
-import { fetchDocuments, fetchDocumentStatus, deleteDocument, deleteAllDocuments, fetchUploadLogs } from '../services/api';
+import { fetchDocuments, fetchDocumentStatus, deleteDocument, deleteAllDocuments, fetchUploadLogs, getWatchedFolderConfig, updateWatchedFolderConfig } from '../services/api';
 
 export default function UploadPage() {
   const navigate = useNavigate();
@@ -34,6 +35,11 @@ export default function UploadPage() {
   // Filters
   const [filterNeedsReview, setFilterNeedsReview] = useState(false);
   const [filterDocType, setFilterDocType] = useState('');
+
+  const { user } = useAuth();
+  const [watchFolderPath, setWatchFolderPath] = useState('');
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
+  const [toastMsg, setToastMsg] = useState(null);
 
   const refreshInFlight = useRef(false);
 
@@ -60,9 +66,23 @@ export default function UploadPage() {
     }
   };
 
+  };
+
+  const loadConfig = async () => {
+    if (user && user.role === 'hospital_admin') {
+      try {
+        const config = await getWatchedFolderConfig();
+        setWatchFolderPath(config.path);
+      } catch (err) {
+        console.error('Failed to load watched folder config', err);
+      }
+    }
+  };
+
   useEffect(() => {
     loadData();
-  }, [filterNeedsReview, filterDocType]); // Re-fetch when filters change
+    loadConfig();
+  }, [filterNeedsReview, filterDocType, user]); // Re-fetch when filters change
 
   const pollingRef = useRef({});
 
@@ -177,6 +197,22 @@ export default function UploadPage() {
     navigate(`/review?documentId=${doc.document_id}`);
   };
 
+  const handleSaveConfig = async () => {
+    setIsSavingConfig(true);
+    setToastMsg(null);
+    try {
+      const result = await updateWatchedFolderConfig(watchFolderPath);
+      setWatchFolderPath(result.path);
+      setToastMsg({ type: 'success', msg: 'Watched folder path updated successfully.' });
+      setTimeout(() => setToastMsg(null), 3000);
+    } catch (err) {
+      setToastMsg({ type: 'error', msg: err.response?.data?.detail || 'Failed to update watched folder path.' });
+      setTimeout(() => setToastMsg(null), 5000);
+    } finally {
+      setIsSavingConfig(false);
+    }
+  };
+
   const filteredDocuments = documents.filter((doc) => {
     const q = searchQuery.toLowerCase();
     return (
@@ -282,6 +318,36 @@ export default function UploadPage() {
           <div className="text-headline-display font-headline-display text-on-surface">100%</div>
         </div>
       </div>
+
+      {/* Settings Card for Hospital Admin */}
+      {user && user.role === 'hospital_admin' && (
+        <div className="bg-surface-container rounded-xl border border-outline-variant/20 p-6 mb-8">
+          <div className="flex items-center gap-2 mb-2">
+            <Database size={20} className="text-primary" />
+            <h3 className="text-lg font-semibold text-on-surface">Scanner Watch Folder</h3>
+          </div>
+          <p className="text-sm text-on-surface-variant mb-4">
+            Specify an absolute folder path on the server where the backend is running.
+            The system will automatically monitor this directory and ingest newly scanned files.
+          </p>
+          <div className="flex items-center gap-4">
+            <input
+              type="text"
+              value={watchFolderPath}
+              onChange={(e) => setWatchFolderPath(e.target.value)}
+              placeholder="/var/lib/scanner_intake"
+              className="flex-1 bg-surface-container-high border border-outline-variant/30 text-on-surface text-sm rounded-lg px-4 py-2 focus:outline-none focus:border-primary"
+            />
+            <button
+              onClick={handleSaveConfig}
+              disabled={isSavingConfig || !watchFolderPath.trim()}
+              className="btn btn-primary"
+            >
+              {isSavingConfig ? 'Saving...' : 'Save Path'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* File Uploader Section */}
       <FileUploader onUploadSuccess={handleUploadSuccess} />
@@ -538,6 +604,18 @@ export default function UploadPage() {
           onClose={() => setSelectedDocForFields(null)}
           onRefreshRequired={loadData}
         />
+      )}
+      {/* Toast Notification */}
+      {toastMsg && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center shadow-lg">
+          <div className={`px-4 py-3 rounded-lg border flex items-center gap-3 ${
+            toastMsg.type === 'error' ? 'bg-error-container text-error border-error/30' : 
+            toastMsg.type === 'warn' ? 'bg-amber-500/20 text-amber-500 border-amber-500/30' : 
+            'bg-emerald-500/15 text-emerald-500 border-emerald-500/30'
+          }`}>
+            <span className="text-sm font-semibold">{toastMsg.msg}</span>
+          </div>
+        </div>
       )}
     </div>
   );
