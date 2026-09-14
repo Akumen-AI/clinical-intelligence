@@ -24,6 +24,7 @@ from app.models.rag_chunk import PatientRAGChunk
 from app.models.audit_log import AuditLogEntry
 from app.models.policy_rag_chunk import PolicyRAGChunk
 from app.models.rag_conversation import RAGConversation
+from app.models.report_request import ReportRequest
 
 config = context.config
 if config.config_file_name:

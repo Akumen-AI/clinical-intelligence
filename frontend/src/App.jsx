@@ -13,6 +13,7 @@ import { Activity, ClipboardCheck, Database, Clock, MessageCircleQuestion, Users
 import PatientQAPage from './pages/PatientQAPage';
 import PatientsPage from './pages/PatientsPage';
 import OperationsDashboardPage from './pages/OperationsDashboardPage';
+import NaturalLanguageReportPage from './pages/NaturalLanguageReportPage';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -125,6 +126,12 @@ function App() {
           <Route path="operations-dashboard" element={
             <RoleProtectedRoute routeKey="dashboards">
               <OperationsDashboardPage />
+            </RoleProtectedRoute>
+          } />
+
+          <Route path="reports" element={
+            <RoleProtectedRoute routeKey="reports">
+              <NaturalLanguageReportPage />
             </RoleProtectedRoute>
           } />
           

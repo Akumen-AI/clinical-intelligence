@@ -23,6 +23,7 @@ export const RBAC_MATRIX = {
   policyChat: ['doctor', 'nurse', 'hospital_admin'],
   policyUpload: ['hospital_admin', 'it', 'compliance'],
   patientQA: ['doctor'],
+  reports: ['doctor', 'hospital_admin'],
 };
 
 const hasAccess = (role, routeKey) => {
@@ -72,6 +73,13 @@ export default function Sidebar() {
           <NavLink to="/operations-dashboard" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
             <BarChart2 size={18} />
             <span>Operations Dashboard</span>
+          </NavLink>
+        )}
+
+        {hasAccess(user.role, 'reports') && (
+          <NavLink to="/reports" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+            <BarChart2 size={18} />
+            <span>Report Builder</span>
           </NavLink>
         )}
 

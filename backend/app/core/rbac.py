@@ -23,6 +23,7 @@ RBAC_MATRIX: Dict[str, Union[Set[UserRole], Dict[str, Set[UserRole]]]] = {
     },
     "/api/v1/dashboards": {UserRole.HOSPITAL_ADMIN, UserRole.DEPARTMENT_HEAD},
     "/api/v1/dashboards/patient": {UserRole.DOCTOR, UserRole.HOSPITAL_ADMIN},
+    "/api/v1/reports": {UserRole.DOCTOR, UserRole.HOSPITAL_ADMIN},
 
     # Patients (read, create, update, ask)
     "/api/v1/patients/{id}/ask": {UserRole.DOCTOR},
