@@ -49,8 +49,11 @@ from app.api.v1.dashboards import router as patient_dashboards_router
 from app.api.v1.correction_logs import router as correction_logs_router
 from app.api.v1.audit_log import router as audit_log_router
 from app.api.v1.auth import router as auth_router
+from app.models.patient_duplicate_flag import PatientDuplicateFlag
 from app.routers.notes import router as notes_router
 from app.routers.rag_context_compliance import router as rag_context_compliance_router
+from app.routers.duplicates import router as duplicates_router
+from app.routers.completeness import router as completeness_router
 from app.core.compliance import ComplianceViolationError
 from app.core.rbac import check_rbac
 from app.services.upload_service import ensure_upload_directory_exists
@@ -146,6 +149,11 @@ with engine.connect() as conn:
         pass
     try:
         conn.execute(text("ALTER TABLE medications ADD COLUMN started_date VARCHAR(100);"))
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        conn.execute(text("ALTER TABLE patients ADD COLUMN status VARCHAR(20) DEFAULT 'active';"))
         conn.commit()
     except Exception:
         pass
@@ -259,6 +267,8 @@ app.include_router(patient_dashboards_router, prefix="/api/v1", dependencies=[De
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(notes_router)
 app.include_router(rag_context_compliance_router)
+app.include_router(duplicates_router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
+app.include_router(completeness_router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 
 
 @app.exception_handler(ComplianceViolationError)

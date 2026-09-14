@@ -221,6 +221,11 @@ def write_field_to_canonical_record(
         field.document_id,
         field.field_name,
     )
+    try:
+        from app.tasks.duplicate_scan import scan_duplicates_task
+        scan_duplicates_task.delay()
+    except Exception as e:
+        logger.warning(f"[CanonicalRecordService] Failed to trigger scan_duplicates_task: {e}")
     return None
 
 
