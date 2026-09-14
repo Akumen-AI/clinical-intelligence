@@ -21,6 +21,7 @@ from app.models.user import User
 from app.models.audit_log import AuditLogEntry
 from app.models.correction_log import CorrectionLog
 from app.models.note import Note
+from app.models.visit import Visit
 
 # Ensure tables exist
 Base.metadata.create_all(bind=engine)
@@ -360,7 +361,6 @@ def seed_demo_data():
                 
                 v_date = datetime.fromisoformat(doc_data["date"])
                 
-                from app.models.visit import Visit
                 visit = Visit(
                     visit_id=str(uuid.uuid4()),
                     patient_id=custom_id,

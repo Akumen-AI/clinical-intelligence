@@ -20,7 +20,10 @@ class GUID(TypeDecorator):
             return value
         if isinstance(value, uuid.UUID):
             return value
-        return uuid.UUID(str(value))
+        try:
+            return uuid.UUID(str(value))
+        except ValueError:
+            return str(value)
 
 class AuditLogEntry(Base):
     __tablename__ = "audit_log_entries"

@@ -45,6 +45,17 @@ RBAC_MATRIX: Dict[str, Union[Set[UserRole], Dict[str, Set[UserRole]]]] = {
     # RAG Context Compliance
     "/api/v1/rag": {UserRole.DOCTOR, UserRole.NURSE, UserRole.HOSPITAL_ADMIN},
     "/api/v1/context-panel": {UserRole.DOCTOR, UserRole.NURSE, UserRole.HOSPITAL_ADMIN},
+
+    # Duplicate Patient Record Flagging & Reconciliation
+    "/api/v1/duplicates": {
+        "GET": {UserRole.DOCTOR, UserRole.NURSE, UserRole.HOSPITAL_ADMIN, UserRole.DEPARTMENT_HEAD},
+        "POST": {UserRole.HOSPITAL_ADMIN, UserRole.DEPARTMENT_HEAD}
+    },
+
+    # Story 10.2: Documentation Completeness Flagging
+    "/api/v1/completeness/settings": {UserRole.HOSPITAL_ADMIN, UserRole.DEPARTMENT_HEAD},
+    "/api/v1/completeness/check": {UserRole.DOCTOR, UserRole.HOSPITAL_ADMIN, UserRole.DEPARTMENT_HEAD},
+    "/api/v1/completeness": {UserRole.DOCTOR, UserRole.HOSPITAL_ADMIN, UserRole.DEPARTMENT_HEAD},
 }
 
 def check_rbac(request: Request, current_user: User = Depends(get_current_user)):

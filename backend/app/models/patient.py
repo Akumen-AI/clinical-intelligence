@@ -19,6 +19,7 @@ class Patient(Base):
     dob = Column(String(50), nullable=True)
     sex = Column(String(50), nullable=True)
     duplicate_of = Column(String(36), ForeignKey("patients.patient_id"), nullable=True)
+    status = Column(String(20), nullable=False, default="active")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     @property
