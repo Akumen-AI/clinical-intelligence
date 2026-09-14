@@ -51,14 +51,19 @@ export default function UploadPage() {
       const needsReviewParam = filterNeedsReview ? true : null;
       const docTypeParam = filterDocType || null;
       
-      const [docsData, logsData] = await Promise.all([
-        fetchDocuments(needsReviewParam, docTypeParam),
-        fetchUploadLogs()
-      ]);
-      setDocuments(docsData);
-      setUploadLogs(logsData);
-    } catch (err) {
-      console.error('Failed to load document/log repository:', err);
+      try {
+        const docsData = await fetchDocuments(needsReviewParam, docTypeParam);
+        setDocuments(docsData);
+      } catch (err) {
+        console.error('Failed to load documents:', err);
+      }
+
+      try {
+        const logsData = await fetchUploadLogs();
+        setUploadLogs(logsData);
+      } catch (err) {
+        console.error('Failed to load upload logs:', err);
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -66,10 +71,8 @@ export default function UploadPage() {
     }
   };
 
-  };
-
   const loadConfig = async () => {
-    if (user && user.role === 'hospital_admin') {
+    if (user && user.role && user.role.toLowerCase() === 'hospital_admin') {
       try {
         const config = await getWatchedFolderConfig();
         setWatchFolderPath(config.path);
@@ -320,7 +323,7 @@ export default function UploadPage() {
       </div>
 
       {/* Settings Card for Hospital Admin */}
-      {user && user.role === 'hospital_admin' && (
+      {user && user.role && user.role.toLowerCase() === 'hospital_admin' && (
         <div className="bg-surface-container rounded-xl border border-outline-variant/20 p-6 mb-8">
           <div className="flex items-center gap-2 mb-2">
             <Database size={20} className="text-primary" />
