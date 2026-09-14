@@ -25,16 +25,17 @@ def get_file_extension(filename: str) -> str:
         return ""
     return filename.rsplit(".", 1)[1].lower()
 
-def save_file(file: UploadFile, document_id: str, target_dir: str = UPLOAD_DIR) -> Tuple[str, str]:
-    ensure_upload_directory_exists(target_dir)
-    
-    # Sanitize filename to prevent path traversal
-    base_filename = os.path.basename(file.filename)
+def get_safe_filename(document_id: str, original_filename: str) -> str:
+    base_filename = os.path.basename(original_filename) if original_filename else ""
     safe_filename_part = base_filename.replace("..", "").replace("/", "").replace("\\", "")
     if not safe_filename_part:
         safe_filename_part = "unnamed_file"
-        
-    safe_filename = f"{document_id}_{safe_filename_part}"
+    return f"{document_id}_{safe_filename_part}"
+
+def save_file(file: UploadFile, document_id: str, target_dir: str = UPLOAD_DIR) -> Tuple[str, str]:
+    ensure_upload_directory_exists(target_dir)
+    
+    safe_filename = get_safe_filename(document_id, file.filename)
     filepath = os.path.join(target_dir, safe_filename)
     
     try:

@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     OLLAMA_TIMEOUT: int = 120  # seconds — read timeout for Ollama API calls
     OCR_PAGE_TIMEOUT: int = 120  # seconds — per-page timeout for OCR subprocess
 
+    WATCHED_FOLDER_PATH: str = str(Path(__file__).resolve().parent.parent / "data" / "scanner_intake")
+    WATCHED_FOLDER_POLL_INTERVAL_SECONDS: int = 30
+
     # --- Handwriting Extraction Settings ---
     # Enable/disable the handwriting extraction path (requires GEMINI_API_KEY)
     HANDWRITING_EXTRACTION_ENABLED: bool = True
