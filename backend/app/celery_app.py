@@ -8,7 +8,7 @@ celery_app = Celery(
     "clinical_platform",
     broker=broker_url,
     backend=result_backend,
-    include=["app.tasks.routing_tasks", "app.tasks.correction_export"],
+    include=["app.tasks.routing_tasks", "app.tasks.correction_export", "app.tasks.duplicate_scan"],
 )
 
 celery_app.conf.update(

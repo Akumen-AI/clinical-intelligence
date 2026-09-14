@@ -36,6 +36,12 @@ from sqlalchemy.pool import StaticPool
 @pytest.fixture(autouse=True)
 def setup_db():
     Base.metadata.create_all(bind=engine)
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE patients ADD COLUMN status VARCHAR(20) DEFAULT 'active';"))
+            conn.commit()
+        except Exception:
+            pass
     
     # Patch the global SessionLocal so Celery tasks in the same process use the test DB
     import app.database
