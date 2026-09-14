@@ -24,6 +24,9 @@ from app.models.rag_chunk import PatientRAGChunk
 from app.models.audit_log import AuditLogEntry
 from app.models.policy_rag_chunk import PolicyRAGChunk
 from app.models.rag_conversation import RAGConversation
+from app.models.patient_duplicate_flag import PatientDuplicateFlag
+from app.models.department import Department
+from app.models.department_completeness_setting import DepartmentCompletenessSetting
 
 config = context.config
 if config.config_file_name:
