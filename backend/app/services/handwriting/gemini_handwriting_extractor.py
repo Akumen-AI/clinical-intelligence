@@ -244,12 +244,14 @@ REQUIRED JSON SCHEMA:
       {{
         "condition_name": "Diagnosis name, or ILLEGIBLE",
         "icd10_code": "ICD-10 code or null or ILLEGIBLE",
+        "snomed_code": "SNOMED CT code if mentioned or null",
         "notes": "Notes or null or ILLEGIBLE"
       }}
     ],
     "medications": [
       {{
         "medication_name": "Drug name, or ILLEGIBLE",
+        "rxnorm_code": "RxNorm code or null or ILLEGIBLE",
         "dosage": "e.g. 500mg, or null, or ILLEGIBLE",
         "frequency": "e.g. Twice daily / BID, or null, or ILLEGIBLE",
         "route": "Oral/IV/etc., or null, or ILLEGIBLE",
@@ -260,6 +262,7 @@ REQUIRED JSON SCHEMA:
     "lab_results": [
       {{
         "test_name": "Lab test name, or ILLEGIBLE",
+        "loinc_code": "LOINC code or null or ILLEGIBLE",
         "value": "Value or null or ILLEGIBLE",
         "unit": "Unit or null or ILLEGIBLE",
         "reference_range": "Range or null or ILLEGIBLE",

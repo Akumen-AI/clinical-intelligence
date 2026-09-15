@@ -37,6 +37,7 @@ def route_to_normalized_tables(
                         patient_id=patient_id,
                         source_field_id=field_id,
                         raw_text=item.get("medication_name", str(item)),
+                        rxnorm_code=item.get("rxnorm_code"),
                         status="active"
                     ))
         elif field_name in ("diagnoses", "diagnosis"):
@@ -48,7 +49,8 @@ def route_to_normalized_tables(
                         patient_id=patient_id,
                         source_field_id=field_id,
                         raw_text=item.get("condition_name", str(item)),
-                        icd10_code=item.get("icd10_code")
+                        icd10_code=item.get("icd10_code"),
+                        snomed_code=item.get("snomed_code")
                     ))
         elif field_name == "allergies":
             from app.models.clinical_entities import Allergy
@@ -93,6 +95,7 @@ def route_to_normalized_tables(
                         source_field_id=field_id,
                         raw_text=str(item),
                         test_name=item.get("test_name"),
+                        loinc_code=item.get("loinc_code"),
                         value_text=val_text,
                         value_numeric=val_num,
                         unit=item.get("unit"),

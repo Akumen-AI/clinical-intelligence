@@ -6,7 +6,7 @@ from typing import Dict, List
 
 from app.database import get_db
 from app.models.patient import Patient
-from app.models.clinical_entities import Medication, Allergy, LabResult
+from app.models.clinical_entities import Medication, Allergy, LabResult, Diagnosis
 from app.schemas.dashboard import PatientDashboardResponse, LabTrendPointSchema, CurrentMedicationSchema
 from app.core.patient_access_guard import RbacAccessGuard, AccessDeniedError
 from app.services.timeline_service import build_patient_timeline
@@ -62,6 +62,9 @@ def get_patient_dashboard(
     # Allergies
     allergies = db.query(Allergy).filter(Allergy.patient_id == patient.patient_id).all()
 
+    # Diagnoses
+    diagnoses = db.query(Diagnosis).filter(Diagnosis.patient_id == patient.patient_id).all()
+
     # Lab Results & Trends
     all_labs = db.query(LabResult).filter(LabResult.patient_id == patient.patient_id).all()
     
@@ -109,6 +112,7 @@ def get_patient_dashboard(
         patient=patient,
         allergies=allergies,
         current_medications=current_medications,
+        diagnoses=diagnoses,
         lab_trends=lab_trends,
         other_lab_results=other_lab_results,
         recent_events=recent_events,

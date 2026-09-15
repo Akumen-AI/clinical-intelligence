@@ -30,11 +30,12 @@ Prescribing Doctor: Dr. Robert Adams, MD
 Department: Internal Medicine
 
 Diagnosis:
-- Essential Hypertension (I10)
+- Essential Hypertension (I10) [SNOMED 59621000]
 - Type 2 Diabetes Mellitus (E11.9)
+- Unknown condition (123456)
 
 Rx / Medications:
-1. Lisinopril 10mg once daily PO for 30 days
+1. Lisinopril [197361] 10mg once daily PO for 30 days
 2. Metformin 500mg twice daily PO with meals for 90 days
 
 Instructions:
@@ -51,7 +52,7 @@ Ordering Physician: Dr. Emily Clark
 Department: Pathology
 
 COMPREHENSIVE METABOLIC & CBC PANEL
-Hemoglobin: 14.5 g/dL (13.5 - 17.5) Normal
+Hemoglobin [718-7]: 14.5 g/dL (13.5 - 17.5) Normal
 WBC: 11.8 x10^3/uL (4.5 - 11.0) High
 Glucose: 145 mg/dL (70 - 99) High
 Creatinine: 0.9 mg/dL (0.6 - 1.2) Normal
@@ -116,12 +117,22 @@ def test_prescription_field_extraction():
     assert fields.ordering_physician.department == "Internal Medicine"
 
     assert fields.diagnosis is not None
-    assert len(fields.diagnosis) >= 2
-    assert any("Hypertension" in d.condition_name for d in fields.diagnosis)
+    assert len(fields.diagnosis) >= 3
+    hypertension = next((d for d in fields.diagnosis if "Hypertension" in d.condition_name), None)
+    assert hypertension is not None
+    assert hypertension.icd10_code == "I10"
+    assert hypertension.snomed_code == "59621000"
+    
+    unknown = next((d for d in fields.diagnosis if "Unknown condition" in d.condition_name), None)
+    assert unknown is not None
+    assert unknown.snomed_code is None
 
     assert fields.medications is not None
     assert len(fields.medications) >= 2
     assert any("Lisinopril" in m.medication_name for m in fields.medications)
+    lisinopril = next((m for m in fields.medications if "Lisinopril" in m.medication_name), None)
+    assert lisinopril is not None
+    assert lisinopril.rxnorm_code == "197361"
 
     # Acceptance Criterion 3: Missing fields MUST be explicitly None/null
     assert fields.vitals is None
@@ -149,6 +160,10 @@ def test_lab_report_field_extraction():
     test_names = [l.test_name.lower() for l in fields.lab_results]
     assert any("hemoglobin" in n for n in test_names)
     assert any("glucose" in n for n in test_names)
+    
+    hemoglobin = next((l for l in fields.lab_results if "hemoglobin" in l.test_name.lower()), None)
+    assert hemoglobin is not None
+    assert hemoglobin.loinc_code == "718-7"
 
     # Acceptance Criterion 3: Missing fields MUST be explicitly None/null
     assert fields.medications is None

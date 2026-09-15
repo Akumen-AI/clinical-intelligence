@@ -1,7 +1,7 @@
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
-from app.schemas.patient import PatientResponse, AllergyResponse, LabResultResponse
+from app.schemas.patient import PatientResponse, AllergyResponse, LabResultResponse, DiagnosisResponse
 from app.schemas.timeline import TimelineEventSchema
 
 class LabTrendPointSchema(BaseModel):
@@ -23,6 +23,7 @@ class PatientDashboardResponse(BaseModel):
     patient: PatientResponse
     allergies: List[AllergyResponse] = []
     current_medications: List[CurrentMedicationSchema] = []
+    diagnoses: List[DiagnosisResponse] = []
     lab_trends: Dict[str, List[LabTrendPointSchema]] = {}
     other_lab_results: List[LabResultResponse] = []
     recent_events: List[TimelineEventSchema] = []

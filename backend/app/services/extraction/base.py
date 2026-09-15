@@ -73,12 +73,14 @@ REQUIRED JSON SCHEMA:
     {{
       "condition_name": "Diagnosis/condition name",
       "icd10_code": "ICD-10 code if mentioned or null",
+      "snomed_code": "SNOMED CT code if mentioned or null",
       "notes": "Relevant notes or null"
     }}
   ],
   "medications": [
     {{
       "medication_name": "Name of drug/medication",
+      "rxnorm_code": "RxNorm code if mentioned or null",
       "dosage": "e.g. 500mg or null",
       "frequency": "e.g. Twice daily or BID or null",
       "route": "Oral / IV / Topical / etc. or null",
@@ -89,6 +91,7 @@ REQUIRED JSON SCHEMA:
   "lab_results": [
     {{
       "test_name": "Name of lab test",
+      "loinc_code": "LOINC code if mentioned or null",
       "value": "Measured value or null",
       "unit": "Measurement unit (mg/dL, mmol/L, etc.) or null",
       "reference_range": "Normal range or null",

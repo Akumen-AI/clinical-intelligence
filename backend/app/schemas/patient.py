@@ -48,6 +48,7 @@ class DiagnosisResponse(BaseModel):
     id: str
     raw_text: str
     icd10_code: Optional[str] = None
+    snomed_code: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 

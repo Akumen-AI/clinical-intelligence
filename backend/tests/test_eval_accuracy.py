@@ -33,7 +33,7 @@ EXACT_MATCH_FIELDS = {
 # minor formatting/spelling variations are not clinically dangerous.
 FUZZY_MATCH_FIELDS = {
     "name", "gender", "department", "npi_or_license",
-    "condition_name", "icd10_code", "notes", "instructions",
+    "condition_name", "icd10_code", "snomed_code", "rxnorm_code", "loinc_code", "notes", "instructions",
     "document_date", "symptoms", "procedures",
 }
 

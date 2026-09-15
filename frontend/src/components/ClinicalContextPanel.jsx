@@ -94,7 +94,7 @@ export default function ClinicalContextPanel({ panel, loading, error }) {
               >
                 <span className="text-on-surface font-medium">{m.raw_text}</span>
                 {m.rxnorm_code && (
-                  <span className="ml-2 text-on-surface-variant">
+                  <span className="ml-2 font-mono text-[10px] text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
                     RxNorm: {m.rxnorm_code}
                   </span>
                 )}
@@ -141,7 +141,7 @@ export default function ClinicalContextPanel({ panel, loading, error }) {
               >
                 <span className="text-on-surface font-medium">{r.raw_text}</span>
                 {r.loinc_code && (
-                  <span className="ml-2 text-on-surface-variant">
+                  <span className="ml-2 font-mono text-[10px] text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
                     LOINC: {r.loinc_code}
                   </span>
                 )}
