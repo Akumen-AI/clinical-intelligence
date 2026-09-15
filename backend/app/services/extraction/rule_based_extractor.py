@@ -247,10 +247,17 @@ class RuleBasedFieldExtractor(ClinicalFieldExtractor):
                 if line and len(line) > 2:
                     icd_match = re.search(r"[\(\[]([A-TV-Z][0-9][A-Z0-9](\.[A-Z0-9]{1,4})?)[\)\]]", line)
                     icd_code = icd_match.group(1) if icd_match else None
-                    condition_name = re.sub(r"[\(\[][A-TV-Z][0-9][A-Z0-9](\.[A-Z0-9]{1,4})?[\)\]]", "", line).strip()
+                    
+                    snomed_match = re.search(r"(?i)\b(?:SNOMED(?:\s*CT)?|SCT)\s*[:\-#]?\s*(\d{6,18})\b", line)
+                    snomed_code = snomed_match.group(1) if snomed_match else None
+
+                    condition_name = re.sub(r"[\(\[][A-TV-Z][0-9][A-Z0-9](\.[A-Z0-9]{1,4})?[\)\]]", "", line)
+                    condition_name = re.sub(r"(?i)[\(\[]?\b(?:SNOMED(?:\s*CT)?|SCT)\s*[:\-#]?\s*\d{6,18}\b[\)\]]?", "", condition_name).strip()
+
                     items.append(DiagnosisItemSchema(
                         condition_name=condition_name or line,
                         icd10_code=icd_code,
+                        snomed_code=snomed_code,
                     ))
             if items:
                 return items
@@ -280,14 +287,20 @@ class RuleBasedFieldExtractor(ClinicalFieldExtractor):
                     duration_match = re.search(r"(?:for|x)\s*(\d+\s*(?:days?|weeks?|months?))", line, re.IGNORECASE)
                     duration = duration_match.group(1) if duration_match else None
 
-                    med_name = line
+                    rxnorm_match = re.search(r"[\(\[](\d+)[\)\]]", line)
+                    rxnorm_code = rxnorm_match.group(1) if rxnorm_match else None
+                    
+                    line_for_name = re.sub(r"[\(\[]\d+[\)\]]", "", line).strip()
+
+                    med_name = line_for_name
                     if dosage:
                         med_name = med_name.split(dosage)[0].strip()
                     elif freq_match:
                         med_name = med_name.split(freq_match.group(0))[0].strip()
 
                     meds.append(MedicationItemSchema(
-                        medication_name=med_name or line,
+                        medication_name=med_name or line_for_name,
+                        rxnorm_code=rxnorm_code,
                         dosage=dosage,
                         frequency=frequency,
                         route=route,
@@ -301,7 +314,7 @@ class RuleBasedFieldExtractor(ClinicalFieldExtractor):
     def _extract_lab_results(self, text: str) -> Optional[List[LabResultItemSchema]]:
         lab_results = []
         colon_pattern = re.compile(
-            r"([A-Za-z0-9\s\-_/()]+)\s*:\s*([0-9,]+(?:\.[0-9]+)?)\s*([a-zA-Z/%^0-9\-_/μL]+)?(?:\s*\(([^)]+)\))?(?:\s*(Normal|High|Low|Abnormal|H|L))?",
+            r"([A-Za-z0-9\s\-_/()\[\]]+)\s*:\s*([0-9,]+(?:\.[0-9]+)?)\s*([a-zA-Z/%^0-9\-_/μL]+)?(?:\s*\(([^)]+)\))?(?:\s*(Normal|High|Low|Abnormal|H|L))?",
             re.IGNORECASE,
         )
 
@@ -356,8 +369,14 @@ class RuleBasedFieldExtractor(ClinicalFieldExtractor):
                         # Skip if unit looks like AM/PM or phone
                         if unit_cand and time_unit_pattern.match(unit_cand):
                             continue
+                            
+                        loinc_match = re.search(r"[\(\[](\d+-\d)[\)\]]", test_name_cand)
+                        loinc_code = loinc_match.group(1) if loinc_match else None
+                        clean_test_name = re.sub(r"[\(\[]\d+-\d[\)\]]", "", test_name_cand).strip()
+                        
                         lab_results.append(LabResultItemSchema(
-                            test_name=test_name_cand,
+                            test_name=clean_test_name,
+                            loinc_code=loinc_code,
                             value=val_cand,
                             unit=unit_cand,
                             reference_range=range_cand,
@@ -391,8 +410,13 @@ class RuleBasedFieldExtractor(ClinicalFieldExtractor):
                         flag = flag.capitalize()
 
                 if test_name and val:
+                    loinc_match = re.search(r"[\(\[](\d+-\d)[\)\]]", test_name)
+                    loinc_code = loinc_match.group(1) if loinc_match else None
+                    clean_test_name = re.sub(r"[\(\[]\d+-\d[\)\]]", "", test_name).strip()
+
                     lab_results.append(LabResultItemSchema(
-                        test_name=test_name,
+                        test_name=clean_test_name,
+                        loinc_code=loinc_code,
                         value=val,
                         unit=unit,
                         reference_range=ref_range,

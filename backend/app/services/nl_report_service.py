@@ -17,7 +17,7 @@ from typing import Any, Dict, Optional
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.models.clinical_entities import Diagnosis, Medication
+from app.models.clinical_entities import Diagnosis, Medication, LabResult
 from app.models.document import Document, DocumentStatus
 from app.models.extracted_field import ExtractedField
 from app.models.visit import Visit
@@ -104,7 +104,7 @@ def _call_report_llm(request: str) -> dict[str, Any] | None:
     prompt = f"""You are a read-only clinical report filter parser.
 Return JSON only in this shape: {{"filters": {{...}}}}.
 Do not return SQL, code, chart types, tool calls, or any fields outside the allowed filter keys.
-Allowed filter keys: diagnosis_contains, icd10_code, medication_contains, rxnorm_code, department, date_from, date_to.
+Allowed filter keys: diagnosis_contains, icd10_code, snomed_code, medication_contains, rxnorm_code, loinc_code, department, date_from, date_to.
 Use only real clinical columns. Dates must be YYYY-MM-DD. Resolve relative dates using today's date: {date.today().isoformat()}.
 Request: {request}"""
     if os.getenv("REPORT_LLM_ENABLED", "1").lower() not in {"1", "true", "yes"}:
@@ -131,7 +131,7 @@ def resolve_report_request(request: str) -> dict[str, Any]:
     if not result:
         raise ReportParseError("I couldn't identify safe clinical filters from that request. Please rephrase it with a diagnosis, medication, department, or date range.")
     raw_filters = result.get("filters") if isinstance(result.get("filters"), dict) else {}
-    allowed = {"diagnosis_contains", "icd10_code", "medication_contains", "rxnorm_code", "department", "date_from", "date_to"}
+    allowed = {"diagnosis_contains", "icd10_code", "snomed_code", "medication_contains", "rxnorm_code", "loinc_code", "department", "date_from", "date_to"}
     filters = {}
     for key, value in raw_filters.items():
         if key not in allowed or value in (None, ""):
@@ -162,12 +162,14 @@ def run_structured_query(db: Session, filters: dict[str, Any]) -> list[dict[str,
     if _coerce_date(filters.get("date_to")):
         base = base.filter(Visit.visit_date < _coerce_date(filters["date_to"]) + timedelta(days=1))
 
-    if filters.get("diagnosis_contains") or filters.get("icd10_code") or grouping == "diagnosis":
+    if filters.get("diagnosis_contains") or filters.get("icd10_code") or filters.get("snomed_code") or grouping == "diagnosis":
         query = base.join(ExtractedField, ExtractedField.document_id == Visit.document_id).join(Diagnosis, Diagnosis.source_field_id == ExtractedField.field_id)
         if filters.get("diagnosis_contains"):
             query = query.filter(Diagnosis.raw_text.ilike(f"%{filters['diagnosis_contains']}%"))
         if filters.get("icd10_code"):
             query = query.filter(Diagnosis.icd10_code == filters["icd10_code"])
+        if filters.get("snomed_code"):
+            query = query.filter(Diagnosis.snomed_code == filters["snomed_code"])
         rows = query.with_entities(Diagnosis.raw_text.label("label"), func.count(func.distinct(Diagnosis.patient_id)).label("count")).filter(Diagnosis.raw_text.isnot(None)).group_by(Diagnosis.raw_text).order_by(func.count(func.distinct(Diagnosis.patient_id)).desc()).all()
         return [{"label": row.label, "count": int(row.count)} for row in rows]
 
@@ -178,6 +180,13 @@ def run_structured_query(db: Session, filters: dict[str, Any]) -> list[dict[str,
         if filters.get("rxnorm_code"):
             query = query.filter(Medication.rxnorm_code == filters["rxnorm_code"])
         rows = query.with_entities(Medication.raw_text.label("label"), func.count(func.distinct(Medication.patient_id)).label("count")).filter(Medication.raw_text.isnot(None)).group_by(Medication.raw_text).order_by(func.count(func.distinct(Medication.patient_id)).desc()).all()
+        return [{"label": row.label, "count": int(row.count)} for row in rows]
+        
+    if filters.get("loinc_code") or grouping == "lab_result":
+        query = base.join(ExtractedField, ExtractedField.document_id == Visit.document_id).join(LabResult, LabResult.source_field_id == ExtractedField.field_id)
+        if filters.get("loinc_code"):
+            query = query.filter(LabResult.loinc_code == filters["loinc_code"])
+        rows = query.with_entities(LabResult.test_name.label("label"), func.count(func.distinct(LabResult.patient_id)).label("count")).filter(LabResult.test_name.isnot(None)).group_by(LabResult.test_name).order_by(func.count(func.distinct(LabResult.patient_id)).desc()).all()
         return [{"label": row.label, "count": int(row.count)} for row in rows]
 
     if grouping in {"month", "date"}:

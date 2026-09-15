@@ -30,11 +30,13 @@ class VitalsSchema(BaseModel):
 class DiagnosisItemSchema(BaseModel):
     condition_name: str
     icd10_code: Optional[str] = None
+    snomed_code: Optional[str] = None
     notes: Optional[str] = None
 
 
 class MedicationItemSchema(BaseModel):
     medication_name: str
+    rxnorm_code: Optional[str] = None
     dosage: Optional[str] = None
     frequency: Optional[str] = None
     route: Optional[str] = None
@@ -44,6 +46,7 @@ class MedicationItemSchema(BaseModel):
 
 class LabResultItemSchema(BaseModel):
     test_name: str
+    loinc_code: Optional[str] = None
     value: Optional[str] = None
     unit: Optional[str] = None
     reference_range: Optional[str] = None

@@ -30,6 +30,7 @@ class Diagnosis(Base):
     source_field_id = Column(String(36), ForeignKey("extracted_fields.field_id"), nullable=False, index=True)
     raw_text = Column(String(500), nullable=False)
     icd10_code = Column(String(100), nullable=True)
+    snomed_code = Column(String(100), nullable=True)
 
 
 class Allergy(Base):

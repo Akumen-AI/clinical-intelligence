@@ -185,7 +185,8 @@ export default function TimelinePage() {
                 {diagnoses.map(d => (
                   <li key={d.id} className="bg-surface-container-high rounded-lg p-2 text-sm">
                     <div className="text-on-surface font-medium">{d.raw_text}</div>
-                    {d.icd10_code && <div className="text-xs text-on-surface-variant mt-1">ICD-10: {d.icd10_code}</div>}
+                    {d.icd10_code && <div className="mt-1 font-mono text-[10px] text-slate-500">ICD-10: {d.icd10_code}</div>}
+                    {d.snomed_code && <div className="mt-1 font-mono text-[10px] text-slate-500">SNOMED: {d.snomed_code}</div>}
                   </li>
                 ))}
               </ul>
@@ -203,7 +204,7 @@ export default function TimelinePage() {
                 {medications.map(m => (
                   <li key={m.id} className="bg-surface-container-high rounded-lg p-2 text-sm">
                     <div className="text-on-surface font-medium">{m.raw_text}</div>
-                    {m.rxnorm_code && <div className="text-xs text-on-surface-variant mt-1">RxNorm: {m.rxnorm_code}</div>}
+                    {m.rxnorm_code && <div className="mt-1 font-mono text-[10px] text-slate-500">RxNorm: {m.rxnorm_code}</div>}
                   </li>
                 ))}
               </ul>
@@ -221,7 +222,7 @@ export default function TimelinePage() {
                 {labResults.map(l => (
                   <li key={l.id} className="bg-surface-container-high rounded-lg p-2 text-sm">
                     <div className="text-on-surface font-medium">{l.raw_text}</div>
-                    {l.loinc_code && <div className="text-xs text-on-surface-variant mt-1">LOINC: {l.loinc_code}</div>}
+                    {l.loinc_code && <div className="mt-1 font-mono text-[10px] text-slate-500">LOINC: {l.loinc_code}</div>}
                   </li>
                 ))}
               </ul>
