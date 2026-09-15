@@ -139,7 +139,23 @@ def extract_and_persist_fields(
     target_doc = db.query(Document).filter(Document.document_id == doc_id).first()
     if target_doc:
         target_doc.status = DocumentStatus.EXTRACTED.value
-    db.commit()
+        
+    from app.config import settings
+    from app.services.audit_service import write_entry, SYSTEM_ACTOR_ID
+    
+    below_threshold_count = sum(1 for r in records if r.confidence_score < settings.CONFIDENCE_THRESHOLD)
+    rationale = f"Extracted {len(records)} fields. {below_threshold_count} below threshold."
+    
+    # Write audit log; write_entry calls db.commit() internally
+    write_entry(
+        db=db,
+        actor_user_id=actor_user_id or SYSTEM_ACTOR_ID,
+        action_type="field_extraction_completed",
+        target_entity=f"document:{doc_id}",
+        rationale=rationale,
+        patient_id=document.patient_id
+    )
+    
     if target_doc:
         db.refresh(target_doc)
 

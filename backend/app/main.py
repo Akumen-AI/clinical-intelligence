@@ -41,11 +41,11 @@ from app.api import fields
 from app.api import timeline
 from app.api import canonical_records
 from app.api.reports import router as reports_router
-from app.api.dashboards import router as ops_dashboards_router
+from app.api.ops_dashboards import router as ops_dashboards_router
 from app.routers import review
 from app.routers.policy_chatbot import router as policy_chatbot_router
 from app.api.v1.patients import router as patients_router
-from app.api.v1.dashboards import router as patient_dashboards_router
+from app.api.v1.patient_dashboards import router as patient_dashboards_router
 from app.api.v1.correction_logs import router as correction_logs_router
 from app.api.v1.audit_log import router as audit_log_router
 from app.api.v1.auth import router as auth_router
@@ -64,108 +64,6 @@ from fastapi.responses import JSONResponse, FileResponse
 # Create database tables automatically on startup
 Base.metadata.create_all(bind=engine)
 
-
-# Add column safety migration for existing DB files
-with engine.connect() as conn:
-    try:
-        conn.execute(text("ALTER TABLE documents ADD COLUMN processing_time_ms INTEGER;"))
-        conn.commit()
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE documents RENAME COLUMN doc_type TO document_type;"))
-        conn.commit()
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE documents ADD COLUMN document_type VARCHAR(100);"))
-        conn.commit()
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE documents ADD COLUMN classification_confidence FLOAT;"))
-        conn.commit()
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE documents ADD COLUMN extraction_confidence FLOAT;"))
-        conn.commit()
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE documents ADD COLUMN needs_manual_review BOOLEAN NOT NULL DEFAULT 0;"))
-        conn.commit()
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE lab_results ADD COLUMN test_name VARCHAR(255);"))
-        conn.commit()
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE lab_results ADD COLUMN value_text VARCHAR(255);"))
-        conn.commit()
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE lab_results ADD COLUMN value_numeric FLOAT;"))
-        conn.commit()
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE lab_results ADD COLUMN unit VARCHAR(50);"))
-        conn.commit()
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE lab_results ADD COLUMN reference_range VARCHAR(100);"))
-        conn.commit()
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE lab_results ADD COLUMN flag VARCHAR(20);"))
-        conn.commit()
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE lab_results ADD COLUMN recorded_at VARCHAR(100);"))
-        conn.commit()
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE medications ADD COLUMN status VARCHAR(20) DEFAULT 'active';"))
-        conn.commit()
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE medications ADD COLUMN discontinued_reason VARCHAR(500);"))
-        conn.commit()
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE medications ADD COLUMN discontinued_date VARCHAR(100);"))
-        conn.commit()
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE medications ADD COLUMN started_date VARCHAR(100);"))
-        conn.commit()
-    except Exception:
-        pass
-    try:
-        conn.execute(text("ALTER TABLE patients ADD COLUMN status VARCHAR(20) DEFAULT 'active';"))
-        conn.commit()
-    except Exception:
-        pass
-    # Story 2.3: composite index for efficient low-confidence routing (Story 2.5)
-    try:
-        conn.execute(text(
-            "CREATE INDEX IF NOT EXISTS ix_extracted_fields_doc_confidence "
-            "ON extracted_fields(document_id, confidence_score);"
-        ))
-        conn.commit()
-    except Exception:
-        pass
 
 
 # Ensure upload storage folder exists

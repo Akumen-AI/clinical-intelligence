@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Copy, CheckCircle2, User, AlertCircle, RefreshCw, ChevronLeft, Activity, FileText, Pill, FileSymlink, MessageCircleQuestion, Search } from 'lucide-react';
-import { fetchPatients } from '../services/api';
+import { fetchPatients } from '../api';
 import { useNavigate } from 'react-router-dom';
 
 export default function PatientsPage() {

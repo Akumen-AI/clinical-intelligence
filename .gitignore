@@ -29,6 +29,9 @@ wheels/
 .installed.cfg
 *.egg
 .pytest_cache/
+.pytest-tmp/
+*.diff
+git_diff.txt
 
 # Database & Uploads
 *.db

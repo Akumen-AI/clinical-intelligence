@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Search, UserPlus } from 'lucide-react';
-import apiClient from '../services/api';
+import apiClient from '../api';
 
 export default function LinkPatientModal({ isOpen, onClose, onLink, documentId, suggestedPatientData = {} }) {
   const generateMRN = () => {

@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import LinkPatientModal from './LinkPatientModal';
 import DynamicJSONEditor from './DynamicJSONEditor';
-import apiClient from '../services/api';
+import apiClient from '../api';
 
 const COMPLEX_FIELDS = [
   'vitals', 'diagnosis', 'medications', 'lab_results',
