@@ -10,7 +10,7 @@ import {
   Building2,
   Info
 } from 'lucide-react';
-import apiClient from '../services/api';
+import apiClient from '../api';
 import PolicyDocumentUploader from './PolicyDocumentUploader';
 import { useAuth } from '../contexts/AuthContext';
 import ReactMarkdown from 'react-markdown';

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { saveNote, fetchNotes } from '../api/noteApi';
+import { saveNote, fetchNotes } from '../api';
 
 export default function AddNote({ patientId, complaintType, onNoteSaved }) {
   const [noteContent, setNoteContent] = useState('');

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { BarChart2, Search } from 'lucide-react';
-import apiClient from '../services/api-client';
+import apiClient from '../api';
 
 const COLORS = ['#22c55e', '#38bdf8', '#f59e0b', '#a78bfa', '#f472b6', '#fb7185'];
 

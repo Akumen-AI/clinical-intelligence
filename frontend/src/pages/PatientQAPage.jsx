@@ -11,7 +11,7 @@ import {
   PlusCircle,
   FileSearch
 } from 'lucide-react';
-import { askPatientQuestion, getDocumentFileUrl, fetchPatient } from '../services/api';
+import { askPatientQuestion, getDocumentFileUrl, fetchPatient } from '../api';
 import { useParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';

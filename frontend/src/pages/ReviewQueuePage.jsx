@@ -21,7 +21,7 @@ import {
   getReviewImageUrl,
   getDocumentStaticUrl,
   fetchDocuments,
-} from '../services/api';
+} from '../api';
 
 export default function ReviewQueuePage() {
   const [viewMode, setViewMode] = useState('list');
@@ -362,7 +362,7 @@ export default function ReviewQueuePage() {
             onLink={async (payload) => {
               setIsLinkModalOpen(false);
               try {
-                const { default: api } = await import('../services/api');
+                const { default: api } = await import('../api');
                 await api.post(`/documents/${selectedDocId}/link-patient`, payload);
                 setToastMsg({ msg: `Document linked to patient successfully!`, type: 'success' });
                 setTimeout(() => setToastMsg(null), 2500);

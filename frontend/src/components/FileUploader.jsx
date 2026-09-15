@@ -9,7 +9,7 @@ import {
   XCircle,
   FileCheck
 } from 'lucide-react';
-import { uploadDocuments } from '../services/api';
+import { uploadDocuments } from '../api';
 
 const ALLOWED_TYPES = ['pdf', 'png', 'jpg', 'jpeg', 'tiff'];
 

@@ -421,3 +421,56 @@ def test_extract_and_persist_pre_extracted_fields():
     finally:
         db.close()
 
+
+def test_extract_and_persist_audit_logging(monkeypatch, tmp_path):
+    """Test that extract_and_persist_fields writes an audit log entry (BRD FR-31)."""
+    from app.models.audit_log import AuditLogEntry
+    
+    doc_id = str(uuid.uuid4())
+    db = TestingSessionLocal()
+    
+    # Clear audit logs for the test
+    db.query(AuditLogEntry).delete()
+    db.commit()
+    
+    try:
+        doc = Document(
+            document_id=doc_id,
+            filename="rx.pdf",
+            raw_uri="/dummy/rx_sample.pdf",
+            filetype="application/pdf",
+            status=DocumentStatus.CLASSIFIED.value,
+            document_type="Prescription",
+        )
+        db.add(doc)
+        db.commit()
+        
+        pre_extracted = ClinicalFieldsSchema(
+            patient_identifier={"name": "Audit Patient", "gender": "Male"},
+            document_date="2024-05-11",
+            symptoms=["Cough"],
+        )
+        field_confidences = {
+            "patient_identifier": 0.85,
+            "document_date": 0.85,
+            "symptoms": 0.2, # low confidence to test the count
+        }
+        
+        fields, records = extract_and_persist_fields(
+            db,
+            doc,
+            pre_extracted_fields=pre_extracted,
+            field_confidences=field_confidences,
+        )
+        
+        logs = db.query(AuditLogEntry).all()
+        action_types = {log.action_type for log in logs}
+        assert "field_extraction_completed" in action_types
+        
+        extraction_log = next(log for log in logs if log.action_type == "field_extraction_completed")
+        assert extraction_log.target_entity == f"document:{doc_id}"
+        assert f"Extracted {len(records)} fields" in extraction_log.rationale
+        assert "below threshold" in extraction_log.rationale
+    finally:
+        db.close()
+

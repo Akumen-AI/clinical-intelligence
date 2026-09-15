@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import FileUploader from '../components/FileUploader';
 import ExtractedFieldsModal from '../components/ExtractedFieldsModal';
-import { fetchDocuments, fetchDocumentStatus, deleteDocument, deleteAllDocuments, fetchUploadLogs, getWatchedFolderConfig, updateWatchedFolderConfig } from '../services/api';
+import { fetchDocuments, fetchDocumentStatus, deleteDocument, deleteAllDocuments, fetchUploadLogs, getWatchedFolderConfig, updateWatchedFolderConfig } from '../api';
 
 export default function UploadPage() {
   const navigate = useNavigate();

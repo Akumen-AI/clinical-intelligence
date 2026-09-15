@@ -23,7 +23,7 @@ import {
   fetchPatient,
   fetchPatientRecords,
   fetchContextPanel,
-} from '../services/api';
+} from '../api';
 import ClinicalContextPanel from '../components/ClinicalContextPanel';
 import AddNote from '../components/AddNote';
 import { useParams, useNavigate } from 'react-router-dom';

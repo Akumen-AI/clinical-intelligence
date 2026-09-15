@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { CheckCircle2, FileUp, Loader2, X } from 'lucide-react';
-import apiClient from '../services/api';
+import apiClient from '../api';
 
 export default function PolicyDocumentUploader() {
   const inputRef = useRef(null);

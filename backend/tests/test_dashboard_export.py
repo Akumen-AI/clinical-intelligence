@@ -33,7 +33,8 @@ def test_dashboard_export_contains_metrics_and_audit_log(monkeypatch, export_for
     token = create_access_token({"sub": str(user_id), "role": "hospital_admin", "email": "admin@example.com"})
     client = TestClient(app)
     client.headers.update({"Authorization": f"Bearer {token}"})
-    monkeypatch.setattr("app.api.dashboards.get_hospital_dashboard", lambda *args, **kwargs: EXPORT_PAYLOAD)
+    # Mock the underlying data fetcher to simulate successful report generation
+    monkeypatch.setattr("app.api.ops_dashboards.get_hospital_dashboard", lambda *args, **kwargs: EXPORT_PAYLOAD)
 
     response = client.get(
         "/api/v1/dashboards/hospital/export",

@@ -232,7 +232,12 @@ clinical-intelligence/
    pip install -r requirements.txt
    ```
 
-4. Create a `.env` file in `backend/` (see [Configuration](#-configuration) below):
+4. Run database migrations to initialize the schema:
+   ```bash
+   alembic upgrade head
+   ```
+
+5. Create a `.env` file in `backend/` (see [Configuration](#-configuration) below):
    ```env
    AI_PROVIDER=ollama
    GEMINI_API_KEY=your-gemini-api-key-here

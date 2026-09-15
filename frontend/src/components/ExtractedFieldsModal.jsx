@@ -16,7 +16,7 @@ import {
   CheckCircle2, 
   Sparkles 
 } from 'lucide-react';
-import { fetchDocumentFields, extractDocumentFields, getDocumentFileUrl } from '../services/api';
+import { fetchDocumentFields, extractDocumentFields, getDocumentFileUrl } from '../api';
 
 export default function ExtractedFieldsModal({ document: doc, onClose, onRefreshRequired }) {
   const [data, setData] = useState(null);

@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 
-import { fetchPatientDashboard, getDocumentFileUrl } from '../services/api';
+import { fetchPatientDashboard, getDocumentFileUrl } from '../api';
 import PatientHeaderBanner from '../components/PatientHeaderBanner';
 import LabTrendChart from '../components/LabTrendChart';
 import { getEventConfig } from '../utils/timelineEventConfig';
