@@ -1,0 +1,15 @@
+
+METROPOLITAN CLINICAL LABORATORY
+Patient Name: John Smith
+Patient ID: LAB-554433
+Date: 2026-07-20
+Ordering Physician: Dr. Emily Clark
+Department: Pathology
+
+COMPREHENSIVE METABOLIC & CBC PANEL
+Hemoglobin: 14.5 g/dL (13.5 - 17.5) Normal
+WBC: 11.8 x10^3/uL (4.5 - 11.0) High
+Glucose: 145 mg/dL (70 - 99) High
+Creatinine: 0.9 mg/dL (0.6 - 1.2) Normal
+Sodium: 140 mmol/L (135 - 145) Normal
+Potassium: 4.2 mmol/L (3.5 - 5.0) Normal

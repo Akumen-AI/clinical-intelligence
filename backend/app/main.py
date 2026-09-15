@@ -30,6 +30,7 @@ from app.models.visit import Visit
 from app.models.clinical_entities import Medication, Diagnosis, LabResult, Vital, Procedure, Allergy
 from app.models.rag_chunk import PatientRAGChunk
 from app.models.rag_conversation import RAGConversation
+from app.models.report_request import ReportRequest
 
 # Register SQLAlchemy hooks
 import app.services.layout_trigger  # noqa
@@ -39,6 +40,7 @@ from app.api import layout
 from app.api import fields
 from app.api import timeline
 from app.api import canonical_records
+from app.api.reports import router as reports_router
 from app.api.dashboards import router as ops_dashboards_router
 from app.routers import review
 from app.routers.policy_chatbot import router as policy_chatbot_router
@@ -255,6 +257,7 @@ app.include_router(layout.router, prefix="/api/v1", dependencies=[Depends(check_
 app.include_router(fields.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 app.include_router(timeline.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 app.include_router(canonical_records.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
+app.include_router(reports_router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 app.include_router(ops_dashboards_router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 app.include_router(review.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 app.include_router(correction_logs_router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
