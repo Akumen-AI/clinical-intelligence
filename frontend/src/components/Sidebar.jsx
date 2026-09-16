@@ -12,7 +12,6 @@ import {
   BarChart2
 } from 'lucide-react';
 
-// Source of truth mapping route keys to allowed roles, reflecting backend rbac.py
 export const RBAC_MATRIX = {
   intake: ['doctor', 'nurse', 'hospital_admin'],
   review: ['doctor', 'nurse', 'hospital_admin'],
@@ -36,81 +35,79 @@ export default function Sidebar() {
   if (!user) return null;
 
   return (
-    <aside className="app-sidebar">
-      <div className="sidebar-brand">
-        <div className="brand-logo">
-          <Activity size={24} color="#ffffff" />
+    <aside className="w-64 flex-shrink-0 flex flex-col bg-surface border-r border-line h-screen">
+      <div className="flex items-center gap-3 p-6 border-b border-line">
+        <div className="w-10 h-10 rounded-xl bg-teal flex items-center justify-center text-white">
+          <Activity size={24} />
         </div>
-        <div className="brand-text">
-          <span>Clinical</span>
-          <span style={{ color: 'var(--primary-cyan)', fontWeight: 700 }}>Intelligence</span>
+        <div className="text-xl font-sans tracking-tight">
+          <span className="text-ink font-medium">Clinical</span>
+          <span className="text-teal font-bold">Intelligence</span>
         </div>
       </div>
 
-      <nav className="sidebar-nav">
+      <nav className="flex-1 overflow-y-auto py-6 px-4 flex flex-col gap-1">
         {hasAccess(user.role, 'intake') && (
-          <NavLink to="/intake" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+          <NavLink to="/intake" className={({ isActive }) => `flex items-center gap-3 px-3 py-2 rounded-md font-medium text-sm transition-colors ${isActive ? 'text-teal bg-teal/10' : 'text-ink hover:bg-paper'}`}>
             <Activity size={18} />
             <span>Document Intake</span>
           </NavLink>
         )}
         
         {hasAccess(user.role, 'review') && (
-          <NavLink to="/review" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+          <NavLink to="/review" className={({ isActive }) => `flex items-center gap-3 px-3 py-2 rounded-md font-medium text-sm transition-colors ${isActive ? 'text-teal bg-teal/10' : 'text-ink hover:bg-paper'}`}>
             <ClipboardCheck size={18} />
             <span>Review Queue</span>
           </NavLink>
         )}
         
         {hasAccess(user.role, 'patients') && (
-          <NavLink to="/patients" className={({ isActive }) => `sidebar-link ${isActive || window.location.pathname.startsWith('/patients/') ? 'active' : ''}`}>
+          <NavLink to="/patients" className={({ isActive }) => `flex items-center gap-3 px-3 py-2 rounded-md font-medium text-sm transition-colors ${isActive || window.location.pathname.startsWith('/patients/') ? 'text-teal bg-teal/10' : 'text-ink hover:bg-paper'}`}>
             <Users size={18} />
             <span>Patients</span>
           </NavLink>
         )}
 
         {hasAccess(user.role, 'dashboards') && (
-          <NavLink to="/operations-dashboard" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+          <NavLink to="/operations-dashboard" className={({ isActive }) => `flex items-center gap-3 px-3 py-2 rounded-md font-medium text-sm transition-colors ${isActive ? 'text-teal bg-teal/10' : 'text-ink hover:bg-paper'}`}>
             <BarChart2 size={18} />
             <span>Operations Dashboard</span>
           </NavLink>
         )}
 
         {hasAccess(user.role, 'reports') && (
-          <NavLink to="/reports" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+          <NavLink to="/reports" className={({ isActive }) => `flex items-center gap-3 px-3 py-2 rounded-md font-medium text-sm transition-colors ${isActive ? 'text-teal bg-teal/10' : 'text-ink hover:bg-paper'}`}>
             <BarChart2 size={18} />
             <span>Report Builder</span>
           </NavLink>
         )}
 
-        <div className="sidebar-divider"></div>
-        <div className="sidebar-section-title">Tools</div>
+        <div className="my-4 border-t border-line"></div>
+        <div className="px-3 mb-2 text-xs font-medium text-slate">Tools</div>
 
         {hasAccess(user.role, 'patientQA') && (
-          <NavLink to="/patients/ask" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+          <NavLink to="/patients/ask" className={({ isActive }) => `flex items-center gap-3 px-3 py-2 rounded-md font-medium text-sm transition-colors ${isActive ? 'text-teal bg-teal/10' : 'text-ink hover:bg-paper'}`}>
             <MessageSquare size={18} />
             <span>Patient Q&A</span>
           </NavLink>
         )}
 
         {hasAccess(user.role, 'policyChat') && (
-          <NavLink to="/policy-assistant" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+          <NavLink to="/policy-assistant" className={({ isActive }) => `flex items-center gap-3 px-3 py-2 rounded-md font-medium text-sm transition-colors ${isActive ? 'text-teal bg-teal/10' : 'text-ink hover:bg-paper'}`}>
             <MessageSquare size={18} />
             <span>Policy Assistant</span>
           </NavLink>
         )}
       </nav>
 
-      <div className="sidebar-footer">
-        <div className="user-profile">
-          <div className="user-info">
-            <span className="user-email">{user.email}</span>
-            <span className="user-role">{user.role}</span>
-          </div>
-          <button onClick={logout} className="logout-btn" title="Logout">
-            <LogOut size={16} />
-          </button>
+      <div className="p-4 border-t border-line flex items-center justify-between">
+        <div className="flex flex-col overflow-hidden mr-2">
+          <span className="text-sm font-medium text-ink truncate">{user.email}</span>
+          <span className="text-xs text-slate capitalize">{user.role}</span>
         </div>
+        <button onClick={logout} className="p-2 text-slate hover:text-ink hover:bg-paper rounded-md transition-colors flex-shrink-0" title="Logout">
+          <LogOut size={16} />
+        </button>
       </div>
     </aside>
   );

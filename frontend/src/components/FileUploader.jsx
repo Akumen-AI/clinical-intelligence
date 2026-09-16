@@ -91,10 +91,8 @@ export default function FileUploader({ onUploadSuccess }) {
       console.error('Upload Error:', err);
       let detail;
       if (err.response?.data?.detail) {
-        // Server responded with a structured error (validation failure, etc.)
         detail = err.response.data.detail;
       } else if (err.code === 'ERR_NETWORK' || err.code === 'ERR_CONNECTION_REFUSED' || !err.response) {
-        // Network error — backend is not reachable
         detail = 'Cannot reach the server. Please ensure the backend is running on http://localhost:8000 and try again.';
       } else {
         detail = `Upload failed (HTTP ${err.response?.status ?? 'unknown'}). Please verify file integrity and server state.`;
@@ -114,43 +112,44 @@ export default function FileUploader({ onUploadSuccess }) {
   };
 
   return (
-    <div className="bg-surface-container rounded-2xl border border-outline-variant/20 overflow-hidden mb-8">
-      <div className="p-6 border-b border-outline-variant/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="bg-surface rounded-xl border border-line overflow-hidden mb-8">
+      <div className="p-6 border-b border-line flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h3 className="text-headline-lg font-headline-lg text-on-surface mb-1">Upload Clinical Documents</h3>
-          <p className="text-body-md font-body-md text-on-surface-variant">
+          <h3 className="text-2xl font-bold text-ink mb-1">Upload Clinical Documents</h3>
+          <p className="text-sm text-slate">
             Validation Service checks extension, MIME type, file size (&lt;20MB), and PDF/Image readability before queueing.
           </p>
         </div>
-        <div className="px-3 py-1.5 rounded-md bg-surface-variant border border-outline-variant/30 text-label-caps font-label-caps text-secondary shrink-0">
+        <div className="px-3 py-1.5 rounded-md bg-paper border border-line text-xs font-semibold text-slate uppercase shrink-0">
           Validation Engine
         </div>
       </div>
 
       {errorMessage && (
-        <div className="mx-6 mt-6 px-4 py-3 rounded-lg bg-error-container/10 border border-error/30 text-error flex justify-between items-center text-sm">
+        <div className="mx-6 mt-6 px-4 py-3 rounded-lg bg-danger/10 border border-danger/20 text-danger flex justify-between items-center text-sm">
           <div className="flex items-center gap-2">
             <AlertTriangle size={18} />
             <span>{errorMessage}</span>
           </div>
-          <button className="text-error/80 hover:text-error" onClick={() => setErrorMessage(null)}><X size={16} /></button>
+          <button className="text-danger/80 hover:text-danger" onClick={() => setErrorMessage(null)}><X size={16} /></button>
         </div>
       )}
 
       {successMessage && (
-        <div className="mx-6 mt-6 px-4 py-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 flex justify-between items-center text-sm">
+        <div className="mx-6 mt-6 px-4 py-3 rounded-lg bg-success/10 border border-success/20 text-success flex justify-between items-center text-sm">
           <div className="flex items-center gap-2">
             <CheckCircle size={18} />
             <span>{successMessage}</span>
           </div>
-          <button className="text-emerald-500/80 hover:text-emerald-500" onClick={() => setSuccessMessage(null)}><X size={16} /></button>
+          <button className="text-success/80 hover:text-success" onClick={() => setSuccessMessage(null)}><X size={16} /></button>
         </div>
       )}
+
       {/* Drag & Drop Zone */}
       <div className="p-6 md:p-10">
         <div
-          className={`border-2 border-dashed rounded-2xl bg-surface-container-highest/30 transition-colors duration-300 group cursor-pointer flex flex-col items-center justify-center py-16 px-6 text-center ${
-            isDragging ? 'border-primary/80 bg-primary/5' : 'border-outline-variant/50 hover:border-secondary/60'
+          className={`border-2 border-dashed rounded-2xl transition-colors duration-200 group cursor-pointer flex flex-col items-center justify-center py-16 px-6 text-center ${
+            isDragging ? 'border-teal bg-teal/[.08]' : 'border-line hover:border-teal hover:bg-teal/[.08] bg-surface'
           }`}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
@@ -166,28 +165,28 @@ export default function FileUploader({ onUploadSuccess }) {
             style={{ display: 'none' }}
           />
           
-          <div className="w-20 h-20 rounded-full bg-secondary-container/20 border border-secondary/30 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 shadow-[0_0_20px_rgba(37,99,235,0.2)]">
-            <UploadCloud className="text-4xl text-secondary w-10 h-10" />
+          <div className="w-20 h-20 rounded-full bg-paper flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-200">
+            <UploadCloud className="text-4xl text-teal w-10 h-10" />
           </div>
           
-          <h4 className="text-headline-md font-headline-md text-on-surface mb-2">Drag & drop patient records here</h4>
-          <p className="text-body-lg font-body-lg text-on-surface-variant mb-8">or click to browse your filesystem (bulk & mixed uploads supported)</p>
+          <h4 className="text-xl font-semibold text-ink mb-2">Drag & drop patient records here</h4>
+          <p className="text-base text-slate mb-8">or click to browse your filesystem (bulk & mixed uploads supported)</p>
           
           <div className="flex flex-wrap justify-center gap-3">
-            <span className="px-3 py-1 rounded bg-surface-variant text-label-caps font-label-caps text-on-surface-variant border border-outline-variant/20">PDF</span>
-            <span className="px-3 py-1 rounded bg-surface-variant text-label-caps font-label-caps text-on-surface-variant border border-outline-variant/20">PNG</span>
-            <span className="px-3 py-1 rounded bg-surface-variant text-label-caps font-label-caps text-on-surface-variant border border-outline-variant/20">JPG</span>
-            <span className="px-3 py-1 rounded bg-surface-variant text-label-caps font-label-caps text-on-surface-variant border border-outline-variant/20">JPEG</span>
-            <span className="px-3 py-1 rounded bg-surface-variant text-label-caps font-label-caps text-on-surface-variant border border-outline-variant/20">TIFF</span>
+            <span className="px-3 py-1 rounded-md bg-paper text-xs font-semibold text-slate border border-line">PDF</span>
+            <span className="px-3 py-1 rounded-md bg-paper text-xs font-semibold text-slate border border-line">PNG</span>
+            <span className="px-3 py-1 rounded-md bg-paper text-xs font-semibold text-slate border border-line">JPG</span>
+            <span className="px-3 py-1 rounded-md bg-paper text-xs font-semibold text-slate border border-line">JPEG</span>
+            <span className="px-3 py-1 rounded-md bg-paper text-xs font-semibold text-slate border border-line">TIFF</span>
           </div>
         </div>
       </div>
 
       {/* Upload Progress Bar */}
       {isUploading && (
-        <div className="h-1.5 w-full bg-outline-variant/30 overflow-hidden">
+        <div className="h-1.5 w-full bg-line overflow-hidden">
           <div 
-            className="h-full bg-gradient-to-r from-primary to-secondary transition-all duration-300" 
+            className="h-full bg-teal transition-all duration-300" 
             style={{ width: `${uploadProgress}%` }} 
           />
         </div>
@@ -196,7 +195,7 @@ export default function FileUploader({ onUploadSuccess }) {
       {/* Selected File List */}
       {selectedFiles.length > 0 && (
         <div className="px-6 md:px-10 pb-10">
-          <div className="text-sm font-semibold text-on-surface-variant mb-3">
+          <div className="text-sm font-semibold text-slate mb-3">
             Files Ready for Validation & Upload ({selectedFiles.length})
           </div>
           <div className="flex flex-col gap-3">
@@ -204,23 +203,23 @@ export default function FileUploader({ onUploadSuccess }) {
               const ext = getExtension(file.name);
               const isSupported = ALLOWED_TYPES.includes(ext);
               return (
-                <div key={idx} className={`flex items-center justify-between p-3 rounded-xl border ${
-                  isSupported ? 'bg-surface-variant/40 border-outline-variant/40' : 'bg-error-container/5 border-error/30'
+                <div key={idx} className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${
+                  isSupported ? 'bg-surface border-line hover:bg-paper' : 'bg-danger/5 border-danger/30 hover:bg-danger/10'
                 }`}>
                   <div className="flex items-center gap-3">
-                    <FileText size={20} className={isSupported ? 'text-primary' : 'text-error'} />
+                    <FileText size={20} className={isSupported ? 'text-teal' : 'text-danger'} />
                     <div>
-                      <div className={`text-sm font-medium ${isSupported ? 'text-on-surface' : 'text-error/90'}`}>
-                        {file.name} {!isSupported && <span className="text-error text-xs ml-2">(Will be rejected)</span>}
+                      <div className={`text-sm font-medium ${isSupported ? 'text-ink' : 'text-danger'}`}>
+                        {file.name} {!isSupported && <span className="text-danger text-xs ml-2">(Will be rejected)</span>}
                       </div>
-                      <div className="text-xs text-on-surface-variant/70">
+                      <div className="text-xs text-slate">
                         {formatFileSize(file.size)} • {ext.toUpperCase() || 'UNKNOWN'}
                       </div>
                     </div>
                   </div>
                   <button
                     type="button"
-                    className="p-1.5 rounded-md text-on-surface-variant hover:text-error hover:bg-error-container/10 transition-colors"
+                    className="p-1.5 rounded-md text-slate hover:text-danger hover:bg-danger/10 transition-colors"
                     onClick={(e) => { e.stopPropagation(); removeFile(idx); }}
                     disabled={isUploading}
                   >
@@ -234,7 +233,7 @@ export default function FileUploader({ onUploadSuccess }) {
           <div className="flex justify-end gap-4 mt-6">
             <button
               type="button"
-              className="px-5 py-2.5 rounded-lg font-semibold text-sm bg-surface-variant border border-outline-variant/30 text-on-surface hover:bg-surface-variant/80 transition-colors"
+              className="px-5 py-2.5 rounded-lg font-semibold text-sm bg-paper border border-line text-ink hover:bg-line/50 transition-colors"
               onClick={() => { setSelectedFiles([]); if (fileInputRef.current) fileInputRef.current.value = ''; }}
               disabled={isUploading}
             >
@@ -242,7 +241,7 @@ export default function FileUploader({ onUploadSuccess }) {
             </button>
             <button
               type="button"
-              className="px-5 py-2.5 rounded-lg font-semibold text-sm bg-gradient-to-r from-primary to-secondary text-white shadow-lg shadow-primary/20 hover:opacity-90 transition-all flex items-center gap-2 disabled:opacity-50"
+              className="px-5 py-2.5 rounded-lg font-semibold text-sm bg-teal text-white hover:bg-teal/90 transition-colors flex items-center gap-2 disabled:opacity-50"
               onClick={handleUploadSubmit}
               disabled={isUploading}
             >

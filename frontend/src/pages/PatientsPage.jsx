@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Copy, CheckCircle2, User, AlertCircle, RefreshCw, ChevronLeft, Activity, FileText, Pill, FileSymlink, MessageCircleQuestion, Search } from 'lucide-react';
+import { Users, Copy, CheckCircle2, User, AlertCircle, RefreshCw, MessageCircleQuestion, Search } from 'lucide-react';
 import { fetchPatients } from '../api';
 import { useNavigate } from 'react-router-dom';
 
@@ -48,29 +48,33 @@ export default function PatientsPage() {
   return (
     <div className="app-container">
       {/* Header Section */}
-      <header className="app-header">
-        <div className="brand-wrapper">
-          <div className="brand-logo" style={{ background: 'linear-gradient(135deg, var(--accent-emerald), var(--primary-cyan))' }}>
+      <header className="flex justify-between items-center mb-8 pb-6 border-b border-line">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-teal flex items-center justify-center text-white">
             <Users size={26} color="#ffffff" />
           </div>
-          <div className="brand-title">
-            <h1>Patient Directory</h1>
-            <p>Browse and manage synthetic patient records</p>
+          <div>
+            <h1 className="text-2xl font-bold text-ink mb-1">Patient Directory</h1>
+            <p className="text-sm text-slate">Browse and manage synthetic patient records</p>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{ position: 'relative' }}>
-            <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate" />
             <input 
               type="text" 
               placeholder="Search by name or ID..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ padding: '0.5rem 1rem 0.5rem 2.2rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)', background: 'rgba(15, 23, 42, 0.5)', color: 'var(--text-main)', fontSize: '0.9rem', width: '250px' }}
+              className="pl-9 pr-4 py-2 rounded-lg border border-line bg-surface text-ink text-sm w-64 focus:outline-none focus:border-teal"
             />
           </div>
-          <button onClick={loadPatients} className="btn btn-secondary" disabled={loading} style={{ padding: '0.5rem 1rem' }}>
-            <RefreshCw size={16} className={loading ? 'spin' : ''} />
+          <button 
+            onClick={loadPatients} 
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-surface border border-line text-ink hover:bg-paper transition-colors text-sm font-semibold disabled:opacity-50" 
+            disabled={loading}
+          >
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
             Refresh
           </button>
         </div>
@@ -78,111 +82,94 @@ export default function PatientsPage() {
 
       {/* Error state */}
       {error && (
-        <div className="alert-banner error" style={{ marginBottom: '1.5rem' }}>
-          <AlertCircle size={18} style={{ flexShrink: 0 }} />
+        <div className="flex items-center gap-2 px-4 py-3 bg-danger/10 border border-danger/20 rounded-lg text-danger text-sm font-medium mb-6">
+          <AlertCircle size={18} className="shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
       {/* Main Content Area */}
       {loading ? (
-        <div className="glass-card" style={{ textAlign: 'center', padding: '4rem 1.5rem', color: 'var(--text-muted)' }}>
-          <RefreshCw size={32} className="spin" style={{ margin: '0 auto 1rem', color: 'var(--accent-emerald)' }} />
-          <p style={{ fontSize: '1.1rem' }}>Loading patient records...</p>
+        <div className="bg-surface border border-line rounded-xl text-center py-16 text-slate">
+          <RefreshCw size={32} className="animate-spin mx-auto mb-4 text-teal" />
+          <p className="text-lg font-medium">Loading patient records...</p>
         </div>
       ) : patients.length === 0 ? (
-        <div className="glass-card" style={{ textAlign: 'center', padding: '5rem 1.5rem' }}>
-          <Users size={48} color="var(--text-muted)" style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
-          <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--text-main)' }}>
+        <div className="bg-surface border border-line rounded-xl text-center py-20">
+          <Users size={48} className="mx-auto mb-4 text-slate opacity-50" />
+          <h3 className="text-xl font-semibold mb-2 text-ink">
             No patients found
           </h3>
-          <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', maxWidth: '400px', margin: '0 auto' }}>
+          <p className="text-sm text-slate max-w-md mx-auto">
             No synthetic patients have been seeded into the database yet.
           </p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
-          {filteredPatients.length === 0 ? (
-            <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-              No patients match your search.
-            </div>
-          ) : filteredPatients.map(patient => (
-              <div 
-                key={patient.patient_id} 
-              className="glass-card patient-card-hover" 
-              style={{ padding: '1.5rem', position: 'relative', overflow: 'hidden', cursor: 'pointer', transition: 'all 0.2s ease' }}
-              onClick={() => navigate(`/patients/${patient.patient_id}/dashboard`)}
-            >
-              <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-emerald)' }}></div>
-              
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-                <div style={{
-                  width: '40px', height: '40px', borderRadius: '50%',
-                  background: 'rgba(16, 185, 129, 0.15)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: 'var(--accent-emerald)'
-                }}>
-                  <User size={20} />
-                </div>
-                <div>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0, color: 'var(--text-main)' }}>{patient.name}</h3>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--primary-cyan)', marginTop: '0.2rem', fontWeight: 500 }}>{patient.patient_number || patient.mrn}</div>
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem', fontSize: '0.85rem' }}>
-                <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-sm)' }}>
-                  <span style={{ color: 'var(--text-dim)', display: 'block', fontSize: '0.7rem', marginBottom: '0.2rem' }}>DOB</span>
-                  <span style={{ color: 'var(--text-main)' }}>{patient.dob || 'Unknown'}</span>
-                </div>
-                <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-sm)' }}>
-                  <span style={{ color: 'var(--text-dim)', display: 'block', fontSize: '0.7rem', marginBottom: '0.2rem' }}>Sex</span>
-                  <span style={{ color: 'var(--text-main)' }}>{patient.sex || 'Unknown'}</span>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border-light)', paddingTop: '1rem' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
-                  OP ID: {patient.patient_number || patient.mrn}
-                </div>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/patients/${patient.patient_id}/ask`);
-                    }}
-                    className="btn btn-secondary"
-                    style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+        <div className="bg-surface border border-line rounded-xl overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
+              <thead className="bg-paper sticky top-0 z-10 border-b border-line">
+                <tr>
+                  <th className="p-4 text-xs font-bold text-slate uppercase tracking-wider">Patient Name</th>
+                  <th className="p-4 text-xs font-bold text-slate uppercase tracking-wider">Patient ID / MRN</th>
+                  <th className="p-4 text-xs font-bold text-slate uppercase tracking-wider">DOB</th>
+                  <th className="p-4 text-xs font-bold text-slate uppercase tracking-wider">Sex</th>
+                  <th className="p-4 text-xs font-bold text-slate uppercase tracking-wider text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPatients.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" className="p-8 text-center text-slate">No patients match your search.</td>
+                  </tr>
+                ) : filteredPatients.map(patient => (
+                  <tr 
+                    key={patient.patient_id}
+                    className="border-b border-line hover:bg-paper transition-colors cursor-pointer group"
+                    onClick={() => navigate(`/patients/${patient.patient_id}/dashboard`)}
                   >
-                    <MessageCircleQuestion size={14} /> Q&A
-                  </button>
-                  <button
-                    onClick={(e) => handleCopyId(e, patient.patient_number || patient.mrn)}
-                    className={`btn ${copiedId === (patient.patient_number || patient.mrn) ? 'btn-primary' : 'btn-secondary'}`}
-                    style={{
-                      padding: '0.35rem 0.75rem',
-                      fontSize: '0.75rem',
-                      display: 'flex', alignItems: 'center', gap: '0.35rem',
-                      background: copiedId === (patient.patient_number || patient.mrn) ? 'var(--accent-emerald)' : '',
-                      color: copiedId === (patient.patient_number || patient.mrn) ? '#fff' : ''
-                    }}
-                  >
-                    {copiedId === (patient.patient_number || patient.mrn) ? <CheckCircle2 size={14} /> : <Copy size={14} />}
-                    {copiedId === (patient.patient_number || patient.mrn) ? 'Copied' : 'Copy'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
+                    <td className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-teal/10 flex items-center justify-center text-teal">
+                          <User size={16} />
+                        </div>
+                        <span className="font-semibold text-ink text-base group-hover:text-teal transition-colors">{patient.name}</span>
+                      </div>
+                    </td>
+                    <td className="p-4 font-mono text-slate">{patient.patient_number || patient.mrn}</td>
+                    <td className="p-4 text-ink">{patient.dob || 'Unknown'}</td>
+                    <td className="p-4 text-ink capitalize">{patient.sex || 'Unknown'}</td>
+                    <td className="p-4 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/patients/${patient.patient_id}/ask`);
+                          }}
+                          className="px-2.5 py-1.5 bg-surface border border-line text-slate hover:text-teal hover:bg-teal/10 rounded-md transition-colors flex items-center gap-1.5 text-xs font-semibold"
+                        >
+                          <MessageCircleQuestion size={14} /> Q&A
+                        </button>
+                        <button
+                          onClick={(e) => handleCopyId(e, patient.patient_number || patient.mrn)}
+                          className={`px-2.5 py-1.5 border rounded-md transition-colors flex items-center gap-1.5 text-xs font-semibold ${
+                            copiedId === (patient.patient_number || patient.mrn)
+                              ? 'bg-success/10 text-success border-success/20'
+                              : 'bg-surface border-line text-slate hover:text-ink hover:bg-line/50'
+                          }`}
+                        >
+                          {copiedId === (patient.patient_number || patient.mrn) ? <CheckCircle2 size={14} /> : <Copy size={14} />}
+                          {copiedId === (patient.patient_number || patient.mrn) ? 'Copied' : 'Copy'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
-      <style dangerouslySetInnerHTML={{__html: `
-        .patient-card-hover:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-          border-color: rgba(16, 185, 129, 0.3);
-        }
-      `}} />
     </div>
   );
 }

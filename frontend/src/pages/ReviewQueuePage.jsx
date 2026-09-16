@@ -236,8 +236,8 @@ export default function ReviewQueuePage() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh] text-on-surface-variant">
-        <RefreshCw size={32} className="animate-spin mb-4 text-primary" />
+      <div className="flex flex-col items-center justify-center min-h-[50vh] text-slate">
+        <RefreshCw size={32} className="animate-spin mb-4 text-teal" />
         <p>Loading review queue…</p>
       </div>
     );
@@ -245,10 +245,10 @@ export default function ReviewQueuePage() {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh] text-error">
+      <div className="flex flex-col items-center justify-center min-h-[50vh] text-danger">
         <AlertTriangle size={32} className="mb-4" />
         <p>{error}</p>
-        <button className="mt-4 px-4 py-2 bg-primary text-on-primary rounded-lg font-semibold hover:bg-primary/90 transition-colors" onClick={loadQueue}>
+        <button className="mt-4 px-4 py-2 bg-teal text-white rounded-lg font-semibold hover:bg-teal/90 transition-colors" onClick={loadQueue}>
           Retry
         </button>
       </div>
@@ -260,33 +260,33 @@ export default function ReviewQueuePage() {
   return (
     <div className="app-container flex-1 flex flex-col min-h-0">
       {/* Header Section */}
-      <header className="app-header">
-        <div className="brand-wrapper">
-          <div className="brand-logo" style={{ background: 'linear-gradient(135deg, var(--accent-emerald), var(--primary-cyan))' }}>
+      <header className="flex justify-between items-center mb-10 pb-6 border-b border-line">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-teal flex items-center justify-center text-white">
             <ClipboardCheck size={26} color="#ffffff" />
           </div>
-          <div className="brand-title">
-            <h1>Pending Review Queue</h1>
-            <p>Human-in-the-Loop Verification</p>
+          <div>
+            <h1 className="text-[1.75rem] font-bold text-ink">Pending Review Queue</h1>
+            <p className="text-sm text-slate">Human-in-the-Loop Verification</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 bg-surface-container-high px-4 py-2 rounded-xl border border-outline-variant/20">
+        <div className="flex items-center gap-4 bg-paper px-4 py-2 rounded-xl border border-line/20">
           <div className="flex items-center gap-2 text-sm font-semibold">
-            <AlertTriangle size={16} className="text-amber-500" />
-            <span className="text-on-surface"><span className="text-amber-500">{allItems.length}</span> pending</span>
+            <AlertTriangle size={16} className="text-warning" />
+            <span className="text-ink"><span className="text-warning">{allItems.length}</span> pending</span>
           </div>
           <div className="w-px h-4 bg-outline-variant/30 mx-2"></div>
           <div className="flex items-center gap-2 text-sm font-semibold">
-            <CheckCircle2 size={16} className="text-emerald-500" />
-            <span className="text-on-surface"><span className="text-emerald-500">{reviewedToday}</span> reviewed this session</span>
+            <CheckCircle2 size={16} className="text-success" />
+            <span className="text-ink"><span className="text-success">{reviewedToday}</span> reviewed this session</span>
           </div>
           <div className="w-px h-4 bg-outline-variant/30 mx-2"></div>
-          <div className="flex items-center gap-2 text-sm text-on-surface-variant font-medium">
+          <div className="flex items-center gap-2 text-sm text-slate font-medium">
             <Clock size={16} />
             <span>{elapsedStr}</span>
           </div>
-          <button className="btn btn-icon ml-2" onClick={loadQueue} title="Refresh queue">
+          <button className="p-2 rounded-lg text-slate hover:text-ink hover:bg-paper transition-colors ml-2" onClick={loadQueue} title="Refresh queue">
             <RefreshCw size={16} />
           </button>
         </div>
@@ -295,14 +295,14 @@ export default function ReviewQueuePage() {
       {viewMode === 'list' ? (
         <div className="grid gap-4 mt-2">
           {allItems.length === 0 ? (
-            <div className="flex flex-col items-center justify-center min-h-[50vh] text-center p-8 bg-surface-container rounded-2xl border border-outline-variant/20 mt-8">
-              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-6">
-                <InboxIcon size={32} className="text-primary" />
+            <div className="flex flex-col items-center justify-center min-h-[50vh] text-center p-8 bg-surface rounded-2xl border border-line/20 mt-8">
+              <div className="w-16 h-16 rounded-full bg-teal/10 flex items-center justify-center mb-6">
+                <InboxIcon size={32} className="text-teal" />
               </div>
-              <h2 className="text-headline-md font-headline-md text-on-surface mb-2">Review Queue is Empty</h2>
-              <p className="text-body-lg font-body-lg text-on-surface-variant mb-1">All fields are at or above the confidence threshold — no manual review needed.</p>
-              <p className="text-sm text-on-surface-variant/70 mb-6">Upload more documents or lower the confidence threshold to populate the queue.</p>
-              <button className="flex items-center gap-2 px-4 py-2 bg-surface-variant text-on-surface rounded-lg font-semibold border border-outline-variant/30 hover:bg-surface-variant/80 transition-colors" onClick={loadQueue}>
+              <h2 className="text-2xl font-bold text-ink mb-2">Review Queue is Empty</h2>
+              <p className="text-lg font-medium text-slate mb-1">All fields are at or above the confidence threshold — no manual review needed.</p>
+              <p className="text-sm text-slate/70 mb-6">Upload more documents or lower the confidence threshold to populate the queue.</p>
+              <button className="flex items-center gap-2 px-4 py-2 bg-paper text-ink rounded-lg font-semibold border border-line/30 hover:bg-paper/80 transition-colors" onClick={loadQueue}>
                 <RefreshCw size={16} /> Refresh
               </button>
             </div>
@@ -311,26 +311,26 @@ export default function ReviewQueuePage() {
               const doc = documents.find(d => d.document_id === docId);
               const filename = doc ? doc.filename : (docId.slice(0, 8) + '…');
               return (
-                <div key={docId} className="flex justify-between items-center p-5 bg-surface-container rounded-xl border border-outline-variant/20 hover:border-outline-variant/40 transition-colors">
+                <div key={docId} className="flex justify-between items-center p-5 bg-surface rounded-xl border border-line hover:border-teal transition-colors">
                   <div>
-                    <h3 className="flex items-center gap-2 text-lg font-semibold text-on-surface mb-2">
-                      <FileText size={20} className="text-primary" />
+                    <h3 className="flex items-center gap-2 text-lg font-semibold text-ink mb-2">
+                      <FileText size={20} className="text-teal" />
                       {filename}
                     </h3>
                     <div className="flex gap-4 text-sm font-medium">
                       {isPatientAssignment ? (
-                        <span className="flex items-center gap-1.5 text-error">
+                        <span className="flex items-center gap-1.5 text-danger">
                           <AlertTriangle size={16} /> Needs Patient Assignment
                         </span>
                       ) : (
-                        <span className="flex items-center gap-1.5 text-amber-500">
+                        <span className="flex items-center gap-1.5 text-warning">
                           <ZoomIn size={16} /> Low Confidence Data ({count} fields)
                         </span>
                       )}
                     </div>
                   </div>
                   <button 
-                    className="px-5 py-2.5 bg-gradient-to-r from-primary to-secondary text-white rounded-lg font-semibold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
+                    className="px-5 py-2.5 bg-teal text-white rounded-lg font-semibold hover:bg-teal/90 transition-colors"
                     onClick={() => {
                       setSelectedDocId(docId);
                       setViewMode('review');
@@ -347,7 +347,7 @@ export default function ReviewQueuePage() {
         <div className="flex flex-col h-full flex-grow">
           <div className="mb-4">
             <button 
-              className="flex items-center gap-2 px-4 py-2 bg-surface-variant text-on-surface rounded-lg font-semibold border border-outline-variant/30 hover:bg-surface-variant/80 transition-colors text-sm"
+              className="flex items-center gap-2 px-4 py-2 bg-paper text-ink rounded-lg font-semibold border border-line/30 hover:bg-paper/80 transition-colors text-sm"
               onClick={() => { setViewMode('list'); setSelectedDocId(null); }}
             >
               <RotateCcw size={16} className="-rotate-45" /> Back to Queue
@@ -377,33 +377,33 @@ export default function ReviewQueuePage() {
           <div className="flex flex-col lg:flex-row gap-6 flex-grow min-h-0">
             
             {/* Left: Document Image Viewer */}
-            <div className="flex flex-col flex-1 bg-surface-container rounded-2xl border border-outline-variant/20 overflow-hidden relative">
-              <div className="flex justify-between items-center p-3 border-b border-outline-variant/10 bg-surface-container-high">
-                <span className="text-sm font-semibold text-on-surface-variant px-2">
+            <div className="flex flex-col flex-1 bg-surface rounded-2xl border border-line/20 overflow-hidden relative">
+              <div className="flex justify-between items-center p-3 border-b border-line/10 bg-paper">
+                <span className="text-sm font-semibold text-slate px-2">
                   {showFullPage ? 'Full Page View' : 'Field Region View'}
                 </span>
                 <div className="flex items-center gap-1">
-                  <button className="p-1.5 rounded text-on-surface-variant hover:bg-surface-variant hover:text-on-surface transition-colors flex items-center gap-1.5 text-xs font-semibold mr-2" onClick={() => setShowFullPage((v) => !v)}>
+                  <button className="p-1.5 rounded text-slate hover:bg-paper hover:text-ink transition-colors flex items-center gap-1.5 text-xs font-semibold mr-2" onClick={() => setShowFullPage((v) => !v)}>
                     <Maximize2 size={14} /> {showFullPage ? 'Crop to Field' : 'Full Page'}
                   </button>
                   <div className="w-px h-4 bg-outline-variant/30 mx-1"></div>
-                  <button className="p-1.5 rounded text-on-surface-variant hover:bg-surface-variant hover:text-on-surface transition-colors" onClick={() => setZoom((z) => Math.min(3, z + 0.25))} disabled={zoom >= 3}>
+                  <button className="p-1.5 rounded text-slate hover:bg-paper hover:text-ink transition-colors" onClick={() => setZoom((z) => Math.min(3, z + 0.25))} disabled={zoom >= 3}>
                     <ZoomIn size={16} />
                   </button>
-                  <button className="p-1.5 rounded text-on-surface-variant hover:bg-surface-variant hover:text-on-surface transition-colors" onClick={() => setZoom((z) => Math.max(0.5, z - 0.25))} disabled={zoom <= 0.5}>
+                  <button className="p-1.5 rounded text-slate hover:bg-paper hover:text-ink transition-colors" onClick={() => setZoom((z) => Math.max(0.5, z - 0.25))} disabled={zoom <= 0.5}>
                     <ZoomOut size={16} />
                   </button>
-                  <button className="p-1.5 rounded text-on-surface-variant hover:bg-surface-variant hover:text-on-surface transition-colors" onClick={() => setZoom(1.0)}>
+                  <button className="p-1.5 rounded text-slate hover:bg-paper hover:text-ink transition-colors" onClick={() => setZoom(1.0)}>
                     <RotateCcw size={14} />
                   </button>
                 </div>
               </div>
 
-              <div className="flex-1 overflow-auto p-4 bg-surface-container-highest/20 relative flex items-center justify-center min-h-[400px]">
+              <div className="flex-1 overflow-auto p-4 bg-paper/20 relative flex items-center justify-center min-h-[400px]">
                 {isLoadingContext && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-surface-container/50 z-10">
-                    <RefreshCw size={24} className="animate-spin text-primary mb-2" />
-                    <span className="text-sm font-medium text-on-surface-variant">Loading image…</span>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-surface/50 z-10">
+                    <RefreshCw size={24} className="animate-spin text-teal mb-2" />
+                    <span className="text-sm font-medium text-slate">Loading image…</span>
                   </div>
                 )}
 
@@ -422,7 +422,7 @@ export default function ReviewQueuePage() {
                       />
                       {showFullPage && bbox && imgLoaded && (
                         <div
-                          className="absolute border-2 border-primary bg-primary/20 pointer-events-none rounded-sm"
+                          className="absolute border-2 bg-teal/10 pointer-events-none rounded-sm animate-pulse-box"
                           style={{
                             left: `${bbox.x * 100}%`,
                             top: `${bbox.y * 100}%`,
@@ -433,14 +433,14 @@ export default function ReviewQueuePage() {
                       )}
                     </div>
                     {imgError && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center text-amber-500 bg-surface-container/90">
+                      <div className="absolute inset-0 flex flex-col items-center justify-center text-warning bg-surface/90">
                         <AlertTriangle size={32} className="mb-2" />
                         <span className="text-sm font-medium">Could not load document image.</span>
                       </div>
                     )}
                   </div>
                 ) : !isLoadingContext ? (
-                  <div className="flex flex-col items-center text-on-surface-variant/50">
+                  <div className="flex flex-col items-center text-slate/50">
                     <FileText size={48} className="mb-2 opacity-50" />
                     <span className="text-sm font-semibold">No image available</span>
                   </div>
@@ -448,13 +448,13 @@ export default function ReviewQueuePage() {
               </div>
 
               {context && (
-                <div className="absolute bottom-4 left-4 right-4 bg-surface-container-high/90 backdrop-blur border border-outline-variant/30 p-3 rounded-lg flex justify-between items-center shadow-lg">
+                <div className="absolute bottom-4 left-4 right-4 bg-paper/90 backdrop-blur border border-line/30 p-3 rounded-lg flex justify-between items-center shadow-lg">
                   <div className="flex items-center gap-3">
-                    <span className="px-2 py-1 bg-primary/20 text-primary text-xs font-bold rounded uppercase">Target Field</span>
-                    <span className="font-semibold text-on-surface">{context.field_name}</span>
+                    <span className="px-2 py-1 bg-teal/20 text-teal text-xs font-bold rounded uppercase">Target Field</span>
+                    <span className="font-semibold text-ink">{context.field_name}</span>
                   </div>
                   {context.document_filename && (
-                    <span className="text-sm text-on-surface-variant truncate max-w-[50%]">{context.document_filename}</span>
+                    <span className="text-sm text-slate truncate max-w-[50%]">{context.document_filename}</span>
                   )}
                 </div>
               )}
@@ -463,10 +463,10 @@ export default function ReviewQueuePage() {
             {/* Right: Field Review Panel */}
             <div className="flex flex-col w-full lg:w-[450px] shrink-0">
               {docItems.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full bg-surface-container rounded-2xl border border-outline-variant/20 p-8 text-center">
-                  <CheckCircle2 size={48} className="text-emerald-500 mb-4" />
-                  <p className="text-xl font-semibold text-on-surface mb-2">Document Complete!</p>
-                  <p className="text-on-surface-variant">All fields in this document are reviewed.</p>
+                <div className="flex flex-col items-center justify-center h-full bg-surface rounded-2xl border border-line/20 p-8 text-center">
+                  <CheckCircle2 size={48} className="text-success mb-4" />
+                  <p className="text-xl font-semibold text-ink mb-2">Document Complete!</p>
+                  <p className="text-slate">All fields in this document are reviewed.</p>
                 </div>
               ) : (
                 <ReviewFieldCard
@@ -488,9 +488,9 @@ export default function ReviewQueuePage() {
       {/* Toast Notification */}
       {toastMsg && (
         <div className={`fixed bottom-6 right-6 px-6 py-3 rounded-xl shadow-2xl text-sm font-bold flex items-center gap-2 z-50 animate-fade-in-up border ${
-          toastMsg.type === 'error' ? 'bg-error-container text-error border-error/30' : 
-          toastMsg.type === 'warn' ? 'bg-amber-500/20 text-amber-500 border-amber-500/30' : 
-          'bg-emerald-500/20 text-emerald-500 border-emerald-500/30'
+          toastMsg.type === 'error' ? 'bg-danger text-danger border-danger/30' : 
+          toastMsg.type === 'warn' ? 'bg-warning/20 text-warning border-warning/30' : 
+          'bg-success/20 text-success border-success/30'
         }`}>
           {toastMsg.msg}
         </div>

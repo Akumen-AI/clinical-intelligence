@@ -85,23 +85,23 @@ export default function ReviewFieldCard({
   const conf = item.confidence_score;
   const confPct = (conf * 100).toFixed(1);
   
-  let confColorClass = 'text-emerald-500';
-  let confBgClass = 'bg-emerald-500';
-  let confBorderClass = 'border-emerald-500/30';
-  let confContainerClass = 'bg-emerald-500/10';
+  let confColorClass = 'text-success';
+  let confBgClass = 'bg-success';
+  let confBorderClass = 'border-success/30';
+  let confContainerClass = 'bg-success/10';
   let confLabel = 'High';
 
   if (conf < 0.5) {
-    confColorClass = 'text-error';
-    confBgClass = 'bg-error';
-    confBorderClass = 'border-error/30';
-    confContainerClass = 'bg-error-container/20';
+    confColorClass = 'text-danger';
+    confBgClass = 'bg-danger';
+    confBorderClass = 'border-danger/30';
+    confContainerClass = 'bg-danger/10';
     confLabel = 'Low';
   } else if (conf < 0.8) {
-    confColorClass = 'text-amber-500';
-    confBgClass = 'bg-amber-500';
-    confBorderClass = 'border-amber-500/30';
-    confContainerClass = 'bg-amber-500/10';
+    confColorClass = 'text-warning';
+    confBgClass = 'bg-warning';
+    confBorderClass = 'border-warning/30';
+    confContainerClass = 'bg-warning/10';
     confLabel = 'Medium';
   }
 
@@ -137,15 +137,15 @@ export default function ReviewFieldCard({
   }
 
   return (
-    <div className="flex flex-col h-full bg-surface-container rounded-2xl border border-outline-variant/20 overflow-hidden">
+    <div className="flex flex-col h-full bg-surface rounded-2xl border border-line overflow-hidden">
       
       {/* Top Banner: Document Ref */}
-      <div className="flex justify-between items-center px-4 py-2 bg-surface-container-high border-b border-outline-variant/10">
+      <div className="flex justify-between items-center px-4 py-2 bg-paper border-b border-line">
         <div className="flex items-center gap-2">
-          <FileText size={14} className="text-on-surface-variant" />
-          <span className="text-sm font-semibold text-on-surface truncate max-w-[200px]">{item.document_filename || item.document_id}</span>
+          <FileText size={14} className="text-slate" />
+          <span className="text-sm font-semibold text-ink truncate max-w-[200px]">{item.document_filename || item.document_id}</span>
         </div>
-        <span className="px-2 py-0.5 rounded text-[10px] font-bold text-on-surface-variant bg-surface-variant uppercase border border-outline-variant/20">
+        <span className="px-2 py-0.5 rounded text-[10px] font-bold text-slate bg-paper uppercase border border-line">
           {item.document_filetype || 'DOC'}
         </span>
       </div>
@@ -153,18 +153,18 @@ export default function ReviewFieldCard({
       <div className="p-5 flex-grow flex flex-col">
         {/* Progress Header */}
         <div className="flex justify-between items-end mb-2">
-          <div className="text-sm font-semibold text-on-surface">Field {index + 1} of {total}</div>
-          <div className="text-xs text-on-surface-variant">{total - index - 1} remaining</div>
+          <div className="text-sm font-semibold text-ink">Field {index + 1} of {total}</div>
+          <div className="text-xs text-slate">{total - index - 1} remaining</div>
         </div>
         
         {/* Progress Bar */}
-        <div className="h-1.5 w-full bg-outline-variant/20 rounded-full overflow-hidden mb-6">
-          <div className="h-full bg-primary transition-all duration-300" style={{ width: `${progressPct}%` }}></div>
+        <div className="h-1.5 w-full bg-line rounded-full overflow-hidden mb-6">
+          <div className="h-full bg-teal transition-all duration-300" style={{ width: `${progressPct}%` }}></div>
         </div>
 
         {/* Field Name & Confidence */}
         <div className="flex justify-between items-start mb-4">
-          <h2 className="text-title-lg font-title-lg text-on-surface">{item.field_name}</h2>
+          <h2 className="text-xl font-bold text-ink">{item.field_name}</h2>
           
           <div className={`flex items-center gap-2 px-2.5 py-1 rounded-full border ${confBorderClass} ${confContainerClass}`}>
             <span className={`w-2 h-2 rounded-full ${confBgClass}`}></span>
@@ -174,30 +174,30 @@ export default function ReviewFieldCard({
         </div>
 
         {/* Confidence Bar underneath */}
-        <div className="h-1 w-full bg-outline-variant/10 rounded-full overflow-hidden mb-6">
+        <div className="h-1 w-full bg-line rounded-full overflow-hidden mb-6">
           <div className={`h-full ${confBgClass}`} style={{ width: `${confPct}%` }}></div>
         </div>
 
         {/* Value Section */}
         <div className="flex-grow flex flex-col mb-6">
-          <label className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">
+          <label className="text-xs font-bold text-slate uppercase tracking-wider mb-2">
             {editMode ? 'Corrected Value' : (isPatientAssignment ? 'Extracted Patient Info' : 'Extracted Value')}
           </label>
           
-          <div className="flex-grow flex flex-col bg-surface-container-highest/20 rounded-xl border border-outline-variant/10 p-4 min-h-[120px]">
+          <div className="flex-grow flex flex-col bg-paper rounded-xl border border-line p-4 min-h-[120px]">
             {isPatientAssignment ? (
               <div className="flex flex-col justify-between h-full">
                 {parsedAssignment ? (
-                  <div className="text-sm text-on-surface space-y-1 mb-4">
-                    <div><span className="font-semibold text-on-surface-variant">Name:</span> {parsedAssignment.name || 'N/A'}</div>
-                    <div><span className="font-semibold text-on-surface-variant">DOB:</span> {parsedAssignment.dob || 'N/A'}</div>
-                    <div><span className="font-semibold text-on-surface-variant">Gender:</span> {parsedAssignment.gender || 'N/A'}</div>
+                  <div className="text-sm text-ink space-y-1 mb-4">
+                    <div><span className="font-semibold text-slate">Name:</span> {parsedAssignment.name || 'N/A'}</div>
+                    <div><span className="font-semibold text-slate">DOB:</span> {parsedAssignment.dob || 'N/A'}</div>
+                    <div><span className="font-semibold text-slate">Gender:</span> {parsedAssignment.gender || 'N/A'}</div>
                   </div>
                 ) : (
-                  <em className="text-on-surface-variant/70 text-sm mb-4 block">No patient info extracted</em>
+                  <em className="text-slate/70 text-sm mb-4 block">No patient info extracted</em>
                 )}
                 <button 
-                  className="mt-auto py-2.5 w-full bg-primary text-on-primary rounded-lg font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  className="mt-auto py-2.5 w-full bg-teal text-white rounded-lg font-semibold hover:bg-teal/90 transition-colors disabled:opacity-50"
                   onClick={() => setIsLinkModalOpen(true)}
                   disabled={isSubmitting}
                 >
@@ -233,7 +233,7 @@ export default function ReviewFieldCard({
               ) : (
                 <textarea
                   ref={editRef}
-                  className="w-full flex-grow bg-surface-container border border-outline-variant/40 rounded-lg p-3 text-on-surface text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary resize-none"
+                  className="w-full flex-grow bg-surface border border-line rounded-lg p-3 text-ink text-sm focus:outline-none focus:border-teal focus:ring-1 focus:ring-teal resize-none"
                   value={editValue}
                   onChange={(e) => setEditValue(e.target.value)}
                   onKeyDown={(e) => {
@@ -250,8 +250,8 @@ export default function ReviewFieldCard({
                 />
               )
             ) : (
-              <div className="text-base text-on-surface leading-relaxed break-words whitespace-pre-wrap font-medium">
-                {item.extracted_value ?? <em className="text-on-surface-variant/50">null / not extracted</em>}
+              <div className="text-base text-ink leading-relaxed break-words whitespace-pre-wrap font-medium">
+                {item.extracted_value ?? <em className="text-slate/50">null / not extracted</em>}
               </div>
             )}
           </div>
@@ -259,7 +259,7 @@ export default function ReviewFieldCard({
 
         {/* Confidence Warning */}
         {conf < 0.5 && (
-          <div className="flex items-center gap-2 px-4 py-3 bg-error-container/10 border border-error/30 rounded-lg text-error text-sm font-medium mb-6">
+          <div className="flex items-center gap-2 px-4 py-3 bg-danger/10 border border-danger/30 rounded-lg text-danger text-sm font-medium mb-6">
             <AlertTriangle size={16} />
             <span>Low confidence — please verify carefully against the document image.</span>
           </div>
@@ -269,7 +269,7 @@ export default function ReviewFieldCard({
         {isPatientAssignment ? null : editMode ? (
           <div className="flex gap-3 mb-6">
             <button
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-success hover:bg-success/90 text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
               onClick={handleEditSubmit}
               disabled={isSubmitting}
               title="Submit correction and approve (Enter)"
@@ -277,7 +277,7 @@ export default function ReviewFieldCard({
               <CheckCircle2 size={18} /> Submit Edit
             </button>
             <button
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-surface-variant hover:bg-surface-variant/80 text-on-surface rounded-lg font-semibold border border-outline-variant/30 transition-colors disabled:opacity-50"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-paper hover:bg-line/50 text-ink rounded-lg font-semibold border border-line transition-colors disabled:opacity-50"
               onClick={() => { setEditMode(false); setEditValue(item.extracted_value ?? ''); }}
               disabled={isSubmitting}
               title="Cancel edit (Esc)"
@@ -288,43 +288,43 @@ export default function ReviewFieldCard({
         ) : (
           <div className="flex gap-2 mb-6">
             <button
-              className="flex-1 flex flex-col items-center justify-center py-3 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 rounded-xl border border-emerald-500/30 transition-colors disabled:opacity-50 group"
+              className="flex-1 flex flex-col items-center justify-center py-3 bg-success/10 hover:bg-success/20 text-success rounded-xl border border-success/30 transition-colors disabled:opacity-50 group"
               onClick={() => onAccept(null)}
               disabled={isSubmitting}
               title="Accept extracted value (A)"
             >
               <div className="flex items-center gap-1.5 font-bold mb-1"><CheckCircle2 size={18} /> Accept</div>
-              <kbd className="text-[10px] font-mono px-1.5 py-0.5 bg-emerald-500/20 rounded border border-emerald-500/30 group-hover:bg-emerald-500 group-hover:text-white transition-colors">A</kbd>
+              <kbd className="text-[10px] font-mono px-1.5 py-0.5 bg-success/20 rounded border border-success/30 group-hover:bg-success group-hover:text-white transition-colors">A</kbd>
             </button>
             <button
-              className="flex-1 flex flex-col items-center justify-center py-3 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl border border-primary/30 transition-colors disabled:opacity-50 group"
+              className="flex-1 flex flex-col items-center justify-center py-3 bg-teal/10 hover:bg-teal/20 text-teal rounded-xl border border-teal/30 transition-colors disabled:opacity-50 group"
               onClick={() => setEditMode(true)}
               disabled={isSubmitting}
               title="Edit value then approve (E)"
             >
               <div className="flex items-center gap-1.5 font-bold mb-1"><Edit3 size={18} /> Edit</div>
-              <kbd className="text-[10px] font-mono px-1.5 py-0.5 bg-primary/20 rounded border border-primary/30 group-hover:bg-primary group-hover:text-white transition-colors">E</kbd>
+              <kbd className="text-[10px] font-mono px-1.5 py-0.5 bg-teal/20 rounded border border-teal/30 group-hover:bg-teal group-hover:text-white transition-colors">E</kbd>
             </button>
             <button
-              className="flex-1 flex flex-col items-center justify-center py-3 bg-error-container/10 hover:bg-error-container/20 text-error rounded-xl border border-error/30 transition-colors disabled:opacity-50 group"
+              className="flex-1 flex flex-col items-center justify-center py-3 bg-danger/10 hover:bg-danger/20 text-danger rounded-xl border border-danger/30 transition-colors disabled:opacity-50 group"
               onClick={onReject}
               disabled={isSubmitting}
               title="Reject this field (R)"
             >
               <div className="flex items-center gap-1.5 font-bold mb-1"><XCircle size={18} /> Reject</div>
-              <kbd className="text-[10px] font-mono px-1.5 py-0.5 bg-error/20 rounded border border-error/30 group-hover:bg-error group-hover:text-white transition-colors">R</kbd>
+              <kbd className="text-[10px] font-mono px-1.5 py-0.5 bg-danger/20 rounded border border-danger/30 group-hover:bg-danger group-hover:text-white transition-colors">R</kbd>
             </button>
           </div>
         )}
 
         {/* Navigation */}
-        <div className="flex items-center justify-between pt-4 border-t border-outline-variant/10">
+        <div className="flex items-center justify-between pt-4 border-t border-line">
           <button
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition-colors disabled:opacity-30 disabled:hover:bg-transparent group"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-slate hover:text-ink hover:bg-paper transition-colors disabled:opacity-30 disabled:hover:bg-transparent group"
             onClick={onPrev}
             disabled={index === 0 || isSubmitting}
           >
-            <ChevronLeft size={16} /> Prev <kbd className="hidden sm:inline-block text-[10px] font-mono px-1 border border-outline-variant/30 rounded ml-1 group-hover:bg-surface-variant group-hover:border-outline-variant">←</kbd>
+            <ChevronLeft size={16} /> Prev <kbd className="hidden sm:inline-block text-[10px] font-mono px-1 border border-line rounded ml-1 group-hover:bg-line group-hover:border-slate">←</kbd>
           </button>
           
           <div className="flex gap-1 items-center">
@@ -333,32 +333,32 @@ export default function ReviewFieldCard({
               return (
                 <div 
                   key={i} 
-                  className={`w-1.5 h-1.5 rounded-full transition-colors ${isActive ? 'bg-primary scale-125' : 'bg-outline-variant/30'}`}
+                  className={`w-1.5 h-1.5 rounded-full transition-colors ${isActive ? 'bg-teal scale-125' : 'bg-line'}`}
                 />
               );
             })}
-            {total > 7 && <span className="text-[10px] font-bold text-on-surface-variant ml-1">+{total - 7}</span>}
+            {total > 7 && <span className="text-[10px] font-bold text-slate ml-1">+{total - 7}</span>}
           </div>
 
           <button
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition-colors disabled:opacity-30 disabled:hover:bg-transparent group"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-slate hover:text-ink hover:bg-paper transition-colors disabled:opacity-30 disabled:hover:bg-transparent group"
             onClick={onNext}
             disabled={index >= total - 1 || isSubmitting}
           >
-            <kbd className="hidden sm:inline-block text-[10px] font-mono px-1 border border-outline-variant/30 rounded mr-1 group-hover:bg-surface-variant group-hover:border-outline-variant">→</kbd> Next <ChevronRight size={16} />
+            <kbd className="hidden sm:inline-block text-[10px] font-mono px-1 border border-line rounded mr-1 group-hover:bg-line group-hover:border-slate">→</kbd> Next <ChevronRight size={16} />
           </button>
         </div>
       </div>
 
       {/* Keyboard Hint Footer */}
-      <div className="bg-surface-container-high py-2 px-4 border-t border-outline-variant/10 flex items-center justify-center gap-1.5 text-xs font-medium text-on-surface-variant">
-        <Zap size={14} className="text-primary" />
+      <div className="bg-paper py-2 px-4 border-t border-line flex items-center justify-center gap-1.5 text-xs font-medium text-slate">
+        <Zap size={14} className="text-teal" />
         <span>Keyboard:</span>
-        <kbd className="px-1 py-0.5 bg-surface-variant rounded border border-outline-variant/30">Space</kbd> <span>accept</span>
+        <kbd className="px-1 py-0.5 bg-surface rounded border border-line">Space</kbd> <span>accept</span>
         <span>·</span>
-        <kbd className="px-1 py-0.5 bg-surface-variant rounded border border-outline-variant/30">E</kbd> <span>edit</span>
+        <kbd className="px-1 py-0.5 bg-surface rounded border border-line">E</kbd> <span>edit</span>
         <span>·</span>
-        <kbd className="px-1 py-0.5 bg-surface-variant rounded border border-outline-variant/30">R</kbd> <span>reject</span>
+        <kbd className="px-1 py-0.5 bg-surface rounded border border-line">R</kbd> <span>reject</span>
       </div>
     </div>
   );

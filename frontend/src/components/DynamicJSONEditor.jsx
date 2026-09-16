@@ -53,7 +53,7 @@ export default function DynamicJSONEditor({ initialValue, fieldName, onChange, o
   if (error || typeof data === 'string' || data === null) {
     return (
       <textarea
-        className="rfc-edit-input"
+        className="w-full bg-surface border border-line rounded-lg p-3 text-ink text-sm focus:outline-none focus:border-teal focus:ring-1 focus:ring-teal resize-none"
         value={typeof data === 'string' ? data : JSON.stringify(data) || ''}
         onChange={(e) => {
           setData(e.target.value);
@@ -94,33 +94,31 @@ export default function DynamicJSONEditor({ initialValue, fieldName, onChange, o
     };
 
     return (
-      <div className="dynamic-editor-array" onKeyDown={handleKeyDown}>
+      <div className="flex flex-col gap-2" onKeyDown={handleKeyDown}>
         {data.map((item, i) => (
-          <div key={i} style={{ padding: '0.75rem', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-light)', borderRadius: '6px', marginBottom: '0.5rem', position: 'relative' }}>
+          <div key={i} className="p-3 bg-paper border border-line rounded-md relative mb-2">
             <button 
-              className="icon-btn" 
+              className="absolute top-2 right-2 p-1 text-slate hover:text-danger rounded transition-colors"
               onClick={() => handleRemoveItem(i)}
               title="Remove item"
-              style={{ position: 'absolute', top: '0.25rem', right: '0.25rem', color: 'var(--accent-rose)' }}
             >
               <Trash2 size={14} />
             </button>
             {isArrayOfStrings ? (
               <input 
                 type="text" 
-                className="input-field" 
+                className="w-[calc(100%-24px)] px-3 py-1.5 bg-surface border border-line rounded-md text-ink text-sm focus:outline-none focus:border-teal" 
                 value={item} 
                 onChange={e => handleItemChange(i, null, e.target.value)} 
-                style={{ width: 'calc(100% - 24px)' }}
               />
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '0.25rem', width: 'calc(100% - 20px)' }}>
+              <div className="grid grid-cols-2 gap-2 mt-1 w-[calc(100%-20px)]">
                 {Object.keys(item).map(key => (
                   <div key={key}>
-                    <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)', textTransform: 'capitalize' }}>{key.replace(/_/g, ' ')}</label>
+                    <label className="text-xs text-slate capitalize block mb-1">{key.replace(/_/g, ' ')}</label>
                     <input 
                       type="text" 
-                      className="input-field" 
+                      className="w-full px-2 py-1.5 bg-surface border border-line rounded-md text-ink text-sm focus:outline-none focus:border-teal" 
                       value={item[key] === null ? '' : item[key]} 
                       onChange={e => handleItemChange(i, key, e.target.value)} 
                     />
@@ -130,8 +128,8 @@ export default function DynamicJSONEditor({ initialValue, fieldName, onChange, o
             )}
           </div>
         ))}
-        {data.length === 0 && <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)', marginBottom: '0.5rem' }}>No items.</p>}
-        <button className="btn btn-secondary" onClick={handleAddItem} style={{ width: '100%', fontSize: '0.85rem' }}>
+        {data.length === 0 && <p className="text-sm text-slate mb-2">No items.</p>}
+        <button className="flex items-center justify-center gap-1.5 w-full py-2 bg-paper hover:bg-line/50 text-ink text-sm font-semibold rounded-md border border-line transition-colors" onClick={handleAddItem}>
           <Plus size={14} /> Add Item
         </button>
       </div>
@@ -158,25 +156,25 @@ export default function DynamicJSONEditor({ initialValue, fieldName, onChange, o
     };
 
     return (
-      <div className="dynamic-editor-object" onKeyDown={handleKeyDown}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '6px', border: '1px solid var(--border-light)' }}>
+      <div className="flex flex-col" onKeyDown={handleKeyDown}>
+        <div className="grid grid-cols-2 gap-3 p-3 bg-paper border border-line rounded-md">
           {Object.keys(data).map(key => (
-            <div key={key} style={{ position: 'relative' }}>
-              <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)', textTransform: 'capitalize', display: 'flex', justifyContent: 'space-between' }}>
+            <div key={key} className="relative">
+              <label className="flex justify-between items-center text-xs text-slate capitalize mb-1">
                 {key.replace(/_/g, ' ')}
-                <Trash2 size={12} style={{ cursor: 'pointer', color: 'var(--accent-rose)' }} onClick={() => handleRemoveField(key)} title="Remove field" />
+                <Trash2 size={12} className="cursor-pointer text-danger hover:opacity-80" onClick={() => handleRemoveField(key)} title="Remove field" />
               </label>
               <input 
                 type="text" 
-                className="input-field" 
+                className="w-full px-2 py-1.5 bg-surface border border-line rounded-md text-ink text-sm focus:outline-none focus:border-teal" 
                 value={data[key] === null ? '' : data[key]} 
                 onChange={e => handleFieldChange(key, e.target.value)} 
               />
             </div>
           ))}
-          {Object.keys(data).length === 0 && <div style={{ gridColumn: 'span 2', fontSize: '0.85rem', color: 'var(--text-dim)' }}>No fields.</div>}
+          {Object.keys(data).length === 0 && <div className="col-span-2 text-sm text-slate">No fields.</div>}
         </div>
-        <button className="btn btn-secondary" onClick={handleAddField} style={{ width: '100%', marginTop: '0.75rem', fontSize: '0.85rem' }}>
+        <button className="flex items-center justify-center gap-1.5 w-full py-2 mt-3 bg-paper hover:bg-line/50 text-ink text-sm font-semibold rounded-md border border-line transition-colors" onClick={handleAddField}>
           <Plus size={14} /> Add Field
         </button>
       </div>

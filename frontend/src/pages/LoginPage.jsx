@@ -40,95 +40,52 @@ const LoginPage = () => {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'var(--bg-main, #0b0f19)',
-      fontFamily: 'Inter, sans-serif'
-    }}>
-      <div className="glass-card" style={{
-        width: '100%',
-        maxWidth: '400px',
-      }}>
+    <div className="min-h-screen flex items-center justify-center bg-paper font-sans px-4">
+      <div className="w-full max-w-md bg-surface border border-line rounded-xl p-8 shadow-[var(--shadow-float)]">
         <div className="flex flex-col items-center justify-center mb-8">
-          <div className="brand-logo mb-5" style={{ width: '56px', height: '56px', borderRadius: '1rem', boxShadow: '0 0 25px rgba(6,182,212,0.2)' }}>
-            <Activity size={28} color="#ffffff" />
+          <div className="w-14 h-14 bg-teal rounded-2xl flex items-center justify-center text-white mb-6">
+            <Activity size={32} />
           </div>
-          <div className="mb-2" style={{ fontFamily: 'var(--font-heading)', fontSize: '2rem', lineHeight: '1.2', letterSpacing: '-0.02em' }}>
-            <span style={{ color: '#ffffff', fontWeight: 500 }}>Clinical</span>
-            <span style={{ color: 'var(--primary-cyan)', fontWeight: 700 }}>Intelligence</span>
+          <div className="text-2xl tracking-tight mb-2">
+            <span className="text-ink font-medium">Clinical</span>
+            <span className="text-teal font-bold">Intelligence</span>
           </div>
-          <p className="text-on-surface-variant text-sm text-center">
+          <p className="text-slate text-sm text-center">
             Sign in to access your secure workspace
           </p>
         </div>
+
         {error && (
-          <div style={{
-            background: 'rgba(244, 63, 94, 0.1)',
-            color: '#f43f5e',
-            padding: '0.75rem',
-            borderRadius: '6px',
-            marginBottom: '1.5rem',
-            fontSize: '0.875rem'
-          }}>
+          <div className="bg-danger/10 text-danger border border-danger/20 p-3 rounded-md mb-6 text-sm">
             {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
-            <label style={{ display: 'block', color: 'var(--text-muted, #94a3b8)', marginBottom: '0.5rem', fontSize: '0.875rem' }}>Email</label>
+            <label className="block text-slate text-sm font-medium mb-1.5">Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                borderRadius: '6px',
-                border: '1px solid var(--border-color, #334155)',
-                background: 'var(--bg-main, #0b0f19)',
-                color: 'var(--text-main, #f8fafc)',
-                boxSizing: 'border-box'
-              }}
+              className="w-full px-3 py-2 rounded-md border border-line bg-surface text-ink focus:outline-none focus:border-teal focus:ring-1 focus:ring-teal"
             />
           </div>
           <div>
-            <label style={{ display: 'block', color: 'var(--text-muted, #94a3b8)', marginBottom: '0.5rem', fontSize: '0.875rem' }}>Password</label>
+            <label className="block text-slate text-sm font-medium mb-1.5">Password</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                borderRadius: '6px',
-                border: '1px solid var(--border-color, #334155)',
-                background: 'var(--bg-main, #0b0f19)',
-                color: 'var(--text-main, #f8fafc)',
-                boxSizing: 'border-box'
-              }}
+              className="w-full px-3 py-2 rounded-md border border-line bg-surface text-ink focus:outline-none focus:border-teal focus:ring-1 focus:ring-teal"
             />
           </div>
           <button
             type="submit"
             disabled={isLoading}
-            style={{
-              marginTop: '1rem',
-              width: '100%',
-              padding: '0.75rem',
-              borderRadius: '6px',
-              background: 'var(--primary-cyan, #06b6d4)',
-              color: '#0b0f19',
-              border: 'none',
-              fontWeight: '600',
-              cursor: isLoading ? 'not-allowed' : 'pointer',
-              opacity: isLoading ? 0.7 : 1
-            }}
+            className="mt-4 w-full py-2.5 rounded-md bg-teal text-white font-medium hover:bg-teal/90 disabled:opacity-70 disabled:cursor-not-allowed transition-colors"
           >
             {isLoading ? 'Signing in...' : 'Sign In'}
           </button>

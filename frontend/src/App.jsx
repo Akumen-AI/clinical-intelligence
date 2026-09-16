@@ -38,14 +38,14 @@ class ErrorBoundary extends React.Component {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'var(--bg-main, #0b0f19)',
-          color: 'var(--text-main, #f8fafc)',
+          background: '#F6F7F9',
+          color: '#16212B',
           padding: '2rem',
           textAlign: 'center',
-          fontFamily: 'Inter, sans-serif'
+          fontFamily: '"IBM Plex Sans", system-ui, sans-serif'
         }}>
-          <h2 style={{ fontSize: '1.5rem', marginBottom: '0.75rem', color: '#f43f5e' }}>Something went wrong rendering the UI</h2>
-          <p style={{ color: '#94a3b8', maxWidth: '500px', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+          <h2 style={{ fontSize: '1.5rem', marginBottom: '0.75rem', color: '#B3261E' }}>Something went wrong rendering the UI</h2>
+          <p style={{ color: '#5A6472', maxWidth: '500px', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
             {this.state.error?.message || 'An unexpected rendering error occurred.'}
           </p>
           <button
@@ -54,8 +54,8 @@ class ErrorBoundary extends React.Component {
               window.location.reload();
             }}
             style={{
-              background: '#06b6d4',
-              color: '#0b0f19',
+              background: '#0B6E6E',
+              color: '#FFFFFF',
               border: 'none',
               borderRadius: '8px',
               padding: '0.6rem 1.25rem',
@@ -80,7 +80,7 @@ const ProtectedRoute = ({ children }) => {
   const location = useLocation();
 
   if (isLoading) {
-    return <div style={{ color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: 'var(--bg-main)' }}>Loading...</div>;
+    return <div style={{ color: '#16212B', display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#F6F7F9' }}>Loading...</div>;
   }
 
   if (!user) {

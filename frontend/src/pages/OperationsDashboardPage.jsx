@@ -3,7 +3,8 @@ import { BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, 
 import { Activity, Building2, Download } from 'lucide-react';
 import apiClient from '../api';
 
-const COLORS = ['#22c55e', '#38bdf8', '#f59e0b', '#a78bfa', '#f472b6', '#fb7185'];
+// Using the token palette: teal, success, slate, warning, danger
+const COLORS = ['#0B6E6E', '#1E7B4D', '#5A6472', '#B9770E', '#B3261E'];
 
 const numberFormatter = (value) => {
   if (value === null || value === undefined || Number.isNaN(value)) return '—';
@@ -12,17 +13,17 @@ const numberFormatter = (value) => {
 
 const ChartCard = ({ title, value, unit, chart, available, note }) => {
   return (
-    <div style={{ background: 'rgba(15,23,42,0.7)', border: '1px solid rgba(148, 163, 184, 0.2)', borderRadius: '16px', padding: '1rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-        <div style={{ color: '#cbd5e1', fontSize: '0.85rem', fontWeight: 600 }}>{title}</div>
-        {available === false && <span style={{ color: '#fbbf24', fontSize: '0.7rem' }}>Unavailable</span>}
+    <div className="bg-surface border border-line rounded-2xl p-5 shadow-sm">
+      <div className="flex justify-between items-center mb-3">
+        <div className="text-slate text-sm font-bold">{title}</div>
+        {available === false && <span className="text-warning text-xs font-bold bg-warning/10 px-2 py-0.5 rounded-full border border-warning/20">Unavailable</span>}
       </div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem', marginBottom: '0.75rem' }}>
-        <span style={{ color: '#f8fafc', fontSize: '1.8rem', fontWeight: 700 }}>{numberFormatter(value)}</span>
-        {unit && <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>{unit}</span>}
+      <div className="flex items-baseline gap-1.5 mb-3">
+        <span className="text-ink text-3xl font-bold">{numberFormatter(value)}</span>
+        {unit && <span className="text-slate text-sm font-semibold">{unit}</span>}
       </div>
       {!available ? (
-        <div style={{ color: '#fbbf24', fontSize: '0.8rem', lineHeight: 1.5 }}>{note}</div>
+        <div className="text-warning text-sm leading-relaxed">{note}</div>
       ) : chart && chart.length ? (
         <div style={{ height: 170 }}>
           {chart.some((entry) => entry.name) ? (
@@ -33,23 +34,29 @@ const ChartCard = ({ title, value, unit, chart, available, note }) => {
                     <Cell key={`${entry.name}-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-line)', borderRadius: '8px' }}
+                  itemStyle={{ color: 'var(--color-ink)', fontWeight: 'bold' }}
+                />
               </PieChart>
             </ResponsiveContainer>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chart}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis dataKey={chart[0]?.date ? 'date' : 'label'} stroke="#94a3b8" fontSize={10} />
-                <YAxis stroke="#94a3b8" fontSize={10} />
-                <Tooltip />
-                <Bar dataKey={chart[0]?.date ? 'value' : 'value'} fill="#38bdf8" radius={[6, 6, 0, 0]} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#E1E5EA" vertical={false} />
+                <XAxis dataKey={chart[0]?.date ? 'date' : 'label'} stroke="#5A6472" fontSize={10} tickLine={false} axisLine={false} tickMargin={8} />
+                <YAxis stroke="#5A6472" fontSize={10} tickLine={false} axisLine={false} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-line)', borderRadius: '8px' }}
+                  cursor={{ fill: '#F6F7F9' }}
+                />
+                <Bar dataKey={chart[0]?.date ? 'value' : 'value'} fill="#0B6E6E" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
         </div>
       ) : (
-        <div style={{ color: '#64748b', fontSize: '0.8rem' }}>No data for the current filters.</div>
+        <div className="text-slate text-sm">No data for the current filters.</div>
       )}
     </div>
   );
@@ -128,24 +135,28 @@ export default function OperationsDashboardPage() {
   }, [metrics]);
 
   return (
-    <div className="app-container">
-      <header className="app-header" style={{ marginBottom: '1.5rem' }}>
-        <div className="brand-wrapper">
-          <div className="brand-logo" style={{ background: 'linear-gradient(135deg, #0ea5e9, #22c55e)' }}>
-            <Activity size={26} color="#fff" />
+    <div className="app-container flex flex-col gap-6">
+      <header className="flex justify-between items-center pb-4 border-b border-line">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-teal/10 flex items-center justify-center text-teal border border-teal/20">
+            <Activity size={26} />
           </div>
-          <div className="brand-title">
-            <h1>Operations Dashboard</h1>
-            <p>Live admissions, disease, and readmission metrics</p>
+          <div>
+            <h1 className="text-2xl font-bold text-ink">Operations Dashboard</h1>
+            <p className="text-sm text-slate">Live admissions, disease, and readmission metrics</p>
           </div>
         </div>
       </header>
 
-      <div className="glass-card" style={{ padding: '1rem 1.25rem', marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', color: '#cbd5e1', fontSize: '0.8rem' }}>
+      <div className="bg-surface border border-line rounded-2xl p-5 shadow-sm">
+        <div className="flex flex-wrap items-end gap-4">
+          <label className="flex flex-col gap-1.5 text-slate text-sm font-bold">
             Department
-            <select value={department} onChange={(e) => setDepartment(e.target.value)} style={{ minWidth: '180px', borderRadius: '10px', padding: '0.6rem 0.8rem', background: '#0f172a', color: '#e2e8f0', border: '1px solid #334155' }}>
+            <select 
+              value={department} 
+              onChange={(e) => setDepartment(e.target.value)} 
+              className="min-w-[180px] rounded-lg px-4 py-2 bg-surface text-ink border border-line focus:outline-none focus:border-teal font-normal"
+            >
               <option value="">All departments</option>
               <option value="Cardiology">Cardiology</option>
               <option value="Neurology">Neurology</option>
@@ -153,19 +164,25 @@ export default function OperationsDashboardPage() {
               <option value="Orthopedics">Orthopedics</option>
             </select>
           </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', color: '#cbd5e1', fontSize: '0.8rem' }}>
+          <label className="flex flex-col gap-1.5 text-slate text-sm font-bold">
             Start date
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} style={{ borderRadius: '10px', padding: '0.6rem 0.8rem', paddingRight: '2rem', background: '#0f172a', color: '#e2e8f0', border: '1px solid #334155', colorScheme: 'dark', width: '100%' }} />
-            </div>
+            <input 
+              type="date" 
+              value={startDate} 
+              onChange={(e) => setStartDate(e.target.value)} 
+              className="rounded-lg px-4 py-2 bg-surface text-ink border border-line focus:outline-none focus:border-teal font-normal"
+            />
           </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', color: '#cbd5e1', fontSize: '0.8rem' }}>
+          <label className="flex flex-col gap-1.5 text-slate text-sm font-bold">
             End date
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} style={{ borderRadius: '10px', padding: '0.6rem 0.8rem', paddingRight: '2rem', background: '#0f172a', color: '#e2e8f0', border: '1px solid #334155', colorScheme: 'dark', width: '100%' }} />
-            </div>
+            <input 
+              type="date" 
+              value={endDate} 
+              onChange={(e) => setEndDate(e.target.value)} 
+              className="rounded-lg px-4 py-2 bg-surface text-ink border border-line focus:outline-none focus:border-teal font-normal"
+            />
           </label>
-          <div style={{ display: 'flex', gap: '0.5rem', alignSelf: 'flex-end', flexWrap: 'wrap' }}>
+          <div className="flex gap-2 ml-auto flex-wrap">
             {['pdf', 'csv', 'xlsx'].map((format) => (
               <button
                 key={format}
@@ -173,7 +190,7 @@ export default function OperationsDashboardPage() {
                 onClick={() => exportDashboard(format)}
                 disabled={Boolean(exportingFormat)}
                 title={`Export ${format.toUpperCase()}`}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', border: '1px solid #38bdf8', borderRadius: '10px', padding: '0.6rem 0.8rem', background: '#082f49', color: '#e0f2fe', cursor: exportingFormat ? 'wait' : 'pointer' }}
+                className="flex items-center gap-1.5 px-4 py-2 border border-teal/20 rounded-lg bg-teal/10 text-teal font-semibold hover:bg-teal/20 transition-colors disabled:opacity-50"
               >
                 <Download size={15} />
                 {exportingFormat === format ? 'Exporting…' : `Export ${format.toUpperCase()}`}
@@ -183,13 +200,20 @@ export default function OperationsDashboardPage() {
         </div>
       </div>
 
-      {error && <div style={{ background: 'rgba(127,29,29,0.4)', color: '#fecaca', border: '1px solid rgba(248,113,113,0.4)', padding: '0.8rem 1rem', borderRadius: '12px', marginBottom: '1rem' }}>{error}</div>}
+      {error && (
+        <div className="bg-danger/10 text-danger border border-danger/20 p-4 rounded-xl font-medium">
+          {error}
+        </div>
+      )}
 
       {loading ? (
-        <div style={{ color: '#cbd5e1', padding: '2rem' }}>Loading metrics…</div>
+        <div className="text-slate p-8 text-center text-lg font-medium flex flex-col items-center gap-4">
+          <Activity size={32} className="animate-pulse text-teal" />
+          Loading metrics…
+        </div>
       ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {metrics.map((metric) => (
               <ChartCard
                 key={metric.key}
@@ -203,23 +227,23 @@ export default function OperationsDashboardPage() {
             ))}
           </div>
 
-          <div className="glass-card" style={{ marginTop: '1.5rem', padding: '1rem 1.25rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem', color: '#e2e8f0', fontWeight: 700 }}>
-              <Building2 size={18} />
+          <div className="bg-surface border border-line rounded-2xl p-6 shadow-sm">
+            <div className="flex items-center gap-2 mb-4 text-ink font-bold text-lg">
+              <Building2 size={20} className="text-teal" />
               Summary snapshot
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '1rem' }}>
-              <div style={{ background: 'rgba(15,23,42,0.6)', padding: '0.8rem', borderRadius: '12px' }}>
-                <div style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Admissions</div>
-                <div style={{ color: '#f8fafc', fontSize: '1.4rem', fontWeight: 700 }}>{summary.admissions}</div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-paper border border-line p-4 rounded-xl">
+                <div className="text-slate text-xs font-bold uppercase tracking-wider mb-1">Admissions</div>
+                <div className="text-ink text-2xl font-bold">{summary.admissions}</div>
               </div>
-              <div style={{ background: 'rgba(15,23,42,0.6)', padding: '0.8rem', borderRadius: '12px' }}>
-                <div style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Disease top category</div>
-                <div style={{ color: '#f8fafc', fontSize: '1.4rem', fontWeight: 700 }}>{summary.diseaseDistribution[0]?.name || '—'}</div>
+              <div className="bg-paper border border-line p-4 rounded-xl">
+                <div className="text-slate text-xs font-bold uppercase tracking-wider mb-1">Disease top category</div>
+                <div className="text-ink text-2xl font-bold">{summary.diseaseDistribution[0]?.name || '—'}</div>
               </div>
-              <div style={{ background: 'rgba(15,23,42,0.6)', padding: '0.8rem', borderRadius: '12px' }}>
-                <div style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Readmission rate</div>
-                <div style={{ color: '#f8fafc', fontSize: '1.4rem', fontWeight: 700 }}>{summary.readmissionRate.toFixed(1)}%</div>
+              <div className="bg-paper border border-line p-4 rounded-xl">
+                <div className="text-slate text-xs font-bold uppercase tracking-wider mb-1">Readmission rate</div>
+                <div className="text-ink text-2xl font-bold">{summary.readmissionRate.toFixed(1)}%</div>
               </div>
             </div>
           </div>

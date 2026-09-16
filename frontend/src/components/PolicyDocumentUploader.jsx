@@ -41,23 +41,31 @@ export default function PolicyDocumentUploader() {
   };
 
   return (
-    <div className="policy-document-uploader">
+    <div className="flex items-center gap-3 relative">
       <input ref={inputRef} type="file" accept=".md,.txt,text/markdown,text/plain" multiple hidden onChange={handleFiles} />
       <button
         type="button"
-        className="policy-upload-button"
+        className="flex items-center gap-1.5 px-3 py-1.5 bg-surface border border-line hover:border-teal hover:bg-teal/5 text-teal text-sm font-bold rounded-lg transition-colors shadow-sm disabled:opacity-50"
         onClick={() => inputRef.current?.click()}
         disabled={isUploading}
         title="Upload hospital policy documents"
       >
-        {isUploading ? <Loader2 size={15} className="policy-upload-spinner" /> : <FileUp size={15} />}
+        {isUploading ? <Loader2 size={15} className="animate-spin" /> : <FileUp size={15} />}
         {isUploading ? 'Indexing…' : 'Upload policies'}
       </button>
+      
       {message && (
-        <div className={`policy-upload-message ${message.type}`} role={message.type === 'error' ? 'alert' : 'status'}>
+        <div 
+          className={`absolute right-0 top-[calc(100%+0.5rem)] z-50 flex items-center gap-2 px-3 py-2 rounded-lg border shadow-[var(--shadow-float)] text-xs font-semibold whitespace-nowrap ${
+            message.type === 'success' 
+              ? 'bg-surface border-success/20 text-success' 
+              : 'bg-surface border-danger/20 text-danger'
+          }`} 
+          role={message.type === 'error' ? 'alert' : 'status'}
+        >
           {message.type === 'success' && <CheckCircle2 size={14} />}
           <span>{message.text}</span>
-          <button type="button" aria-label="Dismiss upload message" onClick={() => setMessage(null)}><X size={13} /></button>
+          <button type="button" className="opacity-70 hover:opacity-100 ml-2" aria-label="Dismiss upload message" onClick={() => setMessage(null)}><X size={13} /></button>
         </div>
       )}
     </div>
