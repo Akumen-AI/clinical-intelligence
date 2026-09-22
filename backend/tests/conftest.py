@@ -48,6 +48,11 @@ def setup_db():
     original_session_local = app.database.SessionLocal
     app.database.SessionLocal = TestingSessionLocal
     
+    # Run celery tasks synchronously in tests
+    from app.celery_app import celery_app
+    celery_app.conf.task_always_eager = True
+    celery_app.conf.task_eager_propagates = True
+    
     yield
     
     # Clear all data without dropping tables to avoid 'database is locked' errors

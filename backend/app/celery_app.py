@@ -8,7 +8,7 @@ celery_app = Celery(
     "clinical_platform",
     broker=broker_url,
     backend=result_backend,
-    include=["app.tasks.routing_tasks", "app.tasks.correction_export", "app.tasks.duplicate_scan"],
+    include=["app.tasks.routing_tasks", "app.tasks.correction_export", "app.tasks.duplicate_scan", "app.tasks.document_tasks", "app.tasks.rag_tasks"],
 )
 
 celery_app.conf.update(
@@ -19,3 +19,12 @@ celery_app.conf.update(
     enable_utc=True,
     task_track_started=True,
 )
+
+from celery.schedules import crontab
+
+celery_app.conf.beat_schedule = {
+    "scan-watched-folder-every-30-seconds": {
+        "task": "tasks.scan_watched_folder_task",
+        "schedule": 30.0,
+    }
+}

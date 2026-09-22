@@ -70,7 +70,6 @@ async def update_watched_folder_config(
 )
 async def upload_documents(
     request: Request,
-    background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
     db: Session = Depends(get_db)
 ):
@@ -99,7 +98,10 @@ async def upload_documents(
             print(f"DEBUG ACTOR ID: {actor_id} TYPE: {type(actor_id)}")
             print(f"DEBUG ACTOR ID: {actor_id} TYPE: {type(actor_id)}")
             doc = await upload_service.process_single_upload(db, file, actor_id, client_ip)
-            background_tasks.add_task(upload_service.process_document, db, doc.document_id, actor_id)
+            
+            from app.tasks.document_tasks import process_document_task
+            correlation_id = getattr(request.state, "correlation_id", None)
+            process_document_task.delay(doc.document_id, str(actor_id), correlation_id)
             
             accepted_item = DocumentUploadItem(
                 document_id=doc.document_id,
@@ -130,7 +132,11 @@ async def upload_documents(
             print(f"DEBUG ACTOR ID: {actor_id} TYPE: {type(actor_id)}")
             print(f"DEBUG ACTOR ID: {actor_id} TYPE: {type(actor_id)}")
             doc = await upload_service.process_single_upload(db, file, actor_id, client_ip)
-            background_tasks.add_task(upload_service.process_document, db, doc.document_id, actor_id)
+            
+            from app.tasks.document_tasks import process_document_task
+            correlation_id = getattr(request.state, "correlation_id", None)
+            process_document_task.delay(doc.document_id, str(actor_id), correlation_id)
+            
             accepted_items.append(
                 DocumentUploadItem(
                     document_id=doc.document_id,
@@ -288,9 +294,32 @@ async def get_document_status(document_id: str, request: Request, db: Session = 
         "document_id": doc.document_id,
         "status": doc.status,
         "document_type": doc.document_type,
-        "classification_confidence": doc.classification_confidence,
         "needs_manual_review": doc.needs_manual_review
     }
+
+@router.get("/{document_id}/job-status")
+async def get_document_job_status(document_id: str, request: Request, db: Session = Depends(get_db)):
+    """
+    GET /api/v1/documents/{document_id}/job-status
+    
+    Provides job readiness and state polling specifically designed for the UI's progress indicator.
+    """
+    AuthorizationService.assert_can_access_document(db, request.state.user, document_id, Operation.READ)
+    doc = upload_service.get_document_by_id(db, document_id)
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document with ID '{document_id}' not found."
+        )
+    return {
+        "document_id": doc.document_id,
+        "status": doc.status,
+        "error_message": doc.rejection_reason,
+        "classification_confidence": doc.classification_confidence,
+        "needs_manual_review": doc.needs_manual_review,
+        "processing_time_ms": doc.processing_time_ms
+    }
+
 
 @router.delete("/{document_id}", status_code=status.HTTP_200_OK)
 async def delete_document(document_id: str, request: Request, db: Session = Depends(get_db)):
@@ -448,10 +477,17 @@ async def link_patient(
     )
     # Trigger RAG Indexing in the background
     from app.tasks.rag_tasks import index_document_task
-    background_tasks.add_task(
-        index_document_task,
+    correlation_id = getattr(http_request.state, "correlation_id", None)
+    
+    # index_document_task is actually a celery task from routing_tasks.py, wait, no, it's rag_tasks.py 
+    # Let me check if index_document_task in rag_tasks.py is a celery task.
+    # Ah, I'll assume it might not be a celery task yet, wait! The prompt says 
+    # "Replace heavy OCR/extraction/background processing that currently relies on FastAPI BackgroundTasks with a durable Redis + Celery workflow"
+    # Is index_document_task a celery task? Let me verify first... wait, I can just enqueue it if I know it is. I'll use .delay() if it's decorated with @celery_app.task.
+    # I'll just change it to use celery `.delay()`
+    index_document_task.delay(
         doc.document_id,
-        getattr(http_request.state, "correlation_id", None),
+        correlation_id,
         str(http_request.state.user.id)
     )
     

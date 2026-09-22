@@ -7,7 +7,7 @@ An enterprise-grade clinical document intake, computer vision preprocessing, dua
 ## 🌟 Key Capabilities
 
 - **Document Intake & Multi-Layer Validation**  
-  Accepts single or bulk document uploads (`PDF`, `PNG`, `JPG`, `JPEG`, `TIFF`, up to 20 MB). Validates file signatures, MIME types, file sizes, and corruption before processing. Maintains an audit trail of all accepted and rejected attempts in an `UploadLog` table. Includes an automated **Background Folder Watcher** that continuously monitors a configured local directory for new scanned documents and ingests them directly.
+  Accepts single or bulk document uploads (`PDF`, `PNG`, `JPG`, `JPEG`, `TIFF`, up to 20 MB). Validates file signatures, MIME types, file sizes, and corruption before processing. Maintains an audit trail of all accepted and rejected attempts in an `UploadLog` table. Includes an automated **Background Folder Watcher** (driven by Celery Beat and Redis distributed locking) that continuously monitors a configured local directory for new scanned documents and ingests them directly with guaranteed idempotency.
 
 - **Computer Vision Preprocessing Pipeline**  
   Automated document cleanup using OpenCV and PyMuPDF: deskewing, noise reduction, contrast enhancement (CLAHE), adaptive binarization, and multi-page PDF rendering.
@@ -133,6 +133,7 @@ clinical-intelligence/
 │   │   │   ├── review.py                  # Confidence review queue CRUD endpoints
 │   │   │   └── policy_chatbot.py          # RAG-powered clinical policy chatbot
 │   │   ├── tasks/                         # Celery background tasks
+│   │   │   ├── document_tasks.py          # Durable async document processing
 │   │   │   ├── routing_tasks.py           # Async confidence routing
 │   │   │   ├── rag_tasks.py               # RAG chunk ingestion background task
 │   │   │   └── correction_export.py       # Correction log periodic exports
@@ -193,7 +194,7 @@ clinical-intelligence/
 | **OCR Engines** | [PaddleOCR 3.7](https://github.com/PaddlePaddle/PaddleOCR), PyMuPDF (digital text) |
 | **Multimodal Vision & Handwriting** | [Google Gemini API](https://ai.google.dev/) (`google-genai`) |
 | **LLM Classification & Extraction** | [Ollama](https://ollama.com/) (Local) / [Google Gemini](https://ai.google.dev/) (Cloud) |
-| **Task Queue** | [Celery](https://docs.celeryq.dev/) (async confidence routing) |
+| **Task Queue** | [Celery](https://docs.celeryq.dev/) + Redis (async document processing, folder watching, & routing) |
 | **Security & Auth** | JWT Authentication, Role-Based Access Control (RBAC) |
 | **Database Migrations** | [Alembic](https://alembic.sqlalchemy.org/) |
 | **Frontend SPA** | React 18, Vite 5, Tailwind CSS, Lucide Icons, Axios |
@@ -207,6 +208,7 @@ clinical-intelligence/
 
 - **Python 3.10+**
 - **Node.js 18+** & **npm**
+- **Redis** (required for Celery distributed locking and task queuing)
 - *(Optional)* [Ollama](https://ollama.com/) running locally for on-device inference
 - *(Optional)* [Google Gemini API Key](https://aistudio.google.com/) for handwriting recognition and cloud LLM fallback
 
@@ -246,9 +248,20 @@ clinical-intelligence/
    GEMINI_API_KEY=your-gemini-api-key-here
    OLLAMA_MODEL=qwen3:4b
    DOCUMENT_CLASSIFICATION_THRESHOLD=0.80
+   CELERY_BROKER_URL=redis://localhost:6379/0
+   CELERY_RESULT_BACKEND=redis://localhost:6379/0
    ```
 
-5. Start the FastAPI development server:
+5. Ensure Redis is running locally on port `6379`.
+
+6. Start the Celery worker and beat scheduler (in a separate terminal):
+   ```bash
+   cd backend
+   source .venv/bin/activate
+   celery -A app.celery_app worker -B --loglevel=info
+   ```
+
+7. Start the FastAPI development server:
    ```bash
    uvicorn app.main:app --reload --port 8000
    ```

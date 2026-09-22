@@ -94,44 +94,11 @@ except Exception as e:
     # If logger is not fully configured yet, print as fallback
     print(f"Failed to ensure watched folder exists: {e}")
 
-import asyncio
 from contextlib import asynccontextmanager
-
-async def folder_watcher_loop():
-    from app.services.audit_service import SYSTEM_ACTOR_ID
-    from app.database import SessionLocal
-    from app.services.folder_watcher_service import scan_watched_folder
-    from app.services.watched_folder_config_service import get_watched_folder_interval
-    import logging
-    logger = logging.getLogger("app.main.folder_watcher")
-    
-    logger.info("[FolderWatcher] Background task started.")
-    try:
-        while True:
-            interval = get_watched_folder_interval()
-            await asyncio.sleep(interval)
-            
-            db = SessionLocal()
-            try:
-                result = await asyncio.to_thread(scan_watched_folder, db, SYSTEM_ACTOR_ID)
-                if result.get("queued") or result.get("failed"):
-                    logger.info(f"[FolderWatcher] Cycle complete. Queued: {len(result['queued'])}, Failed: {len(result['failed'])}")
-            except Exception as e:
-                logger.error(f"[FolderWatcher] Cycle error: {e}")
-            finally:
-                db.close()
-    except asyncio.CancelledError:
-        logger.info("[FolderWatcher] Background task stopped.")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    watcher_task = asyncio.create_task(folder_watcher_loop())
     yield
-    watcher_task.cancel()
-    try:
-        await watcher_task
-    except asyncio.CancelledError:
-        pass
 
 app = FastAPI(
     title="AI Clinical Intelligence Platform API",

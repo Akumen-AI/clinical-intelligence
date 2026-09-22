@@ -6,9 +6,12 @@ from app.models.extracted_field import ExtractedField, VerificationStatus
 from app.models.canonical_patient_record import CanonicalPatientRecord
 from app.services.rag_service import index_document
 
+from app.celery_app import celery_app
+
 logger = logging.getLogger("app.tasks.rag_tasks")
 
-def index_document_task(document_id: str, correlation_id: str | None = None, actor_id: str | None = None):
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=5)
+def index_document_task(self, document_id: str, correlation_id: str | None = None, actor_id: str | None = None):
     """
     Background task to index a document for RAG after it is linked to a patient.
     Uses verified extracted fields and canonical patient records.
