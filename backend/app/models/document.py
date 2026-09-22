@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 import enum
-from sqlalchemy import Column, String, DateTime, Integer, Float, Boolean, ForeignKey
+from sqlalchemy import Column, String, DateTime, Integer, Float, Boolean, ForeignKey, Enum
 from sqlalchemy.orm import synonym
 from app.database import Base
 
@@ -8,6 +8,7 @@ class DocumentStatus(str, enum.Enum):
     QUEUED = "QUEUED"
     NEW = "new"
     PREPROCESSING = "PREPROCESSING"
+    LAYOUT_DETECTED = "layout_detected"
     DETECTING_LAYOUT = "detecting_layout"
     CLASSIFYING = "classifying"
     EXTRACTING = "extracting"
@@ -28,7 +29,7 @@ class Document(Base):
     filename = Column(String(255), nullable=False)
     raw_uri = Column(String(500), nullable=False)
     filetype = Column(String(50), nullable=False)
-    status = Column(String(50), default=DocumentStatus.QUEUED.value, nullable=False)
+    status = Column(Enum(DocumentStatus), default=DocumentStatus.QUEUED, nullable=False)
     uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     processed_uri = Column(String(500), nullable=True)
     processing_time_ms = Column(Integer, nullable=True)

@@ -23,9 +23,6 @@ from app.models.correction_log import CorrectionLog
 from app.models.note import Note
 from app.models.visit import Visit
 
-# Ensure tables exist
-Base.metadata.create_all(bind=engine)
-
 def generate_uuid():
     return str(uuid.uuid4())
 

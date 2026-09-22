@@ -10,19 +10,19 @@ from app.config.complaint_checklists import COMPLAINT_CHECKLISTS
 from app.core.security import create_access_token
 
 
-@pytest.mark.asyncio
-async def test_t1_patient_missing_allergies_and_travel(db_session: AsyncSession):
+
+def test_t1_patient_missing_allergies_and_travel(db_session):
     p = Patient(
         patient_id=str(uuid.uuid4()),
         name="John Test",
         status="active"
     )
     db_session.add(p)
-    await db_session.commit()
+    db_session.commit()
 
     dept_id = uuid.uuid4()
     svc = CompletenessService(db_session)
-    res = await svc.check(patient_id=p.id, complaint_type="respiratory", department_id=dept_id)
+    res = svc.check(patient_id=p.id, complaint_type="respiratory", department_id=dept_id)
 
     assert res.feature_enabled is True
     missing_labels = [item.field_label for item in res.missing_fields]
@@ -30,8 +30,8 @@ async def test_t1_patient_missing_allergies_and_travel(db_session: AsyncSession)
     assert "Travel history (last 30 days)" in missing_labels
 
 
-@pytest.mark.asyncio
-async def test_t2_patient_all_respiratory_fields_populated(db_session: AsyncSession):
+
+def test_t2_patient_all_respiratory_fields_populated(db_session):
     p = Patient(
         patient_id=str(uuid.uuid4()),
         name="Fully Documented",
@@ -48,33 +48,33 @@ async def test_t2_patient_all_respiratory_fields_populated(db_session: AsyncSess
     setattr(p, "vaccination_history", "Up to date")
 
     db_session.add(p)
-    await db_session.commit()
+    db_session.commit()
 
     dept_id = uuid.uuid4()
     svc = CompletenessService(db_session)
-    res = await svc.check(patient_id=p.id, complaint_type="respiratory", department_id=dept_id)
+    res = svc.check(patient_id=p.id, complaint_type="respiratory", department_id=dept_id)
 
     assert res.feature_enabled is True
     assert len(res.missing_fields) == 0
     assert res.total_documented == len(COMPLAINT_CHECKLISTS["respiratory"])
 
 
-@pytest.mark.asyncio
-async def test_t3_unknown_complaint_type_fallback_to_general(db_session: AsyncSession):
+
+def test_t3_unknown_complaint_type_fallback_to_general(db_session):
     p = Patient(patient_id=str(uuid.uuid4()), name="Unknown Complaint", status="active")
     db_session.add(p)
-    await db_session.commit()
+    db_session.commit()
 
     dept_id = uuid.uuid4()
     svc = CompletenessService(db_session)
-    res = await svc.check(patient_id=p.id, complaint_type="unknown_type", department_id=dept_id)
+    res = svc.check(patient_id=p.id, complaint_type="unknown_type", department_id=dept_id)
 
     assert res.complaint_type == "unknown_type"
     assert res.total_required == len(COMPLAINT_CHECKLISTS["general"])
 
 
-@pytest.mark.asyncio
-async def test_t4_department_toggle_disabled(db_session: AsyncSession):
+
+def test_t4_department_toggle_disabled(db_session):
     dept_id = uuid.uuid4()
     setting = DepartmentCompletenessSetting(
         id=uuid.uuid4(),
@@ -84,28 +84,28 @@ async def test_t4_department_toggle_disabled(db_session: AsyncSession):
     db_session.add(setting)
     p = Patient(patient_id=str(uuid.uuid4()), name="Disabled Dept Patient", status="active")
     db_session.add(p)
-    await db_session.commit()
+    db_session.commit()
 
     svc = CompletenessService(db_session)
-    res = await svc.check(patient_id=p.id, complaint_type="respiratory", department_id=dept_id)
+    res = svc.check(patient_id=p.id, complaint_type="respiratory", department_id=dept_id)
 
     assert res.feature_enabled is False
     assert len(res.missing_fields) == 0
     assert res.total_required == 0
 
 
-@pytest.mark.asyncio
-async def test_t5_put_settings_disabled_and_check(db_session: AsyncSession, async_client):
+
+def test_t5_put_settings_disabled_and_check(db_session, client):
     p_id = str(uuid.uuid4())
     dept_id = str(uuid.uuid4())
     p = Patient(patient_id=p_id, name="Integration Patient", status="active")
     db_session.add(p)
-    await db_session.commit()
+    db_session.commit()
 
     admin_token = create_access_token({"sub": str(uuid.uuid4()), "role": "hospital_admin", "email": "admin@clinic.org"})
     headers = {"Authorization": f"Bearer {admin_token}"}
 
-    resp = await async_client.put(
+    resp = client.put(
         f"/api/v1/completeness/settings/{dept_id}",
         json={"enabled": False},
         headers=headers
@@ -113,7 +113,7 @@ async def test_t5_put_settings_disabled_and_check(db_session: AsyncSession, asyn
     assert resp.status_code == 200
     assert resp.json()["enabled"] is False
 
-    check_resp = await async_client.post(
+    check_resp = client.post(
         f"/api/v1/completeness/check?department_id={dept_id}",
         json={"patient_id": p_id, "complaint_type": "respiratory"},
         headers=headers
@@ -136,18 +136,18 @@ def test_t6_non_admin_calling_settings_put_forbidden(client_as):
     assert resp.status_code == 403
 
 
-@pytest.mark.asyncio
-async def test_t7_doctor_role_calling_completeness_check_allowed(db_session: AsyncSession, async_client):
+
+def test_t7_doctor_role_calling_completeness_check_allowed(db_session, client):
     p_id = str(uuid.uuid4())
     dept_id = str(uuid.uuid4())
     p = Patient(patient_id=p_id, name="Doctor Check Patient", status="active")
     db_session.add(p)
-    await db_session.commit()
+    db_session.commit()
 
     token = create_access_token({"sub": str(uuid.uuid4()), "role": "doctor", "email": "doctor@clinic.org"})
     headers = {"Authorization": f"Bearer {token}"}
 
-    resp = await async_client.post(
+    resp = client.post(
         f"/api/v1/completeness/check?department_id={dept_id}",
         json={"patient_id": p_id, "complaint_type": "respiratory"},
         headers=headers

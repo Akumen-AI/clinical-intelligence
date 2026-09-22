@@ -29,20 +29,27 @@ def override_get_db():
 
 app.dependency_overrides[get_db] = override_get_db
 
+@pytest.fixture
+def db_session():
+    db = TestingSessionLocal()
+    yield db
+    db.close()
+
 import os
 import asyncio
 from sqlalchemy.pool import StaticPool
 
 @pytest.fixture(autouse=True)
 def setup_db():
-    Base.metadata.create_all(bind=engine)
-    with engine.connect() as conn:
-        try:
-            conn.execute(text("ALTER TABLE patients ADD COLUMN status VARCHAR(20) DEFAULT 'active';"))
-            conn.commit()
-        except Exception:
-            pass
+    from alembic.config import Config
+    from alembic import command
+    import os
     
+    # Run alembic upgrade head to initialize the schema exactly as production
+    alembic_cfg = Config(os.path.join(os.path.dirname(os.path.dirname(__file__)), "alembic.ini"))
+    alembic_cfg.attributes["connection"] = engine
+    command.upgrade(alembic_cfg, "head")
+
     # Patch the global SessionLocal so Celery tasks in the same process use the test DB
     import app.database
     original_session_local = app.database.SessionLocal
@@ -115,46 +122,6 @@ def client_as():
         return c
     return _make
 
-
-import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from app.db.session import get_async_db
-
-TEST_ASYNC_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
-
-@pytest_asyncio.fixture
-async def test_engine():
-    engine = create_async_engine(TEST_ASYNC_DATABASE_URL, echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-    await engine.dispose()
-
-@pytest_asyncio.fixture
-async def db_session(test_engine):
-    async_session_factory = async_sessionmaker(
-        bind=test_engine, class_=AsyncSession, expire_on_commit=False
-    )
-    async with async_session_factory() as session:
-        yield session
-
-@pytest_asyncio.fixture
-async def async_client(db_session):
-    async def override_get_async_db():
-        yield db_session
-
-    old_override = app.dependency_overrides.get(get_async_db)
-    app.dependency_overrides[get_async_db] = override_get_async_db
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
-        yield client
-    if old_override:
-        app.dependency_overrides[get_async_db] = old_override
-    else:
-        del app.dependency_overrides[get_async_db]
 
 @pytest.fixture(autouse=True)
 def patch_jwt_decode(monkeypatch):

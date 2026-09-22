@@ -106,7 +106,6 @@ An enterprise-grade clinical document intake, computer vision preprocessing, dua
 
 ```text
 clinical-intelligence/
-├── alembic/                               # Database migration scripts (project root)
 ├── backend/
 │   ├── alembic/                           # Backend-scoped Alembic migrations
 │   ├── app/

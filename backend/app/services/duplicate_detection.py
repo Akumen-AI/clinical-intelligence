@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 import jellyfish
 
 from sqlalchemy import select, update, or_, and_
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from app.models.patient import Patient
 from app.models.patient_duplicate_flag import PatientDuplicateFlag
@@ -42,7 +42,7 @@ class DuplicateDetectionService:
                 pass
         return 0.80
 
-    async def scan_all_patients(self, db: AsyncSession) -> list[PatientDuplicateFlag]:
+    def scan_all_patients(self, db: Session) -> list[PatientDuplicateFlag]:
         """
         Compare every patient pair.
         Matching heuristic:
@@ -55,9 +55,7 @@ class DuplicateDetectionService:
           6. If score >= SIMILARITY_THRESHOLD AND at least name + one other
              factor match -> flag as 'pending'. Skip if flag already exists.
         """
-        stmt = select(Patient).where(or_(Patient.status.is_(None), Patient.status != "merged"))
-        result = await db.execute(stmt)
-        patients = list(result.scalars().all())
+        patients = db.query(Patient).filter(or_(Patient.status.is_(None), Patient.status != "merged")).all()
 
         created_flags: list[PatientDuplicateFlag] = []
         threshold = self.SIMILARITY_THRESHOLD
@@ -88,14 +86,12 @@ class DuplicateDetectionService:
                     id_b = str(p_b.id)
 
                     # Check existing flag
-                    flag_stmt = select(PatientDuplicateFlag).where(
+                    existing = db.query(PatientDuplicateFlag).filter(
                         or_(
                             and_(PatientDuplicateFlag.patient_a_id == id_a, PatientDuplicateFlag.patient_b_id == id_b),
                             and_(PatientDuplicateFlag.patient_a_id == id_b, PatientDuplicateFlag.patient_b_id == id_a)
                         )
-                    )
-                    flag_res = await db.execute(flag_stmt)
-                    existing = flag_res.scalar_one_or_none()
+                    ).first()
 
                     if not existing:
                         reasons = []
@@ -118,15 +114,15 @@ class DuplicateDetectionService:
                         created_flags.append(new_flag)
 
         if created_flags:
-            await db.commit()
+            db.commit()
             for f in created_flags:
-                await db.refresh(f)
+                db.refresh(f)
 
         return created_flags
 
-    async def merge_patients(
+    def merge_patients(
         self,
-        db: AsyncSession,
+        db: Session,
         flag_id: uuid.UUID | str,
         keep_patient_id: uuid.UUID | str,
         current_user: any,
@@ -144,9 +140,7 @@ class DuplicateDetectionService:
         flag_str_id = str(flag_id)
         keep_str_id = str(keep_patient_id)
 
-        flag_stmt = select(PatientDuplicateFlag).where(PatientDuplicateFlag.id == flag_str_id)
-        flag_res = await db.execute(flag_stmt)
-        flag = flag_res.scalar_one_or_none()
+        flag = db.query(PatientDuplicateFlag).filter(PatientDuplicateFlag.id == flag_str_id).first()
         if not flag:
             raise ValueError(f"Flag {flag_id} not found")
 
@@ -158,8 +152,8 @@ class DuplicateDetectionService:
 
         discarded_str_id = id_b if keep_str_id == id_a else id_a
 
-        keep_patient = (await db.execute(select(Patient).where(Patient.patient_id == keep_str_id))).scalar_one_or_none()
-        discarded_patient = (await db.execute(select(Patient).where(Patient.patient_id == discarded_str_id))).scalar_one_or_none()
+        keep_patient = db.query(Patient).filter(Patient.patient_id == keep_str_id).first()
+        discarded_patient = db.query(Patient).filter(Patient.patient_id == discarded_str_id).first()
 
         if not keep_patient:
             raise ValueError(f"Keep patient {keep_patient_id} not found")
@@ -167,7 +161,7 @@ class DuplicateDetectionService:
         # 1. Reassign records (EXCLUDING Diagnosis)
         for model_cls in [Document, Visit, Note, Medication, LabResult, Vital, Procedure, Allergy, PatientRAGChunk, CanonicalPatientRecord]:
             if hasattr(model_cls, "patient_id"):
-                await db.execute(
+                db.execute(
                     update(model_cls)
                     .where(model_cls.patient_id == discarded_str_id)
                     .values(patient_id=keep_str_id)
@@ -186,7 +180,7 @@ class DuplicateDetectionService:
 
         # 4. Audit log
         actor_id = current_user.id if hasattr(current_user, "id") else uuid.UUID("ffffffff-ffff-ffff-ffff-ffffffffffff")
-        await audit_service.write_entry_async(
+        audit_service.write_entry(
             db=db,
             actor_user_id=actor_id,
             action_type="patient_merge",
@@ -195,21 +189,19 @@ class DuplicateDetectionService:
             patient_id=keep_str_id
         )
 
-        await db.commit()
-        await db.refresh(keep_patient)
+        db.commit()
+        db.refresh(keep_patient)
         return keep_patient
 
-    async def ignore_flag(
+    def ignore_flag(
         self,
-        db: AsyncSession,
+        db: Session,
         flag_id: uuid.UUID | str,
         current_user: any,
     ) -> PatientDuplicateFlag:
         """Set flag status = 'ignored', resolved_by, resolved_at. Log audit."""
         flag_str_id = str(flag_id)
-        flag_stmt = select(PatientDuplicateFlag).where(PatientDuplicateFlag.id == flag_str_id)
-        flag_res = await db.execute(flag_stmt)
-        flag = flag_res.scalar_one_or_none()
+        flag = db.query(PatientDuplicateFlag).filter(PatientDuplicateFlag.id == flag_str_id).first()
         if not flag:
             raise ValueError(f"Flag {flag_id} not found")
 
@@ -218,7 +210,7 @@ class DuplicateDetectionService:
         flag.resolved_at = datetime.now(timezone.utc)
 
         actor_id = current_user.id if hasattr(current_user, "id") else uuid.UUID("ffffffff-ffff-ffff-ffff-ffffffffffff")
-        await audit_service.write_entry_async(
+        audit_service.write_entry(
             db=db,
             actor_user_id=actor_id,
             action_type="ignore_duplicate_flag",
@@ -227,6 +219,6 @@ class DuplicateDetectionService:
             patient_id=str(flag.patient_a_id)
         )
 
-        await db.commit()
-        await db.refresh(flag)
+        db.commit()
+        db.refresh(flag)
         return flag

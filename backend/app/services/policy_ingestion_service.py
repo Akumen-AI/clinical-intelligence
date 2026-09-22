@@ -47,7 +47,6 @@ def ingest_policy_documents(
     """Replace the policy index with chunks from local .md/.txt policy files."""
     documents_path = Path(documents_dir)
     documents_path.mkdir(parents=True, exist_ok=True)
-    Base.metadata.create_all(bind=engine, tables=[PolicyRAGChunk.__table__])
 
     files = sorted(
         path for path in documents_path.iterdir()

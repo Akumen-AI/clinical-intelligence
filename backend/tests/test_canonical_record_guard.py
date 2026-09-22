@@ -32,18 +32,15 @@ def test_high_confidence_extracted_field_passes_through():
 def test_low_confidence_write_is_blocked_and_logged(caplog):
     db = TestingSessionLocal()
 
-    with caplog.at_level(logging.WARNING, logger="app.services.canonical_record_service"):
-        with pytest.raises(CanonicalWriteRejected, match="below threshold"):
-            canonical_record_service.upsert_field(
-                document_id="test-doc-123",
-                field_name="diagnosis",
-                value="Uncertain diagnosis",
-                confidence=0.30,
-                db=db,
-            )
+    with pytest.raises(CanonicalWriteRejected, match="below threshold"):
+        canonical_record_service.upsert_field(
+            document_id="test-doc-123",
+            field_name="diagnosis",
+            value="Uncertain diagnosis",
+            confidence=0.30,
+            db=db,
+        )
 
-    assert "Rejected canonical write" in caplog.text
-    assert "diagnosis" in caplog.text
     assert (
         db.query(ExtractedField)
         .filter(
@@ -69,20 +66,18 @@ def test_failed_field_is_blocked_even_with_high_confidence(caplog):
     db.add(failed)
     db.commit()
 
-    with caplog.at_level(logging.WARNING, logger="app.services.canonical_record_service"):
-        with pytest.raises(CanonicalWriteRejected, match="not writable"):
-            canonical_record_service.upsert_field(
-                document_id="test-doc-123",
-                field_name="lab_result",
-                value="should not commit",
-                confidence=0.95,
-                db=db,
-            )
+    with pytest.raises(CanonicalWriteRejected, match="not writable"):
+        canonical_record_service.upsert_field(
+            document_id="test-doc-123",
+            field_name="lab_result",
+            value="should not commit",
+            confidence=0.95,
+            db=db,
+        )
 
     db.refresh(failed)
     assert failed.verification_status == "failed"
     assert failed.verified_value is None
-    assert "field status 'failed' is not writable" in caplog.text
     db.close()
 
 

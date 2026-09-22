@@ -30,16 +30,6 @@ def write_entry(db: Session, actor_user_id: uuid.UUID, action_type: str, target_
     db.refresh(new_entry)
     return new_entry
 
-async def write_entry_async(db: AsyncSession, actor_user_id: uuid.UUID, action_type: str, target_entity: str, rationale: str | None = None, patient_id: str | None = None, outcome: str | None = None, context: dict | None = None) -> AuditLogEntry:
-    """
-    Append an entry to the audit log (async).
-    This (and write_entry) is the only sanctioned way to write to the audit log table.
-    """
-    new_entry = _build_entry(actor_user_id, action_type, target_entity, rationale, patient_id, outcome, context)
-    db.add(new_entry)
-    await db.flush()
-    await db.commit()
-    await db.refresh(new_entry)
-    return new_entry
+
 
 # Removed backfill_patient_id_for_document per append-only requirements.

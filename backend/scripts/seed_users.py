@@ -23,7 +23,6 @@ DEMO_USERS = [
 ]
 
 def seed_users():
-    Base.metadata.create_all(bind=engine)
     db: Session = SessionLocal()
     try:
         for user_data in DEMO_USERS:

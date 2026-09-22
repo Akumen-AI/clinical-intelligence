@@ -74,9 +74,7 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
         response.headers["X-Correlation-ID"] = correlation_id
         return response
 
-# Create database tables automatically on startup
-Base.metadata.create_all(bind=engine)
-
+# Create database tables automatically on startup (Removed - use Alembic migrations instead)
 
 
 # Ensure upload storage folder exists
@@ -95,9 +93,34 @@ except Exception as e:
     print(f"Failed to ensure watched folder exists: {e}")
 
 from contextlib import asynccontextmanager
+import logging
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+from alembic.runtime.migration import MigrationContext
+
+logger = logging.getLogger("app.main")
+
+def check_schema_status():
+    alembic_cfg = Config("alembic.ini")
+    script = ScriptDirectory.from_config(alembic_cfg)
+    
+    with engine.connect() as connection:
+        context = MigrationContext.configure(connection)
+        current_rev = context.get_current_revision()
+        head_rev = script.get_current_head()
+        
+        if current_rev != head_rev:
+            raise RuntimeError(
+                f"Database schema is not up to date! "
+                f"Current revision: {current_rev}, Head revision: {head_rev}. "
+                f"Please run 'alembic upgrade head'."
+            )
+        logger.info("Database schema validation passed (Alembic heads match).")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Validate schema at startup
+    check_schema_status()
     yield
 
 app = FastAPI(

@@ -2,9 +2,8 @@ from uuid import UUID
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.db.session import get_async_db
+from sqlalchemy.orm import Session
+from app.database import get_db
 from app.core.security import get_current_user, User
 from app.models.department_completeness_setting import DepartmentCompletenessSetting
 from app.models.user import UserRole
@@ -30,10 +29,10 @@ def check_admin_role(user: User):
 
 
 @router.post("/check", response_model=CompletenessCheckResponse)
-async def check_completeness(
+def check_completeness(
     request: CompletenessCheckRequest,
     department_id: UUID = Query(..., description="Department ID to evaluate toggle settings"),
-    db: AsyncSession = Depends(get_async_db),
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -42,7 +41,7 @@ async def check_completeness(
     """
     service = CompletenessService(db)
     try:
-        response = await service.check(
+        response = service.check(
             patient_id=request.patient_id,
             complaint_type=request.complaint_type,
             department_id=department_id,
@@ -53,9 +52,9 @@ async def check_completeness(
 
 
 @router.get("/settings/{department_id}", response_model=DepartmentSettingOut)
-async def get_department_setting(
+def get_department_setting(
     department_id: UUID,
-    db: AsyncSession = Depends(get_async_db),
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -63,19 +62,17 @@ async def get_department_setting(
     """
     check_admin_role(current_user)
     dept_str = str(department_id)
-    stmt = select(DepartmentCompletenessSetting).where(DepartmentCompletenessSetting.department_id == dept_str)
-    result = await db.execute(stmt)
-    setting = result.scalar_one_or_none()
+    setting = db.query(DepartmentCompletenessSetting).filter(DepartmentCompletenessSetting.department_id == dept_str).first()
     if setting is None:
         return DepartmentSettingOut(department_id=department_id, enabled=True)
     return setting
 
 
 @router.put("/settings/{department_id}", response_model=DepartmentSettingOut)
-async def update_department_setting(
+def update_department_setting(
     department_id: UUID,
     payload: DepartmentSettingIn,
-    db: AsyncSession = Depends(get_async_db),
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -83,9 +80,7 @@ async def update_department_setting(
     """
     check_admin_role(current_user)
     dept_str = str(department_id)
-    stmt = select(DepartmentCompletenessSetting).where(DepartmentCompletenessSetting.department_id == dept_str)
-    result = await db.execute(stmt)
-    setting = result.scalar_one_or_none()
+    setting = db.query(DepartmentCompletenessSetting).filter(DepartmentCompletenessSetting.department_id == dept_str).first()
 
     user_id_str = str(current_user.id) if hasattr(current_user, "id") else None
 
@@ -102,6 +97,6 @@ async def update_department_setting(
         setting.updated_at = datetime.now(timezone.utc)
         setting.updated_by = user_id_str
 
-    await db.commit()
-    await db.refresh(setting)
+    db.commit()
+    db.refresh(setting)
     return setting

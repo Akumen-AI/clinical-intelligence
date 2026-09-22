@@ -1,7 +1,7 @@
 import structlog
 from uuid import UUID
 from typing import Optional, Any
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 from app.config.complaint_checklists import COMPLAINT_CHECKLISTS, BANNED_PHRASES
@@ -40,7 +40,7 @@ LABEL_TO_FIELD: dict[str, str] = {
 
 
 class CompletenessService:
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: Session):
         self.db = db
 
     # ------------------------------------------------------------------
@@ -57,14 +57,11 @@ class CompletenessService:
     # ------------------------------------------------------------------
     # Toggle check
     # ------------------------------------------------------------------
-    async def is_enabled_for_department(self, department_id: UUID | str) -> bool:
+    def is_enabled_for_department(self, department_id: UUID | str) -> bool:
         dept_str = str(department_id)
-        result = await self.db.execute(
-            select(DepartmentCompletenessSetting).where(
-                DepartmentCompletenessSetting.department_id == dept_str
-            )
-        )
-        setting = result.scalar_one_or_none()
+        setting = self.db.query(DepartmentCompletenessSetting).filter(
+            DepartmentCompletenessSetting.department_id == dept_str
+        ).first()
         if setting is None:
             return True   # default: enabled
         return setting.enabled
@@ -72,7 +69,7 @@ class CompletenessService:
     # ------------------------------------------------------------------
     # Core check
     # ------------------------------------------------------------------
-    async def check(
+    def check(
         self,
         patient_id: UUID | str,
         complaint_type: str,
@@ -91,7 +88,7 @@ class CompletenessService:
         patient_str = str(patient_id)
         p_uuid = UUID(patient_str) if isinstance(patient_id, str) else patient_id
 
-        enabled = await self.is_enabled_for_department(department_id)
+        enabled = self.is_enabled_for_department(department_id)
         if not enabled:
             log.info("completeness_check_skipped", patient_id=patient_str, reason="department_disabled")
             return CompletenessCheckResponse(
@@ -106,8 +103,7 @@ class CompletenessService:
         checklist = COMPLAINT_CHECKLISTS.get(complaint_type, COMPLAINT_CHECKLISTS["general"])
 
         # Load patient
-        result = await self.db.execute(select(Patient).where(Patient.patient_id == patient_str))
-        patient = result.scalar_one_or_none()
+        patient = self.db.query(Patient).filter(Patient.patient_id == patient_str).first()
         if patient is None:
             raise ValueError(f"Patient {patient_id} not found")
 
@@ -115,21 +111,20 @@ class CompletenessService:
         has_allergies = False
         has_meds = False
         try:
-            alg_res = await self.db.execute(select(Allergy).where(Allergy.patient_id == patient_str))
-            has_allergies = len(alg_res.scalars().all()) > 0
-            med_res = await self.db.execute(select(Medication).where(Medication.patient_id == patient_str))
-            has_meds = len(med_res.scalars().all()) > 0
+            alg_res = self.db.query(Allergy).filter(Allergy.patient_id == patient_str).all()
+            has_allergies = len(alg_res) > 0
+            med_res = self.db.query(Medication).filter(Medication.patient_id == patient_str).all()
+            has_meds = len(med_res) > 0
         except Exception:
             pass
 
         # Query generic canonical records for patient if documents exist
         canonical_fields: set[str] = set()
         try:
-            doc_res = await self.db.execute(select(Document.document_id).where(Document.patient_id == patient_str))
-            doc_ids = list(doc_res.scalars().all())
+            doc_ids = [d.document_id for d in self.db.query(Document.document_id).filter(Document.patient_id == patient_str).all()]
             if doc_ids:
-                can_res = await self.db.execute(select(CanonicalPatientRecord.field_name).where(CanonicalPatientRecord.document_id.in_(doc_ids)))
-                canonical_fields = set(can_res.scalars().all())
+                can_res = self.db.query(CanonicalPatientRecord.field_name).filter(CanonicalPatientRecord.document_id.in_(doc_ids)).all()
+                canonical_fields = set(f.field_name for f in can_res)
         except Exception:
             pass
 

@@ -24,8 +24,8 @@ def test_normalize_name():
     assert normalize_name(None) == ""
 
 
-@pytest.mark.asyncio
-async def test_duplicate_detection_scan(db_session: AsyncSession):
+
+def test_duplicate_detection_scan(db_session):
     # Patient A & B: Similar names, exact DOB, matching MRN prefix
     p_a = Patient(
         patient_id=str(uuid.uuid4()),
@@ -50,10 +50,10 @@ async def test_duplicate_detection_scan(db_session: AsyncSession):
         status="active"
     )
     db_session.add_all([p_a, p_b, p_c])
-    await db_session.commit()
+    db_session.commit()
 
     service = DuplicateDetectionService()
-    flags = await service.scan_all_patients(db_session)
+    flags = service.scan_all_patients(db_session)
 
     assert len(flags) == 1
     flag = flags[0]
@@ -66,12 +66,12 @@ async def test_duplicate_detection_scan(db_session: AsyncSession):
     assert pair == {str(p_a.id), str(p_b.id)}
 
     # Scan again: should skip creating existing pair
-    second_flags = await service.scan_all_patients(db_session)
+    second_flags = service.scan_all_patients(db_session)
     assert len(second_flags) == 0
 
 
-@pytest.mark.asyncio
-async def test_merge_patients_ac3_compliance(db_session: AsyncSession):
+
+def test_merge_patients_ac3_compliance(db_session):
     p_keep = Patient(
         patient_id=str(uuid.uuid4()),
         name="Robert Miller",
@@ -87,7 +87,7 @@ async def test_merge_patients_ac3_compliance(db_session: AsyncSession):
         status="active"
     )
     db_session.add_all([p_keep, p_discard])
-    await db_session.commit()
+    db_session.commit()
 
     # Add associated records to discarded patient (include raw_uri and filetype for Document)
     doc = Document(document_id=str(uuid.uuid4()), filename="test.pdf", raw_uri="uploads/test.pdf", filetype="application/pdf", patient_id=str(p_discard.id))
@@ -100,7 +100,7 @@ async def test_merge_patients_ac3_compliance(db_session: AsyncSession):
     diag = Diagnosis(id=diag_id, patient_id=str(p_discard.id), source_field_id=str(uuid.uuid4()), raw_text="Hypertension")
 
     db_session.add_all([doc, visit, note, med, diag])
-    await db_session.commit()
+    db_session.commit()
 
     # Create flag
     flag = PatientDuplicateFlag(
@@ -112,12 +112,12 @@ async def test_merge_patients_ac3_compliance(db_session: AsyncSession):
         status="pending"
     )
     db_session.add(flag)
-    await db_session.commit()
+    db_session.commit()
 
     # Execute merge
     admin_user = User(id=uuid.uuid4(), email="admin@clinic.org", role=UserRole.HOSPITAL_ADMIN)
     service = DuplicateDetectionService()
-    merged_patient = await service.merge_patients(
+    merged_patient = service.merge_patients(
         db=db_session,
         flag_id=flag.id,
         keep_patient_id=p_keep.id,
@@ -127,37 +127,37 @@ async def test_merge_patients_ac3_compliance(db_session: AsyncSession):
     assert str(merged_patient.id) == str(p_keep.id)
 
     # Verify reassignment
-    await db_session.refresh(doc)
-    await db_session.refresh(visit)
-    await db_session.refresh(note)
-    await db_session.refresh(med)
+    db_session.refresh(doc)
+    db_session.refresh(visit)
+    db_session.refresh(note)
+    db_session.refresh(med)
     assert str(doc.patient_id) == str(p_keep.id)
     assert str(visit.patient_id) == str(p_keep.id)
     assert str(note.patient_id) == str(p_keep.id)
     assert str(med.patient_id) == str(p_keep.id)
 
     # AC-3 Invariant: Diagnosis table record MUST remain untouched for p_discard
-    diag_db = (await db_session.execute(select(Diagnosis).where(Diagnosis.id == diag_id))).scalar_one_or_none()
+    diag_db = (db_session.execute(select(Diagnosis).where(Diagnosis.id == diag_id))).scalar_one_or_none()
     assert diag_db is not None
     assert str(diag_db.patient_id) == str(p_discard.id)  # Diagnosis was NOT reassigned/touched!
 
     # Verify flag and discarded patient status
-    await db_session.refresh(flag)
-    await db_session.refresh(p_discard)
+    db_session.refresh(flag)
+    db_session.refresh(p_discard)
     assert flag.status == "merged"
     assert str(flag.merged_into_id) == str(p_keep.id)
     assert p_discard.status == "merged"
     assert str(p_discard.duplicate_of) == str(p_keep.id)
 
     # Verify audit log
-    audit_res = await db_session.execute(select(AuditLogEntry).where(AuditLogEntry.action_type == "patient_merge"))
+    audit_res = db_session.execute(select(AuditLogEntry).where(AuditLogEntry.action_type == "patient_merge"))
     audit_log = audit_res.scalar_one_or_none()
     assert audit_log is not None
     assert str(audit_log.patient_id) == str(p_keep.id)
 
 
-@pytest.mark.asyncio
-async def test_ignore_flag(db_session: AsyncSession):
+
+def test_ignore_flag(db_session):
     flag = PatientDuplicateFlag(
         id=uuid.uuid4(),
         patient_a_id=uuid.uuid4(),
@@ -167,11 +167,11 @@ async def test_ignore_flag(db_session: AsyncSession):
         status="pending"
     )
     db_session.add(flag)
-    await db_session.commit()
+    db_session.commit()
 
     admin_user = User(id=uuid.uuid4(), email="admin@clinic.org", role=UserRole.HOSPITAL_ADMIN)
     service = DuplicateDetectionService()
-    updated_flag = await service.ignore_flag(db_session, flag.id, admin_user)
+    updated_flag = service.ignore_flag(db_session, flag.id, admin_user)
 
     assert updated_flag.status == "ignored"
     assert str(updated_flag.resolved_by) == str(admin_user.id)

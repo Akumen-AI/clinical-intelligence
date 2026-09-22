@@ -57,9 +57,11 @@ async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme),
     db: Session = Depends(get_db)
 ) -> User:
-    token = request.cookies.get("access_token")
-    if not token and credentials and credentials.credentials:
+    token = None
+    if credentials and credentials.credentials:
         token = credentials.credentials
+    if not token:
+        token = request.cookies.get("access_token")
         
     if not token:
         raise HTTPException(

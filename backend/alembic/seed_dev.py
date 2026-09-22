@@ -5,8 +5,6 @@ import uuid
 from app.database import SessionLocal, engine, Base
 from app.models.user import User, UserRole
 
-# Ensure tables exist
-Base.metadata.create_all(bind=engine)
 
 
 def seed_dev_users():
