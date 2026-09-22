@@ -7,11 +7,14 @@ import uuid
 from app.database import get_db
 from app.models.audit_log import AuditLogEntry
 from app.schemas.audit_log import AuditLogResponse
+from app.core.authorization import AuthorizationService, Operation, ResourceType
+from fastapi import Request
 
 router = APIRouter()
 
 @router.get("", response_model=List[AuditLogResponse])
 def get_audit_logs(
+    request: Request,
     actor_user_id: uuid.UUID = None,
     action_type: str = None,
     start_date: datetime = None,
@@ -23,6 +26,7 @@ def get_audit_logs(
     """
     Retrieve audit logs. Can be filtered by actor, action type, and date range.
     """
+    AuthorizationService.assert_can_access_audit_logs(request.state.user)
     query = db.query(AuditLogEntry)
     
     if actor_user_id:
@@ -40,6 +44,7 @@ def get_audit_logs(
 @router.get("/patient/{id}", response_model=List[AuditLogResponse])
 def get_patient_audit_logs(
     id: str,
+    request: Request,
     skip: int = 0,
     limit: int = Query(100, le=1000),
     db: Session = Depends(get_db)
@@ -47,6 +52,7 @@ def get_patient_audit_logs(
     """
     Full reconstruction of audit logs for one patient.
     """
+    AuthorizationService.assert_can_access_audit_logs(request.state.user)
     query = db.query(AuditLogEntry).filter(
         AuditLogEntry.patient_id == id
     )

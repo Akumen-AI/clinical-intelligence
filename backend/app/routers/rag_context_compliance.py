@@ -3,7 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from app.database import get_db
 from app.core.rbac import check_rbac
-from app.core.patient_access_guard import RbacAccessGuard, AccessDeniedError
+from app.core.authorization import AuthorizationService, ResourceType, Operation
+from fastapi import HTTPException
 from app.models.patient import Patient
 from sqlalchemy import or_
 from app.services import rag_service, context_panel_service
@@ -34,8 +35,8 @@ async def rag_query(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found.")
         
     try:
-        RbacAccessGuard().assert_can_query_patient(current_user, patient.patient_id)
-    except AccessDeniedError as e:
+        AuthorizationService.assert_can_access_patient(current_user, patient.patient_id)
+    except HTTPException as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
         
     try:
@@ -66,8 +67,8 @@ async def get_context_panel_route(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found.")
         
     try:
-        RbacAccessGuard().assert_can_query_patient(current_user, patient.patient_id)
-    except AccessDeniedError as e:
+        AuthorizationService.assert_can_access_patient(current_user, patient.patient_id)
+    except HTTPException as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
         
     try:

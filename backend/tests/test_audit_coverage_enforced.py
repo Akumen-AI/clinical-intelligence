@@ -289,8 +289,17 @@ def test_e2e_patient_audit_reconstruction(mock_genai_client, clear_audit_log):
 
     app.dependency_overrides.pop(get_current_user, None)
     try:
-        comp_token = create_access_token({"sub": str(uuid.uuid4()), "role": "compliance", "email": "comp@clinic.org"})
+        comp_user_id = uuid.uuid4()
+        comp_token = create_access_token({"sub": str(comp_user_id), "role": "compliance", "email": "comp@clinic.org"})
+        
+        # Insert compliance user into test DB to pass get_current_user validation
+        db = TestingSessionLocal()
+        db.add(User(id=comp_user_id, email="comp@clinic.org", role=UserRole.COMPLIANCE, patient_access=[], department_access=[]))
+        db.commit()
+        db.close()
+        
         comp_client = TestClient(app)
+        comp_client.cookies.set("access_token", comp_token)
         comp_client.headers.update({"Authorization": f"Bearer {comp_token}"})
         
         audit_res = comp_client.get("/api/v1/audit-log/patient/e2e_patient")

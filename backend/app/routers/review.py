@@ -26,7 +26,8 @@ from app.services.confidence_router import (
     get_confidence_threshold_info,
     set_confidence_threshold,
 )
-from app.core.patient_access_guard import RbacAccessGuard, AccessDeniedError
+from app.core.authorization import AuthorizationService, ResourceType, Operation
+from fastapi import HTTPException
 from app.models.user import UserRole
 from sqlalchemy import or_
 
@@ -208,8 +209,8 @@ def get_review_context(
     doc = db.query(Document).filter(Document.document_id == review_rec.document_id).first()
     
     try:
-        RbacAccessGuard().assert_can_query_patient(http_request.state.user, doc.patient_id if doc else None)
-    except AccessDeniedError as e:
+        AuthorizationService.assert_can_access_patient(http_request.state.user, doc.patient_id if doc else None)
+    except HTTPException as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
 
     # Fetch bounding box from ExtractedField (most recent match)
@@ -293,8 +294,8 @@ def get_review_image(
         )
         
     try:
-        RbacAccessGuard().assert_can_query_patient(http_request.state.user, doc.patient_id)
-    except AccessDeniedError as e:
+        AuthorizationService.assert_can_access_patient(http_request.state.user, doc.patient_id)
+    except HTTPException as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
 
     # Get bounding box
@@ -367,8 +368,8 @@ def review_pending_field(
     doc = db.query(Document).filter(Document.document_id == review_rec.document_id).first()
     if doc:
         try:
-            RbacAccessGuard().assert_can_query_patient(http_request.state.user, doc.patient_id)
-        except AccessDeniedError as e:
+            AuthorizationService.assert_can_access_patient(http_request.state.user, doc.patient_id)
+        except HTTPException as e:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
 
     if payload.action == "approve":

@@ -1,7 +1,8 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from sqlalchemy.orm import Session
-from app.core.patient_access_guard import RbacAccessGuard, AccessDeniedError
+from app.core.authorization import AuthorizationService, ResourceType, Operation
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -22,8 +23,8 @@ def get_timeline(
     Optionally filter by patient_id.
     """
     try:
-        RbacAccessGuard().assert_can_query_patient(http_request.state.user, patient_id)
-    except AccessDeniedError as e:
+        AuthorizationService.assert_can_access_patient(http_request.state.user, patient_id)
+    except HTTPException as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
         
     return build_patient_timeline(patient_id=patient_id, db=db)
@@ -44,8 +45,8 @@ def get_timeline_event(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
         
     try:
-        RbacAccessGuard().assert_can_query_patient(http_request.state.user, doc.patient_id)
-    except AccessDeniedError as e:
+        AuthorizationService.assert_can_access_patient(http_request.state.user, doc.patient_id)
+    except HTTPException as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
 
     timeline = build_patient_timeline(patient_id=None, db=db)

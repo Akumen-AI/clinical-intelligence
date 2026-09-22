@@ -50,11 +50,14 @@ def test_document(db_session: Session, test_patient):
     db_session.refresh(doc)
     return doc
 
+from app.core.security import create_access_token
+
 def get_auth_client(db_session: Session, role: UserRole, patient_access: list[str] = None):
     email = f"{uuid4()}@example.com"
     password = "testpassword123"
+    user_id = uuid4()
     user = User(
-        id=uuid4(),
+        id=user_id,
         email=email,
         password_hash=get_password_hash(password),
         role=role,
@@ -63,11 +66,7 @@ def get_auth_client(db_session: Session, role: UserRole, patient_access: list[st
     db_session.add(user)
     db_session.commit()
     
-    unauthed_client = TestClient(app)
-    res = unauthed_client.post("/api/v1/auth/login", json={"email": email, "password": password})
-    assert res.status_code == 200
-    token = res.json()["access_token"]
-    
+    token = create_access_token(data={"sub": str(user_id), "role": role.value, "email": email, "patient_access": patient_access or []})
     new_client = TestClient(app)
     new_client.headers.update({"Authorization": f"Bearer {token}"})
     return new_client

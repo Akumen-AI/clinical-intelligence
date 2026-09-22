@@ -31,6 +31,7 @@ from app.models.clinical_entities import Medication, Diagnosis, LabResult, Vital
 from app.models.rag_chunk import PatientRAGChunk
 from app.models.rag_conversation import RAGConversation
 from app.models.report_request import ReportRequest
+from app.models.refresh_token import RefreshToken
 
 # Register SQLAlchemy hooks
 import app.services.layout_trigger  # noqa

@@ -19,6 +19,7 @@ from app.services import upload_service
 from app.services.validation_service import ValidationService
 from app.utils.validators import FileValidationError
 from pydantic import BaseModel
+from app.core.authorization import AuthorizationService, ResourceType, Operation, Operation
 
 class WatchedFolderConfigResponse(BaseModel):
     path: str
@@ -34,7 +35,8 @@ router = APIRouter(
 )
 
 @router.get("/config/watched-folder", response_model=WatchedFolderConfigResponse)
-async def get_watched_folder_config(db: Session = Depends(get_db)):
+async def get_watched_folder_config(request: Request, db: Session = Depends(get_db)):
+    AuthorizationService.assert_can_access_system_config(request.state.user, Operation.READ)
     from app.services.watched_folder_config_service import get_watched_folder_path_info, get_watched_folder_interval
     path, source = get_watched_folder_path_info(db)
     interval = get_watched_folder_interval(db)
@@ -42,12 +44,14 @@ async def get_watched_folder_config(db: Session = Depends(get_db)):
 
 @router.put("/config/watched-folder", response_model=WatchedFolderConfigResponse)
 async def update_watched_folder_config(
-    request: WatchedFolderUpdateRequest,
+    request_data: WatchedFolderUpdateRequest,
+    request: Request,
     db: Session = Depends(get_db)
 ):
+    AuthorizationService.assert_can_access_system_config(request.state.user, Operation.WRITE)
     from app.services.watched_folder_config_service import set_watched_folder_path, get_watched_folder_interval
     try:
-        path, source = set_watched_folder_path(request.path, db)
+        path, source = set_watched_folder_path(request_data.path, db)
         interval = get_watched_folder_interval(db)
         return WatchedFolderConfigResponse(path=path, source=source, poll_interval_seconds=interval)
     except ValueError as e:
@@ -162,6 +166,7 @@ async def upload_documents(
 
 @router.get("/upload-logs", response_model=List[UploadLogResponse])
 async def get_upload_logs(
+    request: Request,
     limit: int = 100,
     db: Session = Depends(get_db)
 ):
@@ -170,11 +175,13 @@ async def get_upload_logs(
     
     Retrieve audit history of all accepted and rejected file upload attempts.
     """
+    AuthorizationService.assert_can_access_audit_logs(request.state.user)
     return ValidationService.get_upload_logs(db, limit=limit)
 
 @router.get("/{document_id}/file", include_in_schema=False)
-async def get_document_file(document_id: str, db: Session = Depends(get_db)):
+async def get_document_file(document_id: str, request: Request, db: Session = Depends(get_db)):
     """Stream the original uploaded file through an HTTP URL for the reviewer UI."""
+    AuthorizationService.assert_can_access_document(db, request.state.user, document_id, Operation.READ)
     doc = upload_service.get_document_by_id(db, document_id)
     if not doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
@@ -193,6 +200,7 @@ async def get_document_file(document_id: str, db: Session = Depends(get_db)):
 
 @router.get("", response_model=List[DocumentResponse])
 async def list_documents(
+    request: Request,
     needs_review: Optional[bool] = None,
     document_type: Optional[str] = None,
     db: Session = Depends(get_db)
@@ -203,6 +211,17 @@ async def list_documents(
     Retrieve all uploaded patient documents with document ID, file path, file type, and pipeline status.
     """
     docs = upload_service.get_all_documents(db, needs_review=needs_review, document_type=document_type)
+    
+    # Filter documents based on AuthorizationService
+    user = request.state.user
+    filtered_docs = []
+    for doc in docs:
+        try:
+            AuthorizationService.assert_can_access_document(db, user, doc.document_id, Operation.READ)
+            filtered_docs.append(doc)
+        except HTTPException:
+            pass
+            
     return [
         DocumentResponse(
             document_id=doc.document_id,
@@ -217,16 +236,17 @@ async def list_documents(
             classification_confidence=doc.classification_confidence,
             needs_manual_review=doc.needs_manual_review
         )
-        for doc in docs
+        for doc in filtered_docs
     ]
 
 @router.get("/{document_id}", response_model=DocumentResponse)
-async def get_document(document_id: str, db: Session = Depends(get_db)):
+async def get_document(document_id: str, request: Request, db: Session = Depends(get_db)):
     """
     GET /api/v1/documents/{document_id}
     
     Retrieve specific document metadata by UUID.
     """
+    AuthorizationService.assert_can_access_document(db, request.state.user, document_id, Operation.READ)
     doc = upload_service.get_document_by_id(db, document_id)
     if not doc:
         raise HTTPException(
@@ -248,12 +268,13 @@ async def get_document(document_id: str, db: Session = Depends(get_db)):
     )
 
 @router.get("/{document_id}/status")
-async def get_document_status(document_id: str, db: Session = Depends(get_db)):
+async def get_document_status(document_id: str, request: Request, db: Session = Depends(get_db)):
     """
     GET /api/v1/documents/{document_id}/status
     
     Poll pipeline stage for one document.
     """
+    AuthorizationService.assert_can_access_document(db, request.state.user, document_id, Operation.READ)
     doc = upload_service.get_document_by_id(db, document_id)
     if not doc:
         raise HTTPException(
@@ -269,12 +290,13 @@ async def get_document_status(document_id: str, db: Session = Depends(get_db)):
     }
 
 @router.delete("/{document_id}", status_code=status.HTTP_200_OK)
-async def delete_document(document_id: str, db: Session = Depends(get_db)):
+async def delete_document(document_id: str, request: Request, db: Session = Depends(get_db)):
     """
     DELETE /api/v1/documents/{document_id}
 
     Delete a specific document by UUID, removing the database record and associated files.
     """
+    AuthorizationService.assert_can_access_document(db, request.state.user, document_id, Operation.DELETE)
     deleted = upload_service.delete_document(db, document_id)
     if not deleted:
         raise HTTPException(
@@ -284,12 +306,14 @@ async def delete_document(document_id: str, db: Session = Depends(get_db)):
     return {"message": f"Document '{document_id}' deleted successfully."}
 
 @router.delete("", status_code=status.HTTP_200_OK)
-async def delete_all_documents(db: Session = Depends(get_db)):
+async def delete_all_documents(request: Request, db: Session = Depends(get_db)):
     """
     DELETE /api/v1/documents
 
     Delete all documents, removing database records and associated files.
     """
+    if not AuthorizationService._has_global_access(request.state.user, ResourceType.DOCUMENT, Operation.DELETE):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only global admins can delete all documents.")
     count = upload_service.delete_all_documents(db)
     return {"message": f"Deleted {count} document(s) successfully.", "count": count}
 
@@ -312,6 +336,8 @@ async def link_patient(
     from app.models.visit import Visit
     from app.models.canonical_patient_record import CanonicalPatientRecord
     from app.services.canonical_record_service import route_to_normalized_tables
+    
+    AuthorizationService.assert_can_access_document(db, http_request.state.user, document_id, Operation.WRITE)
     
     doc = upload_service.get_document_by_id(db, document_id)
     if not doc:
@@ -350,6 +376,9 @@ async def link_patient(
                 detail=f"Patient with ID '{request.patient_id}' not found."
             )
         patient_id = request.patient_id
+        
+    # Verify the user has access to the target patient
+    AuthorizationService.assert_can_access_patient(http_request.state.user, patient_id, Operation.WRITE)
         
     doc.patient_id = patient_id
     from app.models.document import DocumentStatus

@@ -178,8 +178,8 @@ def generate_answer(db: Session, patient_id: str, question: str, user_id: str, c
         conversation = db.query(RAGConversation).filter(RAGConversation.id == conversation_id).first()
         if not conversation or conversation.patient_id != patient_id or conversation.user_id != str(user_id):
             # Strict isolation requirement: if conversation does not match user and patient, deny access
-            from app.core.patient_access_guard import AccessDeniedError
-            raise AccessDeniedError("Invalid conversation ID for this patient and user.")
+            from fastapi import HTTPException
+            raise HTTPException(status_code=403, detail="Invalid conversation ID for this patient and user.")
     else:
         conversation = RAGConversation(patient_id=patient_id, user_id=str(user_id), turns=[])
         db.add(conversation)

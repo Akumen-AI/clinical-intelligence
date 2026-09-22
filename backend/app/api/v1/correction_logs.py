@@ -3,6 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_async_db
+from app.database import get_db
+from sqlalchemy.orm import Session
 from app.core.security import User
 from app.schemas.correction_log import (
     CorrectionLogCreate,
@@ -10,6 +12,7 @@ from app.schemas.correction_log import (
     ExportBatchResponse,
 )
 from app.services.correction_log_service import CorrectionLogService
+from app.core.authorization import AuthorizationService, Operation
 
 router = APIRouter(
     prefix="/correction-logs",
@@ -26,8 +29,11 @@ async def create_correction_log(
     payload: CorrectionLogCreate,
     db: AsyncSession = Depends(get_async_db),
     request: Request = None,
+    sync_db: Session = Depends(get_db),
 ):
     current_user = request.state.user
+    AuthorizationService.assert_can_access_document(sync_db, current_user, str(payload.document_id), Operation.WRITE)
+    
     service = CorrectionLogService()
     log = await service.log_correction(
         db=db,
@@ -48,6 +54,7 @@ async def export_retraining_logs_post(
     limit: int = Query(default=1000, ge=1, le=10000),
     db: AsyncSession = Depends(get_async_db),
 ):
+    AuthorizationService.assert_can_access_audit_logs(request.state.user)
     service = CorrectionLogService()
     return await service.export_for_retraining(db, limit=limit, actor_user_id=request.state.user.id)
 
@@ -62,6 +69,7 @@ async def export_retraining_logs_get(
     limit: int = Query(default=1000, ge=1, le=10000),
     db: AsyncSession = Depends(get_async_db),
 ):
+    AuthorizationService.assert_can_access_audit_logs(request.state.user)
     service = CorrectionLogService()
     return await service.export_for_retraining(db, limit=limit, actor_user_id=request.state.user.id)
 
@@ -73,8 +81,11 @@ async def export_retraining_logs_get(
 )
 async def get_document_correction_logs(
     document_id: uuid.UUID,
+    request: Request,
     db: AsyncSession = Depends(get_async_db),
+    sync_db: Session = Depends(get_db),
 ):
+    AuthorizationService.assert_can_access_document(sync_db, request.state.user, str(document_id), Operation.READ)
     service = CorrectionLogService()
     return await service.get_logs_for_document(db, document_id)
 
@@ -86,7 +97,9 @@ async def get_document_correction_logs(
 )
 async def get_correction_log(
     log_id: uuid.UUID,
+    request: Request,
     db: AsyncSession = Depends(get_async_db),
+    sync_db: Session = Depends(get_db),
 ):
     service = CorrectionLogService()
     log = await service.get_log_by_id(db, log_id)
@@ -95,4 +108,5 @@ async def get_correction_log(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Correction log '{log_id}' not found",
         )
+    AuthorizationService.assert_can_access_document(sync_db, request.state.user, str(log.document_id), Operation.READ)
     return log

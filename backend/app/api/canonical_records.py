@@ -5,7 +5,8 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from sqlalchemy.orm import Session
-from app.core.patient_access_guard import RbacAccessGuard, AccessDeniedError
+from app.core.authorization import AuthorizationService, ResourceType, Operation
+from fastapi import HTTPException
 
 from app.database import get_db
 from app.models.canonical_patient_record import CanonicalPatientRecord
@@ -65,8 +66,8 @@ def list_canonical_records(
     their source document and extracted field metadata.
     """
     try:
-        RbacAccessGuard().assert_can_query_patient(http_request.state.user, patient_id)
-    except AccessDeniedError as e:
+        AuthorizationService.assert_can_access_patient(http_request.state.user, patient_id)
+    except HTTPException as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
 
     query = (
@@ -143,8 +144,8 @@ def get_canonical_record(
     canonical, doc, field = result
     
     try:
-        RbacAccessGuard().assert_can_query_patient(http_request.state.user, doc.patient_id if doc else None)
-    except AccessDeniedError as e:
+        AuthorizationService.assert_can_access_patient(http_request.state.user, doc.patient_id if doc else None)
+    except HTTPException as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
         
     return _build_response(canonical, doc, field)

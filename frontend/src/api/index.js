@@ -115,10 +115,8 @@ export const submitReviewAction = async (reviewId, action, correctedValue = null
  */
 export const getReviewImageUrl = (reviewId, fullPage = false) => {
   const base = API_BASE_URL.replace(/\/$/, '');
-  const token = localStorage.getItem('token') || '';
   const qs = new URLSearchParams();
   if (fullPage) qs.append('full_page', 'true');
-  if (token) qs.append('token', token);
   const qsStr = qs.toString();
   return `${base}/review/pending/${reviewId}/image${qsStr ? '?' + qsStr : ''}`;
 };
@@ -137,13 +135,10 @@ export const getDocumentStaticUrl = (rawUri) => {
   return `${apiOrigin}${relative}`;
 };
 
-/** Returns the browser-accessible URL for the original uploaded document. */
 export const getDocumentFileUrl = (documentId) => {
   if (!documentId) return null;
   const base = API_BASE_URL.replace(/\/$/, '');
-  const token = localStorage.getItem('token') || '';
-  const qs = token ? `?token=${token}` : '';
-  return `${base}/documents/${documentId}/file${qs}`;
+  return `${base}/documents/${documentId}/file`;
 };
 
 export const fetchThresholdConfig = async () => {
