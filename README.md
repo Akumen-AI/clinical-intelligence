@@ -41,6 +41,9 @@ An enterprise-grade clinical document intake, computer vision preprocessing, dua
 - **Authentication & Role-Based Access Control (RBAC)**  
   Secure JWT-based authentication enforcing granular access control with distinct roles (e.g., Doctor, Nurse, Admin, IT, Compliance). Includes strict controls for patient data access tailored by user roles.
 
+- **Portfolio-Grade Security & Unified Authorization**  
+  Features a dedicated, server-side `AuthorizationService` that acts as a unified guardrail across all endpoints (patients, reports, uploads). Enforces strict record-level access constraints without relying on LLM decisions for auth. Includes zero-leak generic exception handling to prevent stack trace disclosures in production.
+
 - **Comprehensive Audit Logging & Correction Tracking**  
   Centralized logging of critical actions (authentication, document uploads, patient access, configuration changes) and a correction log for tracking manual overrides to extracted clinical fields.
 
@@ -194,7 +197,7 @@ clinical-intelligence/
 | **Security & Auth** | JWT Authentication, Role-Based Access Control (RBAC) |
 | **Database Migrations** | [Alembic](https://alembic.sqlalchemy.org/) |
 | **Frontend SPA** | React 18, Vite 5, Tailwind CSS, Lucide Icons, Axios |
-| **Testing** | Pytest, Pytest-Mock |
+| **Testing** | Pytest, Pytest-Mock (350+ robust automated tests ensuring stable integration & strict security checks) |
 
 ---
 
@@ -353,7 +356,7 @@ The platform enforces strict Role-Based Access Control (RBAC) at both the API ro
 | **Compliance** | Access to system-wide audit logs and policy management (uploading policies). |
 
 ### Patient-Level Access Guardrails
-Beyond endpoint-level role protection, the system enforces **record-level access controls** for clinical roles (`Doctor`, `Nurse`). If an authenticated clinical user attempts to access a patient record, document, or RAG context panel for a patient not explicitly bound to their access list, the `RbacAccessGuard` rejects the request with a `403 Forbidden` error.
+Beyond endpoint-level role protection, the system enforces **record-level access controls** for clinical roles (`Doctor`, `Nurse`). A unified, server-side `AuthorizationService` acts as a strict guardrail across all data access endpoints. If an authenticated clinical user attempts to access a patient record, document, report, or RAG context panel for a patient not explicitly bound to their access list, the service immediately rejects the request with a `403 Forbidden` error, securely logging the unauthorized attempt without leaking system internals.
 
 ---
 

@@ -16,6 +16,15 @@ class ValidationService:
     """
     
     @staticmethod
+    def _malware_scan(file_bytes: bytes) -> None:
+        """
+        Stub for pluggable malware scanning.
+        In a production environment, this could integrate with ClamAV or similar.
+        """
+        # Placeholder for malware scan logic
+        pass
+
+    @staticmethod
     async def validate_file(file: UploadFile) -> Tuple[bytes, str]:
         """
         Reads file content asynchronously and performs extension, MIME, size,
@@ -29,6 +38,10 @@ class ValidationService:
         file_bytes = await file.read()
         file.file.seek(0)
         
+        # 1. Pluggable Malware Scan (Stub)
+        ValidationService._malware_scan(file_bytes)
+        
+        # 2. Size, Extension, MIME, and Corruption Checks
         ext = detect_corruption(file_bytes, filename, content_type)
         return file_bytes, ext
 

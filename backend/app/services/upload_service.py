@@ -9,9 +9,12 @@ from sqlalchemy.orm import Session
 from app.models.document import Document, DocumentStatus
 from app.services.validation_service import ValidationService
 from app.utils.validators import FileValidationError
+from app.services.storage_provider import LocalStorageProvider
 
 ALLOWED_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "tiff"}
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads")
+storage_provider = LocalStorageProvider(UPLOAD_DIR)
+
 
 def ensure_upload_directory_exists(directory_path: str = UPLOAD_DIR) -> str:
     os.makedirs(directory_path, exist_ok=True)
@@ -26,22 +29,14 @@ def get_file_extension(filename: str) -> str:
     return filename.rsplit(".", 1)[1].lower()
 
 def get_safe_filename(document_id: str, original_filename: str) -> str:
-    base_filename = os.path.basename(original_filename) if original_filename else ""
-    safe_filename_part = base_filename.replace("..", "").replace("/", "").replace("\\", "")
-    if not safe_filename_part:
-        safe_filename_part = "unnamed_file"
-    return f"{document_id}_{safe_filename_part}"
+    ext = get_file_extension(original_filename)
+    return f"{document_id}.{ext}" if ext else document_id
 
 def save_file(file: UploadFile, document_id: str, target_dir: str = UPLOAD_DIR) -> Tuple[str, str]:
-    ensure_upload_directory_exists(target_dir)
-    
     safe_filename = get_safe_filename(document_id, file.filename)
-    filepath = os.path.join(target_dir, safe_filename)
     
     try:
-        file.file.seek(0)
-        with open(filepath, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        filepath = storage_provider.save(file, safe_filename)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -359,21 +354,19 @@ def delete_document(db: Session, document_id: str) -> bool:
 
     # Remove raw file
     if doc.raw_uri:
-        raw_path = doc.raw_uri if os.path.isabs(doc.raw_uri) else os.path.join(backend_dir, doc.raw_uri)
-        if os.path.exists(raw_path):
-            try:
-                os.remove(raw_path)
-            except Exception as e:
-                print(f"[Delete Document] Failed to remove raw file {raw_path}: {e}")
+        filename = os.path.basename(doc.raw_uri)
+        try:
+            storage_provider.delete(filename)
+        except Exception as e:
+            print(f"[Delete Document] Failed to remove raw file {filename}: {e}")
 
     # Remove processed file
     if doc.processed_uri:
-        processed_path = doc.processed_uri if os.path.isabs(doc.processed_uri) else os.path.join(backend_dir, doc.processed_uri)
-        if os.path.exists(processed_path):
-            try:
-                os.remove(processed_path)
-            except Exception as e:
-                print(f"[Delete Document] Failed to remove processed file {processed_path}: {e}")
+        filename = os.path.basename(doc.processed_uri)
+        try:
+            storage_provider.delete(filename)
+        except Exception as e:
+            print(f"[Delete Document] Failed to remove processed file {filename}: {e}")
 
     # Clean up any other files in UPLOAD_DIR associated with this document_id
     if os.path.exists(UPLOAD_DIR):
@@ -434,19 +427,17 @@ def delete_all_documents(db: Session) -> int:
 
     for doc in docs:
         if doc.raw_uri:
-            raw_path = doc.raw_uri if os.path.isabs(doc.raw_uri) else os.path.join(backend_dir, doc.raw_uri)
-            if os.path.exists(raw_path):
-                try:
-                    os.remove(raw_path)
-                except Exception as e:
-                    print(f"[Delete All Documents] Failed to remove raw file {raw_path}: {e}")
+            filename = os.path.basename(doc.raw_uri)
+            try:
+                storage_provider.delete(filename)
+            except Exception as e:
+                print(f"[Delete All Documents] Failed to remove raw file {filename}: {e}")
         if doc.processed_uri:
-            processed_path = doc.processed_uri if os.path.isabs(doc.processed_uri) else os.path.join(backend_dir, doc.processed_uri)
-            if os.path.exists(processed_path):
-                try:
-                    os.remove(processed_path)
-                except Exception as e:
-                    print(f"[Delete All Documents] Failed to remove processed file {processed_path}: {e}")
+            filename = os.path.basename(doc.processed_uri)
+            try:
+                storage_provider.delete(filename)
+            except Exception as e:
+                print(f"[Delete All Documents] Failed to remove processed file {filename}: {e}")
 
     # Clean up any remaining files in UPLOAD_DIR (preserving .gitkeep)
     if os.path.exists(UPLOAD_DIR):

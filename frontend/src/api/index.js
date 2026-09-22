@@ -141,6 +141,18 @@ export const getDocumentFileUrl = (documentId) => {
   return `${base}/documents/${documentId}/file`;
 };
 
+export const fetchDocumentFileBlob = async (documentId) => {
+  const response = await apiClient.get(`/documents/${documentId}/file`, { responseType: 'blob' });
+  return response.data;
+};
+
+export const fetchReviewImageBlob = async (reviewId, fullPage = false) => {
+  const params = fullPage ? { full_page: true } : {};
+  const response = await apiClient.get(`/review/pending/${reviewId}/image`, { params, responseType: 'blob' });
+  return response.data;
+};
+
+
 export const fetchThresholdConfig = async () => {
   const response = await apiClient.get('/review/config/threshold');
   return response.data;

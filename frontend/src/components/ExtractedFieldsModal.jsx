@@ -16,7 +16,7 @@ import {
   CheckCircle2, 
   Sparkles 
 } from 'lucide-react';
-import { fetchDocumentFields, extractDocumentFields, getDocumentFileUrl } from '../api';
+import { fetchDocumentFields, extractDocumentFields, fetchDocumentFileBlob } from '../api';
 
 export default function ExtractedFieldsModal({ document: doc, onClose, onRefreshRequired }) {
   const [data, setData] = useState(null);
@@ -25,6 +25,27 @@ export default function ExtractedFieldsModal({ document: doc, onClose, onRefresh
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('json'); // 'json' or 'summary'
   const [copied, setCopied] = useState(false);
+  const [docUrl, setDocUrl] = useState(null);
+
+  useEffect(() => {
+    if (!doc?.document_id) return;
+    let cancelled = false;
+    fetchDocumentFileBlob(doc.document_id)
+      .then(blob => {
+        if (!cancelled) setDocUrl(URL.createObjectURL(blob));
+      })
+      .catch(err => console.error("Failed to fetch document file blob", err));
+      
+    return () => {
+      cancelled = true;
+    };
+  }, [doc?.document_id]);
+  
+  useEffect(() => {
+    return () => {
+      if (docUrl) URL.revokeObjectURL(docUrl);
+    };
+  }, [docUrl]);
 
   useEffect(() => {
     if (!doc) return;
@@ -224,10 +245,10 @@ export default function ExtractedFieldsModal({ document: doc, onClose, onRefresh
                         <span className="source-file-eyebrow">Original upload</span>
                         <strong>{doc.filename}</strong>
                       </div>
-                      {doc.raw_uri && (
+                      {doc.raw_uri && docUrl && (
                         <a
                           className="source-file-open"
-                          href={getDocumentFileUrl(doc.document_id)}
+                          href={docUrl}
                           target="_blank"
                           rel="noreferrer"
                         >
@@ -237,18 +258,25 @@ export default function ExtractedFieldsModal({ document: doc, onClose, onRefresh
                     </div>
                     <div className="source-file-viewport">
                       {doc.raw_uri ? (
-                        (doc.filetype || '').toLowerCase() === 'pdf' || doc.filename?.toLowerCase().endsWith('.pdf') ? (
-                          <iframe
-                            title={`Original uploaded file: ${doc.filename}`}
-                            src={getDocumentFileUrl(doc.document_id)}
-                            className="source-file-pdf"
-                          />
+                        docUrl ? (
+                          (doc.filetype || '').toLowerCase() === 'pdf' || doc.filename?.toLowerCase().endsWith('.pdf') ? (
+                            <iframe
+                              title={`Original uploaded file: ${doc.filename}`}
+                              src={docUrl}
+                              className="source-file-pdf"
+                            />
+                          ) : (
+                            <img
+                              src={docUrl}
+                              alt={`Original uploaded file: ${doc.filename}`}
+                              className="source-file-image"
+                            />
+                          )
                         ) : (
-                          <img
-                            src={getDocumentFileUrl(doc.document_id)}
-                            alt={`Original uploaded file: ${doc.filename}`}
-                            className="source-file-image"
-                          />
+                          <div className="source-file-empty">
+                            <RefreshCw size={24} className="spin" style={{ opacity: 0.5 }} />
+                            <span style={{ marginTop: '0.5rem' }}>Loading document...</span>
+                          </div>
                         )
                       ) : (
                         <div className="source-file-empty">
@@ -348,18 +376,25 @@ export default function ExtractedFieldsModal({ document: doc, onClose, onRefresh
                     <span className="source-file-eyebrow">Original upload</span>
                     <strong>{doc.filename}</strong>
                   </div>
-                  {doc.raw_uri && (
-                    <a className="source-file-open" href={getDocumentFileUrl(doc.document_id)} target="_blank" rel="noreferrer">
+                  {doc.raw_uri && docUrl && (
+                    <a className="source-file-open" href={docUrl} target="_blank" rel="noreferrer">
                       Open
                     </a>
                   )}
                 </div>
                 <div className="source-file-viewport">
                   {doc.raw_uri ? (
-                    (doc.filetype || '').toLowerCase() === 'pdf' || doc.filename?.toLowerCase().endsWith('.pdf') ? (
-                      <iframe title={`Original uploaded file: ${doc.filename}`} src={getDocumentFileUrl(doc.document_id)} className="source-file-pdf" />
+                    docUrl ? (
+                      (doc.filetype || '').toLowerCase() === 'pdf' || doc.filename?.toLowerCase().endsWith('.pdf') ? (
+                        <iframe title={`Original uploaded file: ${doc.filename}`} src={docUrl} className="source-file-pdf" />
+                      ) : (
+                        <img src={docUrl} alt={`Original uploaded file: ${doc.filename}`} className="source-file-image" />
+                      )
                     ) : (
-                      <img src={getDocumentFileUrl(doc.document_id)} alt={`Original uploaded file: ${doc.filename}`} className="source-file-image" />
+                      <div className="source-file-empty">
+                        <RefreshCw size={24} className="spin" style={{ opacity: 0.5 }} />
+                        <span style={{ marginTop: '0.5rem' }}>Loading document...</span>
+                      </div>
                     )
                   ) : (
                     <div className="source-file-empty"><FileText size={30} /><span>Original file unavailable</span></div>

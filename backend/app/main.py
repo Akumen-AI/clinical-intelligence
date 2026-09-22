@@ -145,8 +145,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve uploaded documents statically
-app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
+# (Public static file access has been removed for security. Access files via authenticated API endpoints)
 
 # Include routers
 

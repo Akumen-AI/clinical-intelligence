@@ -180,23 +180,26 @@ async def get_upload_logs(
 
 @router.get("/{document_id}/file", include_in_schema=False)
 async def get_document_file(document_id: str, request: Request, db: Session = Depends(get_db)):
-    """Stream the original uploaded file through an HTTP URL for the reviewer UI."""
+    """Stream the original uploaded file securely."""
     AuthorizationService.assert_can_access_document(db, request.state.user, document_id, Operation.READ)
     doc = upload_service.get_document_by_id(db, document_id)
-    if not doc:
+    if not doc or not doc.raw_uri:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
-    raw_path = doc.raw_uri
-    if not os.path.isabs(raw_path):
-        backend_root = os.path.dirname(upload_service.UPLOAD_DIR)
-        raw_path = os.path.join(backend_root, raw_path)
-    raw_path = os.path.abspath(raw_path)
-    upload_root = os.path.abspath(upload_service.UPLOAD_DIR)
-    if os.path.commonpath([raw_path, upload_root]) != upload_root or not os.path.isfile(raw_path):
+    filename = os.path.basename(doc.raw_uri)
+    filepath = upload_service.storage_provider.get_path(filename)
+    if not filepath:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Original file is unavailable")
 
-    media_type = mimetypes.guess_type(doc.filename or raw_path)[0] or "application/octet-stream"
-    return FileResponse(raw_path, media_type=media_type)
+    media_type = mimetypes.guess_type(doc.filename or filepath)[0] or "application/octet-stream"
+    
+    headers = {
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0",
+        "Content-Disposition": f'inline; filename="{doc.filename}"'
+    }
+    return FileResponse(filepath, media_type=media_type, headers=headers)
 
 @router.get("", response_model=List[DocumentResponse])
 async def list_documents(

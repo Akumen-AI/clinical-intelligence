@@ -47,16 +47,13 @@ def _upload_base_dir() -> str:
 
 
 def _resolve_doc_path(raw_uri: str) -> str:
-    """Convert a raw_uri like 'uploads/xyz_file.png' to an absolute filesystem path."""
-    uploads_dir = _upload_base_dir()
-    # raw_uri may be 'uploads/<filename>' or an absolute path
-    if os.path.isabs(raw_uri):
-        return raw_uri
-    # Strip leading 'uploads/' prefix if present
-    relative = raw_uri.lstrip("/")
-    if relative.startswith("uploads/"):
-        relative = relative[len("uploads/"):]
-    return os.path.join(uploads_dir, relative)
+    """Convert a raw_uri to an absolute filesystem path using StorageProvider."""
+    from app.services import upload_service
+    filename = os.path.basename(raw_uri)
+    path = upload_service.storage_provider.get_path(filename)
+    if not path:
+        raise FileNotFoundError(f"Document file not found: {filename}")
+    return path
 
 
 def _render_document_image(raw_uri: str, filetype: str) -> Image.Image:
@@ -330,7 +327,12 @@ def get_review_image(
     result_img.save(buf, format="JPEG", quality=88, optimize=True)
     buf.seek(0)
 
-    return StreamingResponse(buf, media_type="image/jpeg")
+    headers = {
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    }
+    return StreamingResponse(buf, media_type="image/jpeg", headers=headers)
 
 
 @router.patch(

@@ -18,8 +18,8 @@ import {
   fetchPendingReviews,
   fetchReviewContext,
   submitReviewAction,
-  getReviewImageUrl,
-  getDocumentStaticUrl,
+  fetchReviewImageBlob,
+  fetchDocumentFileBlob,
   fetchDocuments,
 } from '../api';
 
@@ -135,39 +135,17 @@ export default function ReviewQueuePage() {
   useEffect(() => {
     if (!currentItem) {
       setContext(null);
-      setImgSrc(null);
       return;
     }
 
     let cancelled = false;
-
     const loadContext = async () => {
       setIsLoadingContext(true);
-      setContext(null);
-      setImgLoaded(false);
-      setImgError(false);
       try {
         const ctx = await fetchReviewContext(currentItem.id);
-        if (!cancelled) {
-          setContext(ctx);
-          const imageUrl = getReviewImageUrl(currentItem.id, showFullPage);
-          setImgSrc(imageUrl);
-        }
+        if (!cancelled) setContext(ctx);
       } catch (err) {
-        if (!cancelled) {
-          if (currentItem.document_id) {
-            try {
-              const fallbackCtx = await fetchReviewContext(currentItem.id);
-              if (!cancelled && fallbackCtx?.raw_uri) {
-                setContext(fallbackCtx);
-                setImgSrc(getDocumentStaticUrl(fallbackCtx.raw_uri));
-              }
-            } catch (_) {
-              setContext(null);
-              setImgSrc(null);
-            }
-          }
-        }
+        if (!cancelled) setContext(null);
       } finally {
         if (!cancelled) setIsLoadingContext(false);
       }
@@ -175,14 +153,51 @@ export default function ReviewQueuePage() {
 
     loadContext();
     return () => { cancelled = true; };
-  }, [currentItem?.id, showFullPage]);
+  }, [currentItem?.id]);
 
   useEffect(() => {
-    if (currentItem) {
-      setImgLoaded(false);
-      setImgSrc(getReviewImageUrl(currentItem.id, showFullPage));
+    if (!currentItem) {
+      setImgSrc(null);
+      return;
     }
-  }, [showFullPage]);
+
+    let cancelled = false;
+    setImgLoaded(false);
+    setImgError(false);
+
+    setImgSrc((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return null;
+    });
+
+    const loadImage = async () => {
+      try {
+        const blob = await fetchReviewImageBlob(currentItem.id, showFullPage);
+        if (!cancelled) {
+          setImgSrc(URL.createObjectURL(blob));
+        }
+      } catch (err) {
+        if (!cancelled) {
+          if (currentItem.document_id) {
+            try {
+              const blob = await fetchDocumentFileBlob(currentItem.document_id);
+              if (!cancelled) {
+                setImgSrc(URL.createObjectURL(blob));
+              }
+            } catch (_) {
+              if (!cancelled) setImgError(true);
+            }
+          } else {
+            setImgError(true);
+          }
+        }
+      }
+    };
+
+    loadImage();
+
+    return () => { cancelled = true; };
+  }, [currentItem?.id, showFullPage]);
 
   const showToast = (msg, type = 'success') => {
     setToastMsg({ msg, type });
