@@ -54,7 +54,6 @@ class PendingReviewContextResponse(BaseModel):
 
 class ReviewActionRequest(BaseModel):
     action: Literal["approve", "reject"]
-    reviewer_id: Optional[str] = None
     corrected_value: Optional[str] = None  # When set on approve, writes this value instead of extracted_value
 
 

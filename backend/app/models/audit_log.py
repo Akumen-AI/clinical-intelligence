@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, DateTime, TypeDecorator
+from sqlalchemy import String, DateTime, TypeDecorator, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -35,3 +35,6 @@ class AuditLogEntry(Base):
     patient_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     rationale: Mapped[str | None] = mapped_column(String, nullable=True)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
+    correlation_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    outcome: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    context: Mapped[dict | None] = mapped_column(JSON, nullable=True)

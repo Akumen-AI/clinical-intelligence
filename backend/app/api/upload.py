@@ -443,13 +443,17 @@ async def link_patient(
         action_type="document_linked_to_patient",
         target_entity=f"document:{doc.document_id}",
         patient_id=patient_id,
-        rationale=f"Document linked to {'new' if request.create_new else 'existing'} patient"
+        rationale=f"Document linked to {'new' if request.create_new else 'existing'} patient",
+        outcome="success"
     )
-    audit_service.backfill_patient_id_for_document(db, doc.document_id, patient_id)
-    
     # Trigger RAG Indexing in the background
     from app.tasks.rag_tasks import index_document_task
-    background_tasks.add_task(index_document_task, doc.document_id)
+    background_tasks.add_task(
+        index_document_task,
+        doc.document_id,
+        getattr(http_request.state, "correlation_id", None),
+        str(http_request.state.user.id)
+    )
     
     return {"message": f"Document '{document_id}' linked to patient '{patient_id}' successfully.", "patient_id": patient_id}
 

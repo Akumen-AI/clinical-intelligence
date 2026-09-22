@@ -60,7 +60,19 @@ from app.core.rbac import check_rbac
 from app.services.upload_service import ensure_upload_directory_exists
 
 from fastapi.responses import JSONResponse, FileResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+import uuid
+from app.core.context import set_correlation_id
 
+class CorrelationIdMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        correlation_id = request.headers.get("X-Correlation-ID", str(uuid.uuid4()))
+        set_correlation_id(correlation_id)
+        # Store in request state for convenient access if needed
+        request.state.correlation_id = correlation_id
+        response = await call_next(request)
+        response.headers["X-Correlation-ID"] = correlation_id
+        return response
 
 # Create database tables automatically on startup
 Base.metadata.create_all(bind=engine)
@@ -144,6 +156,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(CorrelationIdMiddleware)
 
 # (Public static file access has been removed for security. Access files via authenticated API endpoints)
 

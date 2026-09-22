@@ -8,11 +8,17 @@ from app.services.rag_service import index_document
 
 logger = logging.getLogger("app.tasks.rag_tasks")
 
-def index_document_task(document_id: str):
+def index_document_task(document_id: str, correlation_id: str | None = None, actor_id: str | None = None):
     """
     Background task to index a document for RAG after it is linked to a patient.
     Uses verified extracted fields and canonical patient records.
     """
+    from app.core.context import set_correlation_id, set_actor_id
+    import uuid
+    if correlation_id:
+        set_correlation_id(correlation_id)
+    if actor_id:
+        set_actor_id(uuid.UUID(actor_id))
     db = SessionLocal()
     try:
         doc = db.query(Document).filter(Document.document_id == document_id).first()

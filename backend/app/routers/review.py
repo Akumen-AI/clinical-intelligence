@@ -400,9 +400,10 @@ def review_pending_field(
                     action_type="document_linked_to_patient",
                     target_entity=f"document:{doc.document_id}",
                     patient_id=doc.patient_id,
-                    rationale="Document linked to patient via review correction"
+                    rationale="Document linked to patient via review correction",
+                    outcome="success",
+                    context={"patient_id": doc.patient_id}
                 )
-                audit_service.backfill_patient_id_for_document(db, doc.document_id, doc.patient_id)
         else:
             # Use corrected value when reviewer edited, otherwise fall back to extracted
             value_to_write = (
@@ -422,8 +423,7 @@ def review_pending_field(
     elif payload.action == "reject":
         review_rec.status = ReviewStatus.REJECTED
 
-    if payload.reviewer_id:
-        review_rec.reviewer_id = payload.reviewer_id
+    review_rec.reviewer_id = str(http_request.state.user.id)
 
     review_rec.reviewed_at = datetime.now(timezone.utc)
     db.commit()
@@ -445,13 +445,19 @@ def review_pending_field(
         action_type=f"review_{payload.action}",
         target_entity=f"pending_review:{review_rec.id}",
         patient_id=doc.patient_id if doc else None,
-        rationale=f"Reviewer {payload.action}ed field '{review_rec.field_name}'"
+        rationale=f"Reviewer {payload.action}ed field '{review_rec.field_name}'",
+        outcome="success",
+        context={"field_name": review_rec.field_name, "corrected_value": payload.corrected_value}
     )
 
-    # Trigger background indexing if document is already linked to a patient
     if doc and doc.patient_id:
         from app.tasks.rag_tasks import index_document_task
-        background_tasks.add_task(index_document_task, doc.document_id)
+        background_tasks.add_task(
+            index_document_task,
+            doc.document_id,
+            getattr(http_request.state, "correlation_id", None),
+            str(http_request.state.user.id)
+        )
 
     return PendingReviewResponse.model_validate(review_rec)
 

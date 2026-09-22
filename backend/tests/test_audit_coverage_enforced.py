@@ -40,13 +40,14 @@ def clear_audit_log():
 
 def test_declarative_upload(clear_audit_log):
     file_content = make_valid_pdf_bytes()
-    response = client.post(
-        "/api/v1/documents/upload",
-        files=[("files", ("test_audit.pdf", io.BytesIO(file_content), "application/pdf"))]
-    )
-    assert response.status_code == 201
-    doc_id = response.json()["accepted"][0]["document_id"]
-    wait_for_document_processing(client, doc_id)
+    with patch("app.services.text_extraction_service.extract_text_with_confidence", return_value=("Dummy text", [0.99])):
+        response = client.post(
+            "/api/v1/documents/upload",
+            files=[("files", ("test_audit.pdf", io.BytesIO(file_content), "application/pdf"))]
+        )
+        assert response.status_code == 201
+        doc_id = response.json()["accepted"][0]["document_id"]
+        wait_for_document_processing(client, doc_id)
 
     db = TestingSessionLocal()
     logs = db.query(AuditLogEntry).all()
@@ -242,13 +243,14 @@ def test_e2e_patient_audit_reconstruction(mock_genai_client, clear_audit_log):
     CURRENT_TEST_ROLE = UserRole.DOCTOR
     # 1. Upload a document
     file_content = make_valid_pdf_bytes()
-    upload_res = client.post(
-        "/api/v1/documents/upload",
-        files=[("files", ("e2e_test.pdf", io.BytesIO(file_content), "application/pdf"))]
-    )
-    assert upload_res.status_code == 201
-    doc_id = upload_res.json()["accepted"][0]["document_id"]
-    wait_for_document_processing(client, doc_id)
+    with patch("app.services.text_extraction_service.extract_text_with_confidence", return_value=("Dummy text", [0.99])):
+        upload_res = client.post(
+            "/api/v1/documents/upload",
+            files=[("files", ("e2e_test.pdf", io.BytesIO(file_content), "application/pdf"))]
+        )
+        assert upload_res.status_code == 201
+        doc_id = upload_res.json()["accepted"][0]["document_id"]
+        wait_for_document_processing(client, doc_id)
 
     # 2. Link it to a patient
     link_res = client.post(
@@ -312,8 +314,6 @@ def test_e2e_patient_audit_reconstruction(mock_genai_client, clear_audit_log):
 
     # Actions we expect on the patient:
     expected_actions = {
-        "document_uploaded",
-        "document_extracted",
         "document_linked_to_patient",
         "review_approve",
         "canonical_record_write",

@@ -85,16 +85,6 @@ def process_document(db: Session, document_id: str, actor_user_id: Optional[uuid
             print(f"[Epic 1.2 Hook Error] Document ID '{document_id}' not found in database.")
             return
 
-        if actor_user_id:
-            audit_service.write_entry(
-                db=db,
-                actor_user_id=actor_user_id,
-                action_type="document_extracted",
-                target_entity=f"document:{document_id}",
-                patient_id=doc.patient_id if doc else None,
-                rationale="Started preprocessing and extraction"
-            )
-            
         print(f"[Epic 1.2 Hook Triggered] Document ID '{document_id}' is queued for preprocessing.")
 
         doc.status = DocumentStatus.PREPROCESSING.value
@@ -251,6 +241,20 @@ def process_document(db: Session, document_id: str, actor_user_id: Optional[uuid
                 actor_user_id=actor_user_id,
             )
             print(f"[Epic 2.2 Hook Success] Key fields extracted and persisted for {doc.document_id}")
+            if actor_user_id:
+                audit_service.write_entry(
+                    db=db,
+                    actor_user_id=actor_user_id,
+                    action_type="document_extracted",
+                    target_entity=f"document:{document_id}",
+                    patient_id=doc.patient_id if doc else None,
+                    rationale="Successfully extracted document fields",
+                    outcome="success",
+                    context={
+                        "provider": provider if 'provider' in locals() else "unknown",
+                        "model": model_name if 'model_name' in locals() else "unknown"
+                    }
+                )
 
             # --- Post-process: apply illegible flags from handwriting extraction ---
             if handwriting_result and handwriting_result.illegible_fields:
@@ -283,7 +287,20 @@ def process_document(db: Session, document_id: str, actor_user_id: Optional[uuid
 
         except Exception as e:
             import traceback; traceback.print_exc(); print(f"[Epic 2.2 Extraction Warning] Field extraction encountered an issue: {e}")
-
+            if actor_user_id:
+                audit_service.write_entry(
+                    db=db,
+                    actor_user_id=actor_user_id,
+                    action_type="document_extracted",
+                    target_entity=f"document:{document_id}",
+                    patient_id=doc.patient_id if doc else None,
+                    rationale=f"Failed to extract document fields: {str(e)}",
+                    outcome="failure",
+                    context={
+                        "provider": provider if 'provider' in locals() else "unknown",
+                        "model": model_name if 'model_name' in locals() else "unknown"
+                    }
+                )
         # Reclaim any residual memory from preprocessing
         gc.collect()
     except Exception as exc:

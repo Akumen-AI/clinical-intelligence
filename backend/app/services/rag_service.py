@@ -294,6 +294,24 @@ Answer:"""
     flag_modified(conversation, "turns")
     db.commit()
     
+    import uuid
+    from app.services import audit_service
+    audit_service.write_entry(
+        db=db,
+        actor_user_id=user_id if isinstance(user_id, uuid.UUID) else uuid.UUID(str(user_id)),
+        action_type="rag_query",
+        target_entity=f"patient:{patient_id}",
+        patient_id=patient_id,
+        rationale="Patient record queried via RAG",
+        outcome="success",
+        context={
+            "query": question,
+            "citations": citations,
+            "provider": "google-genai",
+            "model": "gemini-3.5-flash"
+        }
+    )
+    
     return answer_text, citations, conversation.id
 
 
