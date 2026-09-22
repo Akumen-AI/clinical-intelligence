@@ -42,10 +42,10 @@ An enterprise-grade clinical document intake, computer vision preprocessing, dua
   Secure JWT-based authentication enforcing granular access control with distinct roles (e.g., Doctor, Nurse, Admin, IT, Compliance). Includes strict controls for patient data access tailored by user roles.
 
 - **Portfolio-Grade Security & Unified Authorization**  
-  Features a dedicated, server-side `AuthorizationService` that acts as a unified guardrail across all endpoints (patients, reports, uploads). Enforces strict record-level access constraints without relying on LLM decisions for auth. Includes zero-leak generic exception handling to prevent stack trace disclosures in production.
+  Features a dedicated, server-side `AuthorizationService` that acts as a unified guardrail across all endpoints (patients, reports, uploads). Enforces strict record-level access constraints without relying on LLM decisions for auth. Includes zero-leak generic exception handling, zero-trust local storage abstraction (`LocalStorageProvider`), and secure file serving with strict `Cache-Control` to prevent browser caching of PHI.
 
-- **Comprehensive Audit Logging & Correction Tracking**  
-  Centralized logging of critical actions (authentication, document uploads, patient access, configuration changes) and a correction log for tracking manual overrides to extracted clinical fields.
+- **Append-Only Audit Logging & Asynchronous Traceability**  
+  A centralized, immutable audit log that records all security-sensitive and AI-driven actions (authentication, document uploads, patient access, configuration changes) with exact models and outcomes. Integrates unique request `correlation_id`s through `contextvars` to seamlessly trace asynchronous background tasks back to the original authenticated user action. Includes a distinct correction log for tracking explicit manual overrides to extracted clinical fields.
 
 - **Clinical Policy Chatbot (RAG)**  
   AI-powered chatbot integrating internal policies via Retrieval-Augmented Generation (RAG) to answer operational and clinical policy queries based on the hospital's knowledge base.
