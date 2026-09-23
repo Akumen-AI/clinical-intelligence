@@ -36,3 +36,4 @@ celery>=5.3.0
 jellyfish>=1.0.0
 redis==8.1.0
 croniter
+slowapi>=0.1.9

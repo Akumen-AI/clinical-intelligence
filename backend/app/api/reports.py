@@ -31,8 +31,13 @@ def _persist_attempt(db: Session, current_user: User, payload: NaturalLanguageRe
     return record
 
 
+from app.core.rate_limit import limiter
+from fastapi import Request
+
 @router.post("/generate", response_model=NaturalLanguageReportResponse)
+@limiter.limit("5/minute")
 def generate_report_endpoint(
+    request: Request,
     payload: NaturalLanguageReportRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

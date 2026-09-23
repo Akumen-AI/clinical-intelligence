@@ -44,6 +44,13 @@ An enterprise-grade clinical document intake, computer vision preprocessing, dua
 - **Portfolio-Grade Security & Unified Authorization**  
   Features a dedicated, server-side `AuthorizationService` that acts as a unified guardrail across all endpoints (patients, reports, uploads). Enforces strict record-level access constraints without relying on LLM decisions for auth. Includes zero-leak generic exception handling, zero-trust local storage abstraction (`LocalStorageProvider`), and secure file serving with strict `Cache-Control` to prevent browser caching of PHI.
 
+- **Operational Visibility & Platform Hardening**  
+  Built for realistic concurrent use with robust infrastructure features:
+  - **Structured Observability:** Full application logging via `structlog` with JSON formatting and `X-Correlation-ID` tracing across background Celery tasks and API boundaries.
+  - **Abuse Protection:** Request rate limiting powered by `slowapi` on critical endpoints (Login, RAG, File Uploads) to prevent resource starvation.
+  - **Performance at Scale:** $O(N)$ patient duplicate detection, DB-side metrics aggregation (eliminating $N+1$ ORM queries), strict pagination (`skip`/`limit`), and `IndexHNSWFlat` FAISS vector stores. Includes SQLAlchemy schema indexes for frequently queried clinical tables.
+  - **Kubernetes-Ready Health Checks:** Dedicated liveness, database readiness, and queue depth endpoints (`/api/v1/health/*`).
+
 - **Append-Only Audit Logging & Asynchronous Traceability**  
   A centralized, immutable audit log that records all security-sensitive and AI-driven actions (authentication, document uploads, patient access, configuration changes) with exact models and outcomes. Integrates unique request `correlation_id`s through `contextvars` to seamlessly trace asynchronous background tasks back to the original authenticated user action. Includes a distinct correction log for tracking explicit manual overrides to extracted clinical fields.
 
@@ -439,6 +446,14 @@ All document routes are served under `/api/v1/documents`.
 | `POST` | `/api/v1/auth/login` | Authenticate and obtain JWT token for RBAC. |
 | `GET` | `/api/v1/audit-log` | Retrieve comprehensive audit logs for compliance monitoring. |
 | `GET` | `/api/v1/correction_logs` | Retrieve manual correction history on clinical records. |
+
+### Health Checks & Observability
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/v1/health/liveness` | Basic liveness probe to verify application is running. |
+| `GET` | `/api/v1/health/readiness` | Readiness probe to verify database and dependency connectivity. |
+| `GET` | `/api/v1/health/queue` | Deep health check on Redis and Celery worker background queue lengths. |
 
 ### Patient & Policy Endpoints
 

@@ -179,23 +179,36 @@ def get_readmission_rate_metric(db: Session, department: Optional[str], start_da
     if end_dt:
         discharge_query = discharge_query.filter(Visit.discharge_date < (end_dt + timedelta(days=1)))
     
-    discharges = discharge_query.all()
+    discharges = discharge_query.with_entities(Visit.visit_id, Visit.patient_id, Visit.discharge_date).all()
     
-    readmissions = 0
-    for d in discharges:
-        if not d.patient_id:
-            continue
-        readmission_query = (
-            db.query(Visit)
-            .filter(Visit.patient_id == d.patient_id)
-            .filter(Visit.visit_id != d.visit_id)
-            .filter(Visit.admission_date >= d.discharge_date)
-            .filter(Visit.admission_date <= (d.discharge_date + timedelta(days=30)))
-        )
-        if readmission_query.first():
-            readmissions += 1
-
     total_discharges = len(discharges)
+    readmissions = 0
+    
+    if total_discharges > 0:
+        patient_ids = list({d.patient_id for d in discharges if d.patient_id})
+        
+        # Fetch all admissions for these patients in one query
+        from collections import defaultdict
+        admissions_by_patient = defaultdict(list)
+        
+        if patient_ids:
+            all_admissions = db.query(Visit.patient_id, Visit.visit_id, Visit.admission_date).filter(
+                Visit.patient_id.in_(patient_ids),
+                Visit.admission_date.isnot(None)
+            ).all()
+            
+            for p_id, v_id, a_date in all_admissions:
+                admissions_by_patient[p_id].append((v_id, a_date))
+        
+        for d in discharges:
+            if not d.patient_id:
+                continue
+            
+            for v_id, a_date in admissions_by_patient.get(d.patient_id, []):
+                if v_id != d.visit_id and d.discharge_date <= a_date <= (d.discharge_date + timedelta(days=30)):
+                    readmissions += 1
+                    break
+
     rate = (readmissions / total_discharges * 100.0) if total_discharges else 0.0
     chart = [{"label": "30-day Readmissions", "value": readmissions}, {"label": "No Readmission", "value": total_discharges - readmissions}]
     return {
@@ -237,7 +250,7 @@ def get_average_stay_metric(db: Session, department: Optional[str], start_date: 
     if end_dt:
         query = query.filter(Visit.discharge_date < (end_dt + timedelta(days=1)))
     
-    visits = query.all()
+    visits = query.with_entities(Visit.admission_date, Visit.discharge_date).all()
     if not visits:
         return {
             "key": "average_stay",
@@ -249,7 +262,7 @@ def get_average_stay_metric(db: Session, department: Optional[str], start_date: 
             "available": True,
         }
     
-    total_days = sum(max((v.discharge_date - v.admission_date).days, 1) for v in visits)
+    total_days = sum(max((discharge - admission).days, 1) for admission, discharge in visits)
     avg_stay = total_days / len(visits)
     
     return {

@@ -1,3 +1,6 @@
+import structlog
+logger = structlog.get_logger(__name__)
+
 import os
 import gc
 import uuid
@@ -137,7 +140,7 @@ def delete_document(db: Session, document_id: str) -> bool:
         try:
             storage_provider.delete(filename)
         except Exception as e:
-            print(f"[Delete Document] Failed to remove raw file {filename}: {e}")
+            logger.info(f"[Delete Document] Failed to remove raw file {filename}: {e}")
 
     # Remove processed file
     if doc.processed_uri:
@@ -145,7 +148,7 @@ def delete_document(db: Session, document_id: str) -> bool:
         try:
             storage_provider.delete(filename)
         except Exception as e:
-            print(f"[Delete Document] Failed to remove processed file {filename}: {e}")
+            logger.info(f"[Delete Document] Failed to remove processed file {filename}: {e}")
 
     # Clean up any other files in UPLOAD_DIR associated with this document_id
     if os.path.exists(UPLOAD_DIR):
@@ -158,7 +161,7 @@ def delete_document(db: Session, document_id: str) -> bool:
                     try:
                         os.remove(full_path)
                     except Exception as e:
-                        print(f"[Delete Document] Failed to remove associated file {full_path}: {e}")
+                        logger.info(f"[Delete Document] Failed to remove associated file {full_path}: {e}")
 
     # Manually cascade delete associated database records
     try:
@@ -192,7 +195,7 @@ def delete_document(db: Session, document_id: str) -> bool:
         if doc.filename:
             db.query(UploadLog).filter(UploadLog.filename == doc.filename).delete(synchronize_session=False)
     except Exception as e:
-        print(f"[Delete Document] Failed to cascade delete related records: {e}")
+        logger.info(f"[Delete Document] Failed to cascade delete related records: {e}")
 
     db.delete(doc)
     db.commit()
@@ -210,13 +213,13 @@ def delete_all_documents(db: Session) -> int:
             try:
                 storage_provider.delete(filename)
             except Exception as e:
-                print(f"[Delete All Documents] Failed to remove raw file {filename}: {e}")
+                logger.info(f"[Delete All Documents] Failed to remove raw file {filename}: {e}")
         if doc.processed_uri:
             filename = os.path.basename(doc.processed_uri)
             try:
                 storage_provider.delete(filename)
             except Exception as e:
-                print(f"[Delete All Documents] Failed to remove processed file {filename}: {e}")
+                logger.info(f"[Delete All Documents] Failed to remove processed file {filename}: {e}")
 
     # Clean up any remaining files in UPLOAD_DIR (preserving .gitkeep)
     if os.path.exists(UPLOAD_DIR):
@@ -228,7 +231,7 @@ def delete_all_documents(db: Session) -> int:
                 try:
                     os.remove(full_path)
                 except Exception as e:
-                    print(f"[Delete All Documents] Failed to remove orphaned file {full_path}: {e}")
+                    logger.info(f"[Delete All Documents] Failed to remove orphaned file {full_path}: {e}")
 
     # Cascade delete all related database records
     try:
@@ -256,7 +259,7 @@ def delete_all_documents(db: Session) -> int:
         db.query(LayoutRegion).delete()
         db.query(UploadLog).delete()
     except Exception as e:
-        print(f"[Delete All Documents] Failed to cascade delete related records: {e}")
+        logger.info(f"[Delete All Documents] Failed to cascade delete related records: {e}")
 
     db.query(Document).delete()
     db.commit()

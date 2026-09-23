@@ -1,3 +1,6 @@
+import structlog
+logger = structlog.get_logger(__name__)
+
 import requests
 from app.config import settings
 from app.services.extraction.base import ClinicalFieldExtractor
@@ -23,21 +26,21 @@ def get_field_extractor() -> ClinicalFieldExtractor:
 
     if provider == "gemini":
         if settings.GEMINI_API_KEY:
-            print("[Field Extraction] Using Gemini field extractor.")
+            logger.info("[Field Extraction] Using Gemini field extractor.")
             from app.services.extraction.gemini_extractor import GeminiFieldExtractor
             return GeminiFieldExtractor()
         else:
-            print("[Field Extraction] Gemini configured but GEMINI_API_KEY not set. Using Rule-based extractor.")
+            logger.info("[Field Extraction] Gemini configured but GEMINI_API_KEY not set. Using Rule-based extractor.")
             return RuleBasedFieldExtractor()
 
     if _is_ollama_available():
-        print("[Field Extraction] Using Ollama field extractor (local model detected).")
+        logger.info("[Field Extraction] Using Ollama field extractor (local model detected).")
         return OllamaFieldExtractor()
 
     if settings.GEMINI_API_KEY:
-        print("[Field Extraction] Ollama not available. Falling back to Gemini field extractor.")
+        logger.info("[Field Extraction] Ollama not available. Falling back to Gemini field extractor.")
         from app.services.extraction.gemini_extractor import GeminiFieldExtractor
         return GeminiFieldExtractor()
 
-    print("[Field Extraction] Neither Ollama nor Gemini available. Using Rule-based field extractor.")
+    logger.info("[Field Extraction] Neither Ollama nor Gemini available. Using Rule-based field extractor.")
     return RuleBasedFieldExtractor()

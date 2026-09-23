@@ -44,74 +44,89 @@ class DuplicateDetectionService:
 
     def scan_all_patients(self, db: Session) -> list[PatientDuplicateFlag]:
         """
-        Compare every patient pair.
-        Matching heuristic:
-          1. Normalise name: lowercase, strip punctuation, sort tokens.
-          2. Compute Jaro-Winkler similarity on normalized name strings.
-          3. Check exact DOB match.
-          4. Check partial MRN overlap (first 6 chars).
-          5. similarity_score = weighted average:
-               name_sim * 0.5 + dob_match * 0.3 + mrn_match * 0.2
-          6. If score >= SIMILARITY_THRESHOLD AND at least name + one other
-             factor match -> flag as 'pending'. Skip if flag already exists.
+        Efficient duplicate detection using blocking.
+        Matching heuristic requires either exact DOB match OR MRN prefix match.
+        We group by DOB and MRN prefix to avoid O(N^2) full comparisons.
         """
         patients = db.query(Patient).filter(or_(Patient.status.is_(None), Patient.status != "merged")).all()
 
         created_flags: list[PatientDuplicateFlag] = []
         threshold = self.SIMILARITY_THRESHOLD
+        
+        from collections import defaultdict
+        
+        dob_blocks = defaultdict(list)
+        mrn_blocks = defaultdict(list)
+        
+        for p in patients:
+            if p.dob:
+                dob_blocks[p.dob.strip()].append(p)
+            mrn = (p.mrn or p.patient_number or "").strip()[:6].lower()
+            if mrn:
+                mrn_blocks[mrn].append(p)
+                
+        def check_pair(p_a, p_b, checked_pairs):
+            pair_id = tuple(sorted([str(p_a.id), str(p_b.id)]))
+            if pair_id in checked_pairs:
+                return
+            checked_pairs.add(pair_id)
+            
+            norm_a = normalize_name(p_a.name)
+            norm_b = normalize_name(p_b.name)
+            name_sim = jellyfish.jaro_winkler_similarity(norm_a, norm_b) if norm_a and norm_b else 0.0
 
-        for i in range(len(patients)):
-            for j in range(i + 1, len(patients)):
-                p_a = patients[i]
-                p_b = patients[j]
+            dob_match = 1.0 if (p_a.dob and p_b.dob and p_a.dob.strip() == p_b.dob.strip()) else 0.0
+            mrn_a = (p_a.mrn or p_a.patient_number or "").strip()[:6]
+            mrn_b = (p_b.mrn or p_b.patient_number or "").strip()[:6]
+            mrn_match = 1.0 if (mrn_a and mrn_b and mrn_a.lower() == mrn_b.lower()) else 0.0
 
-                norm_a = normalize_name(p_a.name)
-                norm_b = normalize_name(p_b.name)
+            score = (name_sim * 0.5) + (dob_match * 0.3) + (mrn_match * 0.2)
+            has_name_match = name_sim > 0.0
+            has_other_factor = (dob_match == 1.0) or (mrn_match == 1.0)
 
-                name_sim = jellyfish.jaro_winkler_similarity(norm_a, norm_b) if norm_a and norm_b else 0.0
+            if score >= threshold and has_name_match and has_other_factor:
+                id_a = str(p_a.id)
+                id_b = str(p_b.id)
 
-                dob_match = 1.0 if (p_a.dob and p_b.dob and p_a.dob.strip() == p_b.dob.strip()) else 0.0
+                existing = db.query(PatientDuplicateFlag).filter(
+                    or_(
+                        and_(PatientDuplicateFlag.patient_a_id == id_a, PatientDuplicateFlag.patient_b_id == id_b),
+                        and_(PatientDuplicateFlag.patient_a_id == id_b, PatientDuplicateFlag.patient_b_id == id_a)
+                    )
+                ).first()
 
-                mrn_a = (p_a.mrn or p_a.patient_number or "").strip()[:6]
-                mrn_b = (p_b.mrn or p_b.patient_number or "").strip()[:6]
-                mrn_match = 1.0 if (mrn_a and mrn_b and mrn_a.lower() == mrn_b.lower()) else 0.0
+                if not existing:
+                    reasons = []
+                    if name_sim > 0.0: reasons.append("name")
+                    if dob_match == 1.0: reasons.append("dob")
+                    if mrn_match == 1.0: reasons.append("partial_id")
 
-                score = (name_sim * 0.5) + (dob_match * 0.3) + (mrn_match * 0.2)
-
-                has_name_match = name_sim > 0.0
-                has_other_factor = (dob_match == 1.0) or (mrn_match == 1.0)
-
-                if score >= threshold and has_name_match and has_other_factor:
-                    id_a = str(p_a.id)
-                    id_b = str(p_b.id)
-
-                    # Check existing flag
-                    existing = db.query(PatientDuplicateFlag).filter(
-                        or_(
-                            and_(PatientDuplicateFlag.patient_a_id == id_a, PatientDuplicateFlag.patient_b_id == id_b),
-                            and_(PatientDuplicateFlag.patient_a_id == id_b, PatientDuplicateFlag.patient_b_id == id_a)
-                        )
-                    ).first()
-
-                    if not existing:
-                        reasons = []
-                        if name_sim > 0.0:
-                            reasons.append("name")
-                        if dob_match == 1.0:
-                            reasons.append("dob")
-                        if mrn_match == 1.0:
-                            reasons.append("partial_id")
-
-                        new_flag = PatientDuplicateFlag(
-                            id=uuid.uuid4(),
-                            patient_a_id=id_a,
-                            patient_b_id=id_b,
-                            similarity_score=round(score, 4),
-                            match_reasons=reasons,
-                            status="pending"
-                        )
-                        db.add(new_flag)
-                        created_flags.append(new_flag)
+                    new_flag = PatientDuplicateFlag(
+                        id=uuid.uuid4(),
+                        patient_a_id=id_a,
+                        patient_b_id=id_b,
+                        similarity_score=round(score, 4),
+                        match_reasons=reasons,
+                        status="pending"
+                    )
+                    db.add(new_flag)
+                    created_flags.append(new_flag)
+                    
+        checked_pairs = set()
+        
+        # Check DOB blocks
+        for block in dob_blocks.values():
+            if len(block) > 1:
+                for i in range(len(block)):
+                    for j in range(i + 1, len(block)):
+                        check_pair(block[i], block[j], checked_pairs)
+                        
+        # Check MRN blocks
+        for block in mrn_blocks.values():
+            if len(block) > 1:
+                for i in range(len(block)):
+                    for j in range(i + 1, len(block)):
+                        check_pair(block[i], block[j], checked_pairs)
 
         if created_flags:
             db.commit()

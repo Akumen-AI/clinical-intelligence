@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import structlog
+logger = structlog.get_logger(__name__)
+
 import argparse
 import json
 import re
@@ -72,7 +75,7 @@ def ingest_policy_documents(
             
         return count
     except Exception as e:
-        print(f"Error during ingestion: {e}")
+        logger.info(f"Error during ingestion: {e}")
         raise
 
 
@@ -80,7 +83,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Rebuild the hospital policy RAG index")
     parser.add_argument("--documents-dir", type=Path, default=DEFAULT_POLICY_DOCUMENTS_DIR)
     args = parser.parse_args()
-    print(json.dumps({"chunks_ingested": ingest_policy_documents(args.documents_dir)}))
+    logger.info(json.dumps({"chunks_ingested": ingest_policy_documents(args.documents_dir)}))
 
 
 if __name__ == "__main__":

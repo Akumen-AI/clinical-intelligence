@@ -1,3 +1,6 @@
+import structlog
+logger = structlog.get_logger(__name__)
+
 """
 Factory for obtaining a handwriting extraction engine.
 
@@ -24,7 +27,7 @@ def get_handwriting_extractor() -> HandwritingExtractor:
         from app.services.handwriting.gemini_handwriting_extractor import (
             GeminiHandwritingExtractor,
         )
-        print("[Handwriting Extraction] Using Gemini multimodal extractor.")
+        logger.info("[Handwriting Extraction] Using Gemini multimodal extractor.")
         return GeminiHandwritingExtractor()
 
     raise ValueError(

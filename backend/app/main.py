@@ -63,6 +63,15 @@ from fastapi.responses import JSONResponse, FileResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 import uuid
 from app.core.context import set_correlation_id
+from app.core.logging_config import configure_logging
+from app.core.rate_limit import limiter
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+import structlog
+
+# Initialize structured logging
+configure_logging()
+logger = structlog.get_logger("app.main")
 
 class CorrelationIdMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
@@ -70,9 +79,21 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
         set_correlation_id(correlation_id)
         # Store in request state for convenient access if needed
         request.state.correlation_id = correlation_id
-        response = await call_next(request)
-        response.headers["X-Correlation-ID"] = correlation_id
-        return response
+        
+        # Add a simple metrics log for request duration
+        import time
+        start_time = time.time()
+        
+        try:
+            response = await call_next(request)
+            duration_ms = (time.time() - start_time) * 1000
+            logger.info("request_completed", method=request.method, url=str(request.url), status_code=response.status_code, duration_ms=round(duration_ms, 2))
+            response.headers["X-Correlation-ID"] = correlation_id
+            return response
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error("request_failed", method=request.method, url=str(request.url), error=str(e), duration_ms=round(duration_ms, 2))
+            raise
 
 # Create database tables automatically on startup (Removed - use Alembic migrations instead)
 
@@ -132,6 +153,9 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # Configure CORS for frontend access
 origins = [
     "http://localhost:5173",
@@ -149,10 +173,7 @@ app.add_middleware(
 
 app.add_middleware(CorrelationIdMiddleware)
 
-# (Public static file access has been removed for security. Access files via authenticated API endpoints)
-
 # Include routers
-
 app.include_router(policy_chatbot_router)
 app.include_router(upload.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 app.include_router(layout.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
@@ -172,11 +193,9 @@ app.include_router(rag_context_compliance_router)
 app.include_router(duplicates_router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 app.include_router(completeness_router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 
-
 @app.exception_handler(ComplianceViolationError)
 async def compliance_violation_handler(request, exc):
     return JSONResponse(status_code=422, content={"detail": str(exc)})
-
 
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_dir):
@@ -190,6 +209,35 @@ async def serve_ui():
 @app.get("/api/v1/health", tags=["Health Check"])
 async def health():
     return {"status": "Healthy"}
+
+@app.get("/api/v1/health/liveness", tags=["Health Check"])
+async def liveness():
+    return {"status": "ok"}
+
+@app.get("/api/v1/health/readiness", tags=["Health Check"])
+async def readiness():
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        db_status = "ok"
+    except Exception as e:
+        logger.error("readiness_db_failure", error=str(e))
+        return JSONResponse(status_code=503, content={"status": "unhealthy", "db": "failed"})
+    
+    return {"status": "healthy", "db": db_status}
+
+@app.get("/api/v1/health/queue", tags=["Health Check"])
+async def queue_health():
+    try:
+        import redis
+        import os
+        r = redis.Redis.from_url(os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0"))
+        # Using Celery's default queue name 'celery'
+        q_len = r.llen("celery")
+        return {"status": "healthy", "queue_length": q_len}
+    except Exception as e:
+        logger.error("queue_health_failure", error=str(e))
+        return JSONResponse(status_code=503, content={"status": "unhealthy", "queue": "failed"})
 
 @app.get("/", tags=["Health Check"])
 async def root():

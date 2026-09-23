@@ -1,3 +1,6 @@
+import structlog
+logger = structlog.get_logger(__name__)
+
 import requests
 import json
 from app.config import settings
@@ -44,7 +47,7 @@ class OllamaClassifier(DocumentClassifier):
                 raw_response = data.get("thinking", "").strip()
 
             if not raw_response:
-                print(f"Ollama returned empty response and thinking fields.")
+                logger.info(f"Ollama returned empty response and thinking fields.")
                 return ClassificationResult(document_type="Unknown", confidence=0.0)
 
             result_json = json.loads(raw_response)
@@ -54,5 +57,5 @@ class OllamaClassifier(DocumentClassifier):
                 confidence=float(result_json.get("confidence", 0.0))
             )
         except Exception as e:
-            print(f"Ollama classification failed: {e}")
+            logger.info(f"Ollama classification failed: {e}")
             return ClassificationResult(document_type="Unknown", confidence=0.0)

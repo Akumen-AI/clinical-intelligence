@@ -1,3 +1,6 @@
+import structlog
+logger = structlog.get_logger(__name__)
+
 import uuid
 from typing import Tuple, List, Optional, Dict, Any
 from sqlalchemy.orm import Session
@@ -176,7 +179,7 @@ def extract_and_persist_fields(
     if target_doc:
         db.refresh(target_doc)
 
-    print(f"[Field Extraction] Persisted {len(records)} fields for document {document.document_id}")
+    logger.info(f"[Field Extraction] Persisted {len(records)} fields for document {document.document_id}")
     
     # Story 2.5: Automatically enqueue confidence routing task for extracted fields
     try:
@@ -190,7 +193,7 @@ def extract_and_persist_fields(
             extraction_result = {"document_id": document.document_id, "fields": field_dict}
             route_extraction_result(extraction_result, db=db, actor_user_id=actor_user_id)
         except Exception as e:
-            print(f"[Field Extraction] Direct routing execution error: {e}")
+            logger.info(f"[Field Extraction] Direct routing execution error: {e}")
 
     return fields, records
 

@@ -1,3 +1,6 @@
+import structlog
+logger = structlog.get_logger(__name__)
+
 """
 Text extraction service for document classification pipeline.
 
@@ -261,7 +264,7 @@ def _paddle_ocr_worker(image_paths: list, result_queue):
                 else:
                     results.append("")
             except Exception as e:
-                print(f"[Text Extraction] PaddleOCR failed for {os.path.basename(image_path)}: {e}")
+                logger.info(f"[Text Extraction] PaddleOCR failed for {os.path.basename(image_path)}: {e}")
                 results.append("")
 
         # Explicitly clean up before process exits
@@ -269,7 +272,7 @@ def _paddle_ocr_worker(image_paths: list, result_queue):
         gc.collect()
 
     except Exception as e:
-        print(f"[Text Extraction] PaddleOCR subprocess initialization failed: {e}")
+        logger.info(f"[Text Extraction] PaddleOCR subprocess initialization failed: {e}")
         results = [""] * len(image_paths)
 
     result_queue.put(results)
@@ -301,12 +304,12 @@ def _run_paddle_ocr_subprocess(image_paths: list, timeout: int = _OCR_SUBPROCESS
     result_queue = ctx.Queue()
     process = ctx.Process(target=_paddle_ocr_worker, args=(image_paths, result_queue))
 
-    print(f"[Text Extraction] Starting OCR subprocess for {len(image_paths)} image(s)...")
+    logger.info(f"[Text Extraction] Starting OCR subprocess for {len(image_paths)} image(s)...")
     process.start()
     process.join(timeout=timeout)
 
     if process.is_alive():
-        print(f"[Text Extraction] OCR subprocess timed out after {timeout}s. Terminating.")
+        logger.info(f"[Text Extraction] OCR subprocess timed out after {timeout}s. Terminating.")
         process.terminate()
         process.join(timeout=5)
         if process.is_alive():
@@ -316,12 +319,12 @@ def _run_paddle_ocr_subprocess(image_paths: list, timeout: int = _OCR_SUBPROCESS
 
     try:
         results = result_queue.get(timeout=5)
-        print(f"[Text Extraction] OCR subprocess completed successfully.")
+        logger.info(f"[Text Extraction] OCR subprocess completed successfully.")
         return results
     except queue.Empty:
-        print("[Text Extraction] OCR subprocess returned no result.")
+        logger.info("[Text Extraction] OCR subprocess returned no result.")
     except Exception as e:
-        print(f"[Text Extraction] Failed to read OCR subprocess result: {e}")
+        logger.info(f"[Text Extraction] Failed to read OCR subprocess result: {e}")
 
     return [""] * len(image_paths)
 
@@ -416,7 +419,7 @@ def _ocr_pdf_pages(abs_path: str) -> str:
                     pass
 
     except Exception as e:
-        print(f"[Text Extraction] OCR of scanned PDF failed: {e}")
+        logger.info(f"[Text Extraction] OCR of scanned PDF failed: {e}")
         return ""
 
 
@@ -448,13 +451,13 @@ def extract_text(filepath: str, filetype: str) -> str:
     elif actual_type in ("png", "jpg", "jpeg", "tiff"):
         text = extract_text_from_image(filepath)
     else:
-        print(f"[Text Extraction] Unsupported file type: {actual_type} (from {os.path.basename(filepath)})")
+        logger.info(f"[Text Extraction] Unsupported file type: {actual_type} (from {os.path.basename(filepath)})")
         text = ""
 
     if text:
-        print(f"[Text Extraction] Extracted {len(text)} characters from {os.path.basename(filepath)}")
+        logger.info(f"[Text Extraction] Extracted {len(text)} characters from {os.path.basename(filepath)}")
     else:
-        print(f"[Text Extraction] No text extracted from {os.path.basename(filepath)}")
+        logger.info(f"[Text Extraction] No text extracted from {os.path.basename(filepath)}")
 
     return text
 
@@ -531,14 +534,14 @@ def _paddle_ocr_worker_with_scores(image_paths: list, result_queue):
                 else:
                     results.append({"text": "", "scores": []})
             except Exception as e:
-                print(f"[Text Extraction] PaddleOCR failed for {os.path.basename(image_path)}: {e}")
+                logger.info(f"[Text Extraction] PaddleOCR failed for {os.path.basename(image_path)}: {e}")
                 results.append({"text": "", "scores": []})
 
         del ocr
         gc.collect()
 
     except Exception as e:
-        print(f"[Text Extraction] PaddleOCR subprocess initialization failed: {e}")
+        logger.info(f"[Text Extraction] PaddleOCR subprocess initialization failed: {e}")
         results = [{"text": "", "scores": []}] * len(image_paths)
 
     result_queue.put(results)
@@ -562,12 +565,12 @@ def _run_paddle_ocr_subprocess_with_scores(
         args=(image_paths, result_queue),
     )
 
-    print(f"[Text Extraction] Starting OCR subprocess (with scores) for {len(image_paths)} image(s)...")
+    logger.info(f"[Text Extraction] Starting OCR subprocess (with scores) for {len(image_paths)} image(s)...")
     process.start()
     process.join(timeout=timeout)
 
     if process.is_alive():
-        print(f"[Text Extraction] OCR subprocess timed out after {timeout}s. Terminating.")
+        logger.info(f"[Text Extraction] OCR subprocess timed out after {timeout}s. Terminating.")
         process.terminate()
         process.join(timeout=5)
         if process.is_alive():
@@ -577,12 +580,12 @@ def _run_paddle_ocr_subprocess_with_scores(
 
     try:
         results = result_queue.get(timeout=5)
-        print(f"[Text Extraction] OCR subprocess (with scores) completed successfully.")
+        logger.info(f"[Text Extraction] OCR subprocess (with scores) completed successfully.")
         return results
     except queue.Empty:
-        print("[Text Extraction] OCR subprocess returned no result.")
+        logger.info("[Text Extraction] OCR subprocess returned no result.")
     except Exception as e:
-        print(f"[Text Extraction] Failed to read OCR subprocess result: {e}")
+        logger.info(f"[Text Extraction] Failed to read OCR subprocess result: {e}")
 
     return [{"text": "", "scores": []}] * len(image_paths)
 
@@ -649,12 +652,12 @@ def extract_text_with_confidence(
             text = r.get("text", "")
             scores = r.get("scores", [])
             if text:
-                print(f"[Text Extraction] Extracted {len(text)} chars (with {len(scores)} scores) from {os.path.basename(filepath)}")
+                logger.info(f"[Text Extraction] Extracted {len(text)} chars (with {len(scores)} scores) from {os.path.basename(filepath)}")
             return text, scores
         return "", []
 
     else:
-        print(f"[Text Extraction] Unsupported file type: {actual_type} (from {os.path.basename(filepath)})")
+        logger.info(f"[Text Extraction] Unsupported file type: {actual_type} (from {os.path.basename(filepath)})")
         return "", []
 
 
@@ -704,5 +707,5 @@ def _ocr_pdf_pages_with_scores(abs_path: str) -> Tuple[str, List[float]]:
                     pass
 
     except Exception as e:
-        print(f"[Text Extraction] OCR of scanned PDF (with scores) failed: {e}")
+        logger.info(f"[Text Extraction] OCR of scanned PDF (with scores) failed: {e}")
         return "", []

@@ -19,12 +19,9 @@ from app.core.security import (
     REFRESH_TOKEN_EXPIRE_DAYS
 )
 
-router = APIRouter()
+from app.core.rate_limit import limiter
 
-# In-memory rate limiting for demo
-login_attempts = defaultdict(list)
-MAX_ATTEMPTS = 5
-WINDOW_SECONDS = 300
+router = APIRouter()
 
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -34,17 +31,10 @@ class TokenResponse(BaseModel):
     message: str = "Authenticated successfully"
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("5/minute")
 def login(login_data: LoginRequest, response: Response, request: Request, db: Session = Depends(get_db)):
     ip = request.client.host if request.client else "unknown"
     now = time.time()
-    
-    # Clean up old attempts
-    login_attempts[ip] = [t for t in login_attempts[ip] if now - t < WINDOW_SECONDS]
-    
-    if len(login_attempts[ip]) >= MAX_ATTEMPTS:
-        raise HTTPException(status_code=429, detail="Too many login attempts. Please try again later.")
-    
-    login_attempts[ip].append(now)
 
     user = db.query(User).filter(User.email == login_data.email).first()
     if not user or not user.password_hash or not verify_password(login_data.password, user.password_hash):
@@ -67,9 +57,6 @@ def login(login_data: LoginRequest, response: Response, request: Request, db: Se
     )
     db.add(db_token)
     db.commit()
-
-    # Clear rate limit on success
-    login_attempts[ip] = []
 
     response.set_cookie(
         key="access_token",

@@ -1,3 +1,6 @@
+import structlog
+logger = structlog.get_logger(__name__)
+
 """Additive SQLAlchemy hook for pre-extraction layout detection."""
 
 from sqlalchemy import event
@@ -32,4 +35,4 @@ def _run_layout_detection_safely(document_ids, bind) -> None:
         # This is an optional post-processing feature. Never let a model,
         # dependency, or database error turn a completed commit into a
         # failure in the existing upload pipeline.
-        print(f"[Layout Detection] Post-commit hook failed: {exc}")
+        logger.info(f"[Layout Detection] Post-commit hook failed: {exc}")

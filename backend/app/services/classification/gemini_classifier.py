@@ -1,3 +1,6 @@
+import structlog
+logger = structlog.get_logger(__name__)
+
 import json
 from google import genai
 from app.config import settings
@@ -31,5 +34,5 @@ class GeminiClassifier(DocumentClassifier):
                 confidence=float(result_json.get("confidence", 0.0))
             )
         except Exception as e:
-            print(f"Gemini classification failed: {e}")
+            logger.info(f"Gemini classification failed: {e}")
             return ClassificationResult(document_type="Unknown", confidence=0.0)

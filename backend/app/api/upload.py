@@ -57,6 +57,8 @@ async def update_watched_folder_config(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+from app.core.rate_limit import limiter
+
 @router.post(
     "/upload",
     response_model=UploadSummaryResponse,
@@ -68,6 +70,7 @@ async def update_watched_folder_config(
         }
     }
 )
+@limiter.limit("10/minute")
 async def upload_documents(
     request: Request,
     files: List[UploadFile] = File(...),
@@ -93,10 +96,15 @@ async def upload_documents(
     # Single File Upload Flow
     if len(files) == 1:
         file = files[0]
+        
+        file.file.seek(0, 2)
+        size = file.file.tell()
+        file.file.seek(0)
+        if size > 10 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail=f"File {file.filename} exceeds 10MB limit")
+            
         try:
             actor_id = request.state.user.id
-            print(f"DEBUG ACTOR ID: {actor_id} TYPE: {type(actor_id)}")
-            print(f"DEBUG ACTOR ID: {actor_id} TYPE: {type(actor_id)}")
             doc = await upload_service.process_single_upload(db, file, actor_id, client_ip)
             
             from app.tasks.document_tasks import process_document_task
@@ -127,10 +135,21 @@ async def upload_documents(
     rejected_items: List[RejectedUploadItem] = []
 
     for file in files:
+        file.file.seek(0, 2)
+        size = file.file.tell()
+        file.file.seek(0)
+        if size > 10 * 1024 * 1024:
+            rejected_items.append(
+                RejectedUploadItem(
+                    filename=file.filename or "unknown",
+                    reason="File exceeds 10MB limit",
+                    status="REJECTED"
+                )
+            )
+            continue
+            
         try:
             actor_id = request.state.user.id
-            print(f"DEBUG ACTOR ID: {actor_id} TYPE: {type(actor_id)}")
-            print(f"DEBUG ACTOR ID: {actor_id} TYPE: {type(actor_id)}")
             doc = await upload_service.process_single_upload(db, file, actor_id, client_ip)
             
             from app.tasks.document_tasks import process_document_task
@@ -173,6 +192,7 @@ async def upload_documents(
 @router.get("/upload-logs", response_model=List[UploadLogResponse])
 async def get_upload_logs(
     request: Request,
+    skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db)
 ):
@@ -182,7 +202,7 @@ async def get_upload_logs(
     Retrieve audit history of all accepted and rejected file upload attempts.
     """
     AuthorizationService.assert_can_access_audit_logs(request.state.user)
-    return ValidationService.get_upload_logs(db, limit=limit)
+    return ValidationService.get_upload_logs(db, skip=skip, limit=limit)
 
 @router.get("/{document_id}/file", include_in_schema=False)
 async def get_document_file(document_id: str, request: Request, db: Session = Depends(get_db)):
@@ -210,6 +230,8 @@ async def get_document_file(document_id: str, request: Request, db: Session = De
 @router.get("", response_model=List[DocumentResponse])
 async def list_documents(
     request: Request,
+    skip: int = 0,
+    limit: int = 100,
     needs_review: Optional[bool] = None,
     document_type: Optional[str] = None,
     db: Session = Depends(get_db)
@@ -219,6 +241,7 @@ async def list_documents(
     
     Retrieve all uploaded patient documents with document ID, file path, file type, and pipeline status.
     """
+    # TODO: optimize db level skip/limit instead of all()
     docs = upload_service.get_all_documents(db, needs_review=needs_review, document_type=document_type)
     
     # Filter documents based on AuthorizationService
@@ -230,6 +253,9 @@ async def list_documents(
             filtered_docs.append(doc)
         except HTTPException:
             pass
+            
+    # Apply pagination on filtered docs
+    filtered_docs = filtered_docs[skip:skip+limit]
             
     return [
         DocumentResponse(

@@ -32,14 +32,19 @@ class PolicyUploadResponse(BaseModel):
 router = APIRouter(tags=["Hospital Policy Chatbot"])
 
 
+from app.core.rate_limit import limiter
+from fastapi import Request
+
 @router.post("/api/v1/policy-chat", response_model=PolicyChatResponse)
+@limiter.limit("20/minute")
 def policy_chat(
-    request: PolicyChatRequest,
+    request: Request,
+    payload: PolicyChatRequest,
     current_user: User = Depends(check_rbac),
     db: Session = Depends(get_db)
 ) -> PolicyChatResponse:
-    matches = retrieve_relevant_policy_chunks(request.question)
-    answer_text = generate_policy_answer(request.question)
+    matches = retrieve_relevant_policy_chunks(payload.question)
+    answer_text = generate_policy_answer(payload.question)
     
     from app.services.policy_rag_service import POLICY_NO_GROUNDED_ANSWER
     has_answer = POLICY_NO_GROUNDED_ANSWER.lower() not in answer_text.lower()
@@ -50,7 +55,7 @@ def policy_chat(
         action_type="policy_rag_query",
         target_entity="policy_index",
         patient_id=None,
-        rationale=f"Asked: '{request.question}'. Grounded answer found: {has_answer}"
+        rationale=f"Asked: '{payload.question}'. Grounded answer found: {has_answer}"
     )
 
     return PolicyChatResponse(

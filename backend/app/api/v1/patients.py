@@ -86,6 +86,8 @@ def get_patient_records(
 def list_patients(
     http_request: Request,
     search: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 100,
     db: Session = Depends(get_db)
 ):
     """List all patients with optional search by name or MRN."""
@@ -111,7 +113,7 @@ def list_patients(
     else:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Role is not authorized to list patient records.")
         
-    return query.all()
+    return query.offset(skip).limit(limit).all()
 
 
 @router.get("/{patient_id}", response_model=PatientResponse)
@@ -204,7 +206,10 @@ def get_context_panel(
     return panel.to_dict()
 
 
+from app.core.rate_limit import limiter
+
 @router.post("/{patient_id}/ask", response_model=AskResponse)
+@limiter.limit("20/minute")
 def ask_patient_question(
     patient_id: str, 
     request: AskRequest, 
