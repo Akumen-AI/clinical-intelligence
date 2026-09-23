@@ -58,46 +58,56 @@ class GeminiHandwritingExtractor(HandwritingExtractor):
         """Send the image to Gemini and parse the structured response."""
         prompt = self._build_prompt(document_type)
 
-        try:
-            # Read the image file
-            with open(image_path, "rb") as f:
-                image_bytes = f.read()
+        import time
+        max_retries = 3
+        
+        for attempt in range(max_retries):
+            try:
+                # Read the image file
+                with open(image_path, "rb") as f:
+                    image_bytes = f.read()
 
-            # Determine MIME type from extension
-            ext = os.path.splitext(image_path)[1].lower()
-            mime_map = {
-                ".pdf": "application/pdf",
-                ".png": "image/png",
-                ".jpg": "image/jpeg",
-                ".jpeg": "image/jpeg",
-                ".tiff": "image/tiff",
-                ".tif": "image/tiff",
-                ".webp": "image/webp",
-            }
-            mime_type = mime_map.get(ext, "image/png")
+                # Determine MIME type from extension
+                ext = os.path.splitext(image_path)[1].lower()
+                mime_map = {
+                    ".pdf": "application/pdf",
+                    ".png": "image/png",
+                    ".jpg": "image/jpeg",
+                    ".jpeg": "image/jpeg",
+                    ".tiff": "image/tiff",
+                    ".tif": "image/tiff",
+                    ".webp": "image/webp",
+                }
+                mime_type = mime_map.get(ext, "image/png")
 
-            # Build multimodal content: image + text prompt
-            image_part = genai_types.Part.from_bytes(
-                data=image_bytes,
-                mime_type=mime_type,
-            )
+                # Build multimodal content: image + text prompt
+                image_part = genai_types.Part.from_bytes(
+                    data=image_bytes,
+                    mime_type=mime_type,
+                )
 
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=[image_part, prompt],
-                config=genai_types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                ),
-            )
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=[image_part, prompt],
+                    config=genai_types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                    ),
+                )
 
-            raw_text = response.text or ""
-            data = clean_and_parse_json(raw_text, default={})
+                raw_text = response.text or ""
+                data = clean_and_parse_json(raw_text, default={})
 
-            return self._parse_response(data)
+                return self._parse_response(data)
 
-        except Exception as e:
-            logger.info(f"[Handwriting Extraction] Gemini extractor failed: {e}")
-            return HandwritingExtractionResult()
+            except Exception as e:
+                error_str = str(e)
+                if attempt < max_retries - 1 and ("503" in error_str or "429" in error_str or "quota" in error_str.lower() or "unavailable" in error_str.lower()):
+                    wait_time = (2 ** attempt) * 2
+                    logger.warning(f"[Handwriting Extraction] Gemini API error (attempt {attempt+1}): {e}. Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                else:
+                    logger.info(f"[Handwriting Extraction] Gemini extractor failed after {attempt+1} attempts: {e}")
+                    return HandwritingExtractionResult()
 
     @staticmethod
     def _clean_and_parse_json(text: str) -> dict:

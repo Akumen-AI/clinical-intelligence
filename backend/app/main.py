@@ -104,8 +104,6 @@ upload_dir = ensure_upload_directory_exists()
 # Ensure watched folder exists
 try:
     from app.services.watched_folder_config_service import get_watched_folder_path_info
-    import logging
-    logger = logging.getLogger("app.main")
     watched_path, _ = get_watched_folder_path_info()
     os.makedirs(watched_path, exist_ok=True)
     logger.info(f"Verified watched folder exists at: {watched_path}")
@@ -114,12 +112,9 @@ except Exception as e:
     print(f"Failed to ensure watched folder exists: {e}")
 
 from contextlib import asynccontextmanager
-import logging
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from alembic.runtime.migration import MigrationContext
-
-logger = logging.getLogger("app.main")
 
 def check_schema_status():
     alembic_cfg = Config("alembic.ini")
