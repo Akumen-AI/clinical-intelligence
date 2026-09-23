@@ -247,17 +247,6 @@ def ask_patient_question(
             user_id=current_user.id,
             conversation_id=request.conversation_id
         )
-        
-        has_answer = len(citations) > 0
-        audit_service.write_entry(
-            db=db,
-            actor_user_id=current_user.id,
-            action_type="rag_query",
-            target_entity=f"patient:{patient.patient_id}",
-            patient_id=patient.patient_id,
-            rationale=f"Asked: '{request.question}'. Grounded answer found: {has_answer}"
-        )
-        
         return AskResponse(
             answer=answer,
             conversation_id=conv_id,
@@ -267,7 +256,9 @@ def ask_patient_question(
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate answer: {str(e)}"
+            detail=f"Failed to generate answer: {repr(e)}"
         )

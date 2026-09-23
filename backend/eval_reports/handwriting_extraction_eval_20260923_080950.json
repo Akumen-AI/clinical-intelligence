@@ -1,0 +1,1479 @@
+{
+  "timestamp": "2026-09-23T08:09:50.393040Z",
+  "kpi_target": 0.9,
+  "kpi_met": false,
+  "overall_accuracy": 0.175,
+  "exact_field_accuracy": 0.15,
+  "fuzzy_field_accuracy": 0.2,
+  "total_fields_evaluated": 120,
+  "total_fields_passed": 21,
+  "sample_count": 20,
+  "elapsed_seconds": 548.54,
+  "fuzzy_threshold": 0.85,
+  "extraction_methods": {
+    "paddleocr": 16,
+    "gemini_handwriting": 4
+  },
+  "thresholds": {
+    "handwriting_ocr_confidence_threshold": 0.85,
+    "handwriting_low_confidence_proportion": 0.15,
+    "handwriting_extraction_enabled": true
+  },
+  "per_field_accuracy": {
+    "frequency": {
+      "accuracy": 0.15,
+      "passed": 3,
+      "total": 20,
+      "field_type": "exact"
+    },
+    "doctor_name": {
+      "accuracy": 0.2,
+      "passed": 4,
+      "total": 20,
+      "field_type": "fuzzy"
+    },
+    "drug_name": {
+      "accuracy": 0.15,
+      "passed": 3,
+      "total": 20,
+      "field_type": "exact"
+    },
+    "document_date": {
+      "accuracy": 0.2,
+      "passed": 4,
+      "total": 20,
+      "field_type": "fuzzy"
+    },
+    "dosage": {
+      "accuracy": 0.15,
+      "passed": 3,
+      "total": 20,
+      "field_type": "exact"
+    },
+    "patient_name": {
+      "accuracy": 0.2,
+      "passed": 4,
+      "total": 20,
+      "field_type": "fuzzy"
+    }
+  },
+  "per_tier_accuracy": {
+    "clean": {
+      "accuracy": 0.4375,
+      "passed": 21,
+      "total": 48
+    },
+    "moderate": {
+      "accuracy": 0.0,
+      "passed": 0,
+      "total": 36
+    },
+    "degraded": {
+      "accuracy": 0.0,
+      "passed": 0,
+      "total": 36
+    }
+  },
+  "per_sample_results": [
+    {
+      "sample_id": 1,
+      "tier": "clean",
+      "font": "Caveat",
+      "method": "paddleocr",
+      "fields": [
+        {
+          "field_name": "patient_name",
+          "expected": "Sarah Johnson",
+          "actual": "Date: 2026-05-25",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.1379,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "drug_name",
+          "expected": "Ciprofloxacin",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "dosage",
+          "expected": "200mg",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "frequency",
+          "expected": "BID",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "doctor_name",
+          "expected": "Dr. R. Patel",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "document_date",
+          "expected": "2026-05-25",
+          "actual": "Date: 2026-05-25",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.7692,
+          "field_type": "fuzzy",
+          "pass": false
+        }
+      ],
+      "passed": 0,
+      "total": 6
+    },
+    {
+      "sample_id": 2,
+      "tier": "clean",
+      "font": "Caveat",
+      "method": "gemini_handwriting",
+      "fields": [
+        {
+          "field_name": "patient_name",
+          "expected": "Daniel Nguyen",
+          "actual": "Daniel Nguyen",
+          "exact_match": true,
+          "fuzzy_match": true,
+          "similarity": 1.0,
+          "field_type": "fuzzy",
+          "pass": true
+        },
+        {
+          "field_name": "drug_name",
+          "expected": "Losartan",
+          "actual": "Losartan",
+          "exact_match": true,
+          "fuzzy_match": true,
+          "similarity": 1.0,
+          "field_type": "exact",
+          "pass": true
+        },
+        {
+          "field_name": "dosage",
+          "expected": "250mg",
+          "actual": "250mg",
+          "exact_match": true,
+          "fuzzy_match": true,
+          "similarity": 1.0,
+          "field_type": "exact",
+          "pass": true
+        },
+        {
+          "field_name": "frequency",
+          "expected": "Once daily",
+          "actual": "Once daily",
+          "exact_match": true,
+          "fuzzy_match": true,
+          "similarity": 1.0,
+          "field_type": "exact",
+          "pass": true
+        },
+        {
+          "field_name": "doctor_name",
+          "expected": "Dr. S. Johnson",
+          "actual": "Dr. S. Johnson",
+          "exact_match": true,
+          "fuzzy_match": true,
+          "similarity": 1.0,
+          "field_type": "fuzzy",
+          "pass": true
+        },
+        {
+          "field_name": "document_date",
+          "expected": "2026-05-10",
+          "actual": "2026-05-10",
+          "exact_match": true,
+          "fuzzy_match": true,
+          "similarity": 1.0,
+          "field_type": "fuzzy",
+          "pass": true
+        }
+      ],
+      "passed": 6,
+      "total": 6
+    },
+    {
+      "sample_id": 3,
+      "tier": "clean",
+      "font": "Caveat",
+      "method": "gemini_handwriting",
+      "fields": [
+        {
+          "field_name": "patient_name",
+          "expected": "Olivia Wilson",
+          "actual": "Olivia Wilson",
+          "exact_match": true,
+          "fuzzy_match": true,
+          "similarity": 1.0,
+          "field_type": "fuzzy",
+          "pass": true
+        },
+        {
+          "field_name": "drug_name",
+          "expected": "Levothyroxine",
+          "actual": "Levothyroxine",
+          "exact_match": true,
+          "fuzzy_match": true,
+          "similarity": 1.0,
+          "field_type": "exact",
+          "pass": true
+        },
+        {
+          "field_name": "dosage",
+          "expected": "300mg",
+          "actual": "300mg",
+          "exact_match": true,
+          "fuzzy_match": true,
+          "similarity": 1.0,
+          "field_type": "exact",
+          "pass": true
+        },
+        {
+          "field_name": "frequency",
+          "expected": "At bedtime",
+          "actual": "At bedtime",
+          "exact_match": true,
+          "fuzzy_match": true,
+          "similarity": 1.0,
+          "field_type": "exact",
+          "pass": true
+        },
+        {
+          "field_name": "doctor_name",
+          "expected": "Dr. N. Davis",
+          "actual": "Dr. N. Davis",
+          "exact_match": true,
+          "fuzzy_match": true,
+          "similarity": 1.0,
+          "field_type": "fuzzy",
+          "pass": true
+        },
+        {
+          "field_name": "document_date",
+          "expected": "2026-08-05",
+          "actual": "2026-08-05",
+          "exact_match": true,
+          "fuzzy_match": true,
+          "similarity": 1.0,
+          "field_type": "fuzzy",
+          "pass": true
+        }
+      ],
+      "passed": 6,
+      "total": 6
+    },
+    {
+      "sample_id": 4,
+      "tier": "clean",
+      "font": "Noteworthy.ttc",
+      "method": "gemini_handwriting",
+      "fields": [
+        {
+          "field_name": "patient_name",
+          "expected": "Ahmed Hassan",
+          "actual": "Ahmed Hassan",
+          "exact_match": true,
+          "fuzzy_match": true,
+          "similarity": 1.0,
+          "field_type": "fuzzy",
+          "pass": true
+        },
+        {
+          "field_name": "drug_name",
+          "expected": "Furosemide",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "dosage",
+          "expected": "10mg",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "frequency",
+          "expected": "Once daily",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "doctor_name",
+          "expected": "Dr. R. Patel",
+          "actual": "Dr. R. Patel",
+          "exact_match": true,
+          "fuzzy_match": true,
+          "similarity": 1.0,
+          "field_type": "fuzzy",
+          "pass": true
+        },
+        {
+          "field_name": "document_date",
+          "expected": "2026-05-25",
+          "actual": "2026-05-25",
+          "exact_match": true,
+          "fuzzy_match": true,
+          "similarity": 1.0,
+          "field_type": "fuzzy",
+          "pass": true
+        }
+      ],
+      "passed": 3,
+      "total": 6
+    },
+    {
+      "sample_id": 5,
+      "tier": "clean",
+      "font": "Bradley Hand Bold",
+      "method": "gemini_handwriting",
+      "fields": [
+        {
+          "field_name": "patient_name",
+          "expected": "Aisha Mohammed",
+          "actual": "Aisha Mohammed",
+          "exact_match": true,
+          "fuzzy_match": true,
+          "similarity": 1.0,
+          "field_type": "fuzzy",
+          "pass": true
+        },
+        {
+          "field_name": "drug_name",
+          "expected": "Omeprazole",
+          "actual": "Omeprazole",
+          "exact_match": true,
+          "fuzzy_match": true,
+          "similarity": 1.0,
+          "field_type": "exact",
+          "pass": true
+        },
+        {
+          "field_name": "dosage",
+          "expected": "200mg",
+          "actual": "200mg",
+          "exact_match": true,
+          "fuzzy_match": true,
+          "similarity": 1.0,
+          "field_type": "exact",
+          "pass": true
+        },
+        {
+          "field_name": "frequency",
+          "expected": "QID",
+          "actual": "QID",
+          "exact_match": true,
+          "fuzzy_match": true,
+          "similarity": 1.0,
+          "field_type": "exact",
+          "pass": true
+        },
+        {
+          "field_name": "doctor_name",
+          "expected": "Dr. S. Johnson",
+          "actual": "Dr. S. Johnson",
+          "exact_match": true,
+          "fuzzy_match": true,
+          "similarity": 1.0,
+          "field_type": "fuzzy",
+          "pass": true
+        },
+        {
+          "field_name": "document_date",
+          "expected": "2026-07-15",
+          "actual": "2026-07-15",
+          "exact_match": true,
+          "fuzzy_match": true,
+          "similarity": 1.0,
+          "field_type": "fuzzy",
+          "pass": true
+        }
+      ],
+      "passed": 6,
+      "total": 6
+    },
+    {
+      "sample_id": 6,
+      "tier": "clean",
+      "font": "Caveat",
+      "method": "paddleocr",
+      "fields": [
+        {
+          "field_name": "patient_name",
+          "expected": "Rachel Thompson",
+          "actual": "Date: 2026-05-25",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.1935,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "drug_name",
+          "expected": "Azithromycin",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "dosage",
+          "expected": "75mg",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "frequency",
+          "expected": "TID",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "doctor_name",
+          "expected": "Dr. A. Kumar",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "document_date",
+          "expected": "2026-05-25",
+          "actual": "Date: 2026-05-25",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.7692,
+          "field_type": "fuzzy",
+          "pass": false
+        }
+      ],
+      "passed": 0,
+      "total": 6
+    },
+    {
+      "sample_id": 7,
+      "tier": "clean",
+      "font": "Caveat",
+      "method": "paddleocr",
+      "fields": [
+        {
+          "field_name": "patient_name",
+          "expected": "Carlos Rivera",
+          "actual": "Carlos Rivera\tDate: 2026-07-01",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.6047,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "drug_name",
+          "expected": "Metformin",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "dosage",
+          "expected": "50mg",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "frequency",
+          "expected": "TID",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "doctor_name",
+          "expected": "Dr. D. Kim",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "document_date",
+          "expected": "2026-07-01",
+          "actual": "Carlos Rivera\tDate: 2026-07-01",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.5,
+          "field_type": "fuzzy",
+          "pass": false
+        }
+      ],
+      "passed": 0,
+      "total": 6
+    },
+    {
+      "sample_id": 8,
+      "tier": "clean",
+      "font": "Noteworthy.ttc",
+      "method": "paddleocr",
+      "fields": [
+        {
+          "field_name": "patient_name",
+          "expected": "Priya Patel",
+          "actual": "Priya Patel\tDate: 2026-07-15",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.5641,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "drug_name",
+          "expected": "Lisinopril",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "dosage",
+          "expected": "150mg",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "frequency",
+          "expected": "BID",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "doctor_name",
+          "expected": "Dr. J. Chen",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "document_date",
+          "expected": "2026-07-15",
+          "actual": "Priya Patel\tDate: 2026-07-15",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.5263,
+          "field_type": "fuzzy",
+          "pass": false
+        }
+      ],
+      "passed": 0,
+      "total": 6
+    },
+    {
+      "sample_id": 9,
+      "tier": "moderate",
+      "font": "Caveat",
+      "method": "paddleocr",
+      "fields": [
+        {
+          "field_name": "patient_name",
+          "expected": "Carlos Rivera",
+          "actual": "Date: 2026-06-22",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.1379,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "drug_name",
+          "expected": "Ciprofloxacin",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "dosage",
+          "expected": "5mg",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "frequency",
+          "expected": "At bedtime",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "doctor_name",
+          "expected": "Dr. E. Brown",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "document_date",
+          "expected": "2026-06-22",
+          "actual": "Date: 2026-06-22",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.7692,
+          "field_type": "fuzzy",
+          "pass": false
+        }
+      ],
+      "passed": 0,
+      "total": 6
+    },
+    {
+      "sample_id": 10,
+      "tier": "moderate",
+      "font": "Bradley Hand Bold",
+      "method": "paddleocr",
+      "fields": [
+        {
+          "field_name": "patient_name",
+          "expected": "Priya Patel",
+          "actual": "Priya Patel\tDate: 2026-05-25",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.5641,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "drug_name",
+          "expected": "Clindamycin",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "dosage",
+          "expected": "150mg",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "frequency",
+          "expected": "Three times daily",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "doctor_name",
+          "expected": "Dr. P. Garcia",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "document_date",
+          "expected": "2026-05-25",
+          "actual": "Priya Patel\tDate: 2026-05-25",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.5263,
+          "field_type": "fuzzy",
+          "pass": false
+        }
+      ],
+      "passed": 0,
+      "total": 6
+    },
+    {
+      "sample_id": 11,
+      "tier": "moderate",
+      "font": "MarkerFelt.ttc",
+      "method": "paddleocr",
+      "fields": [
+        {
+          "field_name": "patient_name",
+          "expected": "Aisha Mohammed",
+          "actual": "Aisha Mohammed\tDate:2026-08-01",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.6364,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "drug_name",
+          "expected": "Doxycycline",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "dosage",
+          "expected": "200mg",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "frequency",
+          "expected": "At bedtime",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "doctor_name",
+          "expected": "Dr. E. Brown",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "document_date",
+          "expected": "2026-08-01",
+          "actual": "Aisha Mohammed\tDate:2026-08-01",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.5,
+          "field_type": "fuzzy",
+          "pass": false
+        }
+      ],
+      "passed": 0,
+      "total": 6
+    },
+    {
+      "sample_id": 12,
+      "tier": "moderate",
+      "font": "Bradley Hand Bold",
+      "method": "paddleocr",
+      "fields": [
+        {
+          "field_name": "patient_name",
+          "expected": "Carlos Rivera",
+          "actual": "Carlos Rivera\tDate: 2026-05-25",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.6047,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "drug_name",
+          "expected": "Ciprofloxacin",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "dosage",
+          "expected": "500mg",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "frequency",
+          "expected": "BID",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "doctor_name",
+          "expected": "Dr. T. Nguyen",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "document_date",
+          "expected": "2026-05-25",
+          "actual": "Carlos Rivera\tDate: 2026-05-25",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.5,
+          "field_type": "fuzzy",
+          "pass": false
+        }
+      ],
+      "passed": 0,
+      "total": 6
+    },
+    {
+      "sample_id": 13,
+      "tier": "moderate",
+      "font": "MarkerFelt.ttc",
+      "method": "paddleocr",
+      "fields": [
+        {
+          "field_name": "patient_name",
+          "expected": "Carlos Rivera",
+          "actual": "Carlos Rivera\tDate:2026-05-10",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.619,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "drug_name",
+          "expected": "Gabapentin",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "dosage",
+          "expected": "100mg",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "frequency",
+          "expected": "TID",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "doctor_name",
+          "expected": "Dr. R. Patel",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "document_date",
+          "expected": "2026-05-10",
+          "actual": "Carlos Rivera\tDate:2026-05-10",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.5128,
+          "field_type": "fuzzy",
+          "pass": false
+        }
+      ],
+      "passed": 0,
+      "total": 6
+    },
+    {
+      "sample_id": 14,
+      "tier": "moderate",
+      "font": "MarkerFelt.ttc",
+      "method": "paddleocr",
+      "fields": [
+        {
+          "field_name": "patient_name",
+          "expected": "Daniel Nguyen",
+          "actual": "Daniel Nguyen\tDate: 2026-08-0",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.619,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "drug_name",
+          "expected": "Pantoprazole",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "dosage",
+          "expected": "20mg",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "frequency",
+          "expected": "BID",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "doctor_name",
+          "expected": "Dr. R. Patel",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "document_date",
+          "expected": "2026-08-05",
+          "actual": "Daniel Nguyen\tDate: 2026-08-0",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.4615,
+          "field_type": "fuzzy",
+          "pass": false
+        }
+      ],
+      "passed": 0,
+      "total": 6
+    },
+    {
+      "sample_id": 15,
+      "tier": "degraded",
+      "font": "Caveat",
+      "method": "paddleocr",
+      "fields": [
+        {
+          "field_name": "patient_name",
+          "expected": "James Williams",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "drug_name",
+          "expected": "Omeprazole",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "dosage",
+          "expected": "150mg",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "frequency",
+          "expected": "Three times daily",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "doctor_name",
+          "expected": "Dr. D. Kim",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "document_date",
+          "expected": "2026-06-14",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        }
+      ],
+      "passed": 0,
+      "total": 6
+    },
+    {
+      "sample_id": 16,
+      "tier": "degraded",
+      "font": "MarkerFelt.ttc",
+      "method": "paddleocr",
+      "fields": [
+        {
+          "field_name": "patient_name",
+          "expected": "Raj Sharma",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "drug_name",
+          "expected": "Ciprofloxacin",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "dosage",
+          "expected": "50mg",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "frequency",
+          "expected": "Once daily",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "doctor_name",
+          "expected": "Dr. D. Kim",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "document_date",
+          "expected": "2026-05-25",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        }
+      ],
+      "passed": 0,
+      "total": 6
+    },
+    {
+      "sample_id": 17,
+      "tier": "degraded",
+      "font": "Bradley Hand Bold",
+      "method": "paddleocr",
+      "fields": [
+        {
+          "field_name": "patient_name",
+          "expected": "Li Wei",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "drug_name",
+          "expected": "Atorvastatin",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "dosage",
+          "expected": "10mg",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "frequency",
+          "expected": "Every 8 hours",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "doctor_name",
+          "expected": "Dr. R. Patel",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "document_date",
+          "expected": "2026-04-20",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        }
+      ],
+      "passed": 0,
+      "total": 6
+    },
+    {
+      "sample_id": 18,
+      "tier": "degraded",
+      "font": "Bradley Hand Bold",
+      "method": "paddleocr",
+      "fields": [
+        {
+          "field_name": "patient_name",
+          "expected": "Raj Sharma",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "drug_name",
+          "expected": "Amlodipine",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "dosage",
+          "expected": "50mg",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "frequency",
+          "expected": "Twice daily",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "doctor_name",
+          "expected": "Dr. D. Kim",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "document_date",
+          "expected": "2026-08-03",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        }
+      ],
+      "passed": 0,
+      "total": 6
+    },
+    {
+      "sample_id": 19,
+      "tier": "degraded",
+      "font": "Noteworthy.ttc",
+      "method": "paddleocr",
+      "fields": [
+        {
+          "field_name": "patient_name",
+          "expected": "Rachel Thompson",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "drug_name",
+          "expected": "Amlodipine",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "dosage",
+          "expected": "50mg",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "frequency",
+          "expected": "Before meals",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "doctor_name",
+          "expected": "Dr. A. Kumar",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "document_date",
+          "expected": "2026-07-01",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        }
+      ],
+      "passed": 0,
+      "total": 6
+    },
+    {
+      "sample_id": 20,
+      "tier": "degraded",
+      "font": "Caveat",
+      "method": "paddleocr",
+      "fields": [
+        {
+          "field_name": "patient_name",
+          "expected": "Rachel Thompson",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "drug_name",
+          "expected": "Prednisone",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "dosage",
+          "expected": "200mg",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "frequency",
+          "expected": "Once daily",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "exact",
+          "pass": false
+        },
+        {
+          "field_name": "doctor_name",
+          "expected": "Dr. M. Williams",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        },
+        {
+          "field_name": "document_date",
+          "expected": "2026-07-01",
+          "actual": "",
+          "exact_match": false,
+          "fuzzy_match": false,
+          "similarity": 0.0,
+          "field_type": "fuzzy",
+          "pass": false
+        }
+      ],
+      "passed": 0,
+      "total": 6
+    }
+  ]
+}

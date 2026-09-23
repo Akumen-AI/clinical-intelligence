@@ -161,6 +161,23 @@ def generate_answer(db: Session, patient_id: str, question: str, user_id: str, c
     if not top_chunks:
         answer_text = "I could not find any relevant information in the patient's documents to answer your question."
         _save_turn("assistant", answer_text)
+        
+        from app.services import audit_service
+        audit_service.write_entry(
+            db=db,
+            actor_user_id=user_id if isinstance(user_id, uuid.UUID) else uuid.UUID(str(user_id)),
+            action_type="rag_query",
+            target_entity=f"patient:{patient_id}",
+            patient_id=patient_id,
+            rationale=f"Asked: '{question}'. Grounded answer found: False",
+            outcome="success",
+            context={
+                "query": question,
+                "citations": [],
+                "provider": "VectorStoreProvider"
+            }
+        )
+        
         return answer_text, [], conversation.id
         
     context_parts = []
@@ -287,7 +304,7 @@ Question: {question}
         action_type="rag_query",
         target_entity=f"patient:{patient_id}",
         patient_id=patient_id,
-        rationale=f"RAG query grounded: {bool(citations)}",
+        rationale=f"Asked: '{question}'. Grounded answer found: {bool(citations)}",
         outcome="success",
         context={
             "query": question,

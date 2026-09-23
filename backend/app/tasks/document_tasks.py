@@ -12,7 +12,8 @@ from redis import Redis
 from redis.exceptions import LockError
 
 from app.celery_app import celery_app
-from app.database import SessionLocal
+from app.database import Base
+import app.database
 from app.models.document import Document, DocumentStatus
 from app.utils.validators import FileValidationError
 
@@ -38,7 +39,7 @@ def process_document_task(self, document_id: str, actor_id: Optional[str] = None
     if actor_uuid:
         set_actor_id(actor_uuid)
 
-    db: Session = SessionLocal()
+    db: Session = app.database.SessionLocal()
     try:
         from app.services import audit_service
         from app.services.preprocessing_service import preprocess_document_file
@@ -256,7 +257,7 @@ def scan_watched_folder_task(self):
     try:
         with redis_client.lock(lock_name, timeout=300, blocking_timeout=1):
             logger.info("[FolderWatcher] Lock acquired, scanning folder.")
-            db: Session = SessionLocal()
+            db: Session = app.database.SessionLocal()
             try:
                 from app.services.folder_watcher_service import scan_watched_folder_logic
                 system_actor = uuid.UUID('00000000-0000-0000-0000-000000000001')

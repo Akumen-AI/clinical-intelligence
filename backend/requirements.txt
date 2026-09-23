@@ -1,39 +1,39 @@
-fastapi>=0.100.0
-uvicorn[standard]>=0.22.0
-sqlalchemy[asyncio]>=2.0.0
-pydantic>=2.0.0
-pydantic-settings>=2.0.0
-python-multipart>=0.0.6
-pytest>=7.4.0
-pytest-mock>=3.10.0
-httpx>=0.23.0
-requests>=2.31.0
-pypdf>=3.0.0
-Pillow>=10.0.0
+fastapi==0.100.0
+uvicorn[standard]==0.22.0
+sqlalchemy[asyncio]==2.0.0
+pydantic==2.0.0
+pydantic-settings==2.0.0
+python-multipart==0.0.6
+pytest==7.4.0
+pytest-mock==3.10.0
+httpx==0.23.0
+requests==2.31.0
+pypdf==3.0.0
+Pillow==10.0.0
 # PaddleX/PaddleOCR currently has better compatibility with the pandas 2.x
 # native wheels on Windows than with pandas 3.x.
 pandas<3.0
-openpyxl>=3.1.0
-reportlab>=4.0.0
+openpyxl==3.1.0
+reportlab==4.0.0
 
-opencv-python-headless>=4.8.0
-pymupdf>=1.22.0
+opencv-python-headless==4.8.0
+pymupdf==1.22.0
 paddleocr==3.7.0
 paddlepaddle==3.3.1
-google-genai>=0.2.0
+google-genai==0.2.0
 # LayoutParser is loaded lazily; its Detectron2 backend must be installed
 # separately where supported by the host platform.
-layoutparser>=0.3.4
-aiosqlite>=0.19.0
-python-jose[cryptography]>=3.3.0
-passlib[bcrypt]>=1.7.4
+layoutparser==0.3.4
+aiosqlite==0.19.0
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
 bcrypt<4.0.0
-email-validator>=2.0.0
-structlog>=24.0.0
-pytest-asyncio>=1.0.0
-alembic>=1.13.0
-celery>=5.3.0
-jellyfish>=1.0.0
+email-validator==2.0.0
+structlog==24.0.0
+pytest-asyncio==1.0.0
+alembic==1.13.0
+celery==5.3.0
+jellyfish==1.0.0
 redis==8.1.0
 croniter
-slowapi>=0.1.9
+slowapi==0.1.9

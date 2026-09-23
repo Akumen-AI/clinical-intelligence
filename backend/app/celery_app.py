@@ -18,6 +18,7 @@ celery_app.conf.update(
     timezone="UTC",
     enable_utc=True,
     task_track_started=True,
+    task_always_eager=True,  # Added to allow local execution without Redis
 )
 
 from celery.schedules import crontab

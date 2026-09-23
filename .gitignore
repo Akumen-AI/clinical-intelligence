@@ -56,4 +56,4 @@ backend/app/static/
 Thumbs.db
 pyrefly.toml
 
-private-docs/
+private_docs/

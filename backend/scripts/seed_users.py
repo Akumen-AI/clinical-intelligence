@@ -13,13 +13,20 @@ from app.core.security import get_password_hash
 # IMPORTANT: These are synthetic demo accounts only! 
 # Do not use these in a production environment.
 
+import secrets
+import string
+
+def _generate_password(length=16):
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
 DEMO_USERS = [
-    {"email": "doctor@demo.com", "role": UserRole.DOCTOR, "password": "doctorPassword123!"},
-    {"email": "nurse@demo.com", "role": UserRole.NURSE, "password": "nursePassword123!"},
-    {"email": "admin@demo.com", "role": UserRole.HOSPITAL_ADMIN, "password": "adminPassword123!"},
-    {"email": "head@demo.com", "role": UserRole.DEPARTMENT_HEAD, "password": "headPassword123!"},
-    {"email": "it@demo.com", "role": UserRole.IT, "password": "itPassword123!"},
-    {"email": "compliance@demo.com", "role": UserRole.COMPLIANCE, "password": "compliancePassword123!"},
+    {"email": "doctor@demo.com", "role": UserRole.DOCTOR, "password": _generate_password()},
+    {"email": "nurse@demo.com", "role": UserRole.NURSE, "password": _generate_password()},
+    {"email": "admin@demo.com", "role": UserRole.HOSPITAL_ADMIN, "password": _generate_password()},
+    {"email": "head@demo.com", "role": UserRole.DEPARTMENT_HEAD, "password": _generate_password()},
+    {"email": "it@demo.com", "role": UserRole.IT, "password": _generate_password()},
+    {"email": "compliance@demo.com", "role": UserRole.COMPLIANCE, "password": _generate_password()},
 ]
 
 def seed_users():
@@ -34,10 +41,10 @@ def seed_users():
                     password_hash=get_password_hash(user_data["password"])
                 )
                 db.add(new_user)
-                print(f"Created demo user: {user_data['email']} with role {user_data['role'].value}")
+                print(f"Created demo user: {user_data['email']} with role {user_data['role'].value}. Password: {user_data['password']}")
             else:
                 existing_user.password_hash = get_password_hash(user_data["password"])
-                print(f"Updated password for demo user: {user_data['email']}")
+                print(f"Updated password for demo user: {user_data['email']}. Password: {user_data['password']}")
         db.commit()
         print("Demo users seeded successfully.")
     except Exception as e:

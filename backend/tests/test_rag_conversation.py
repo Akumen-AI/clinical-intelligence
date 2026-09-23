@@ -21,6 +21,9 @@ def db_session():
 def mock_gemini_client():
     with patch("google.genai.Client") as mock_client:
         mock_instance = MagicMock()
+        mock_embed_response = MagicMock()
+        mock_embed_response.embeddings = [MagicMock(values=[0.1] * 256)]
+        mock_instance.models.embed_content.return_value = mock_embed_response
         mock_client.return_value = mock_instance
         yield mock_instance
 
@@ -31,19 +34,18 @@ def setup_rag_patient(db_session):
     db_session.add(patient)
     
     # Add some chunks
-    chunk1 = PatientRAGChunk(
-        patient_id=patient_id,
-        source_document_id="doc-1",
+    from app.providers.rag import get_vector_store, RetrievalScope, RAGChunk
+    chunk1 = RAGChunk(
         content="Patient is taking Lisinopril for high blood pressure.",
-        embedding=[0.1] * 768,
+        embedding=[0.1] * 256,
+        metadata={"patient_id": patient_id, "source_document_id": "doc-1"}
     )
-    chunk2 = PatientRAGChunk(
-        patient_id=patient_id,
-        source_document_id="doc-2",
+    chunk2 = RAGChunk(
         content="Patient has a history of Type 2 Diabetes.",
-        embedding=[0.2] * 768,
+        embedding=[0.2] * 256,
+        metadata={"patient_id": patient_id, "source_document_id": "doc-2"}
     )
-    db_session.add_all([chunk1, chunk2])
+    get_vector_store().add_chunks(RetrievalScope.PATIENT, [chunk1, chunk2])
     db_session.commit()
     return patient_id
 
@@ -73,18 +75,16 @@ def test_new_conversation_created(auth_client, setup_rag_patient, mock_gemini_cl
     """Test (d): starting a new conversation when no conversation_id is given."""
     # Mock LLM response
     mock_response = MagicMock()
-    mock_response.text = "Lisinopril"
+    mock_response.text = '{"is_grounded": true, "answer": "Lisinopril", "citations": [{"chunk_id": "chunk_0"}]}'
     mock_gemini_client.models.generate_content.return_value = mock_response
     
-    # Mock embeddings
-    with patch("app.services.rag_service.get_embedding", return_value=[0.1]*768):
-        response = auth_client.post(
-            f"/api/v1/patients/{setup_rag_patient}/ask",
-            json={"question": "What medication is the patient taking?"}
-        )
-        if response.status_code != 200:
-            print("ERROR RESPONSE:", response.json())
-        assert response.status_code == 200
+    response = auth_client.post(
+        f"/api/v1/patients/{setup_rag_patient}/ask",
+        json={"question": "What medication is the patient taking?"}
+    )
+    if response.status_code != 200:
+        print("ERROR RESPONSE:", response.json())
+    assert response.status_code == 200
     data = response.json()
     assert "conversation_id" in data
     assert data["conversation_id"] is not None
@@ -96,12 +96,15 @@ def test_followup_question_resolves(auth_client, db_session, setup_rag_patient, 
     conv = RAGConversation(
         patient_id=setup_rag_patient, 
         user_id=test_user_id, 
-        turns=[
-            {"role": "user", "content": "What medications?"},
-            {"role": "assistant", "content": "Lisinopril"}
-        ]
     )
     db_session.add(conv)
+    db_session.commit()
+    db_session.refresh(conv)
+    
+    from app.models.rag_message import RAGMessage
+    msg1 = RAGMessage(conversation_id=conv.id, role="user", content="What medications?")
+    msg2 = RAGMessage(conversation_id=conv.id, role="assistant", content="Lisinopril")
+    db_session.add_all([msg1, msg2])
     db_session.commit()
     
     # Mock rewrite to prove it gets called
@@ -109,19 +112,18 @@ def test_followup_question_resolves(auth_client, db_session, setup_rag_patient, 
     mock_rewrite_response.text = "What is Lisinopril for?"
     
     mock_answer_response = MagicMock()
-    mock_answer_response.text = "High blood pressure."
+    mock_answer_response.text = '{"is_grounded": true, "answer": "High blood pressure.", "citations": [{"chunk_id": "chunk_0"}]}'
     
     # generate_content is called twice: once for rewrite, once for answer
     mock_gemini_client.models.generate_content.side_effect = [mock_rewrite_response, mock_answer_response]
     
-    with patch("app.services.rag_service.get_embedding", return_value=[0.1]*768):
-        response = auth_client.post(
-            f"/api/v1/patients/{setup_rag_patient}/ask",
-            json={"question": "What is it for?", "conversation_id": conv.id}
-        )
-        if response.status_code != 200:
-            print("ERROR RESPONSE:", response.json())
-        assert response.status_code == 200
+    response = auth_client.post(
+        f"/api/v1/patients/{setup_rag_patient}/ask",
+        json={"question": "What is it for?", "conversation_id": conv.id}
+    )
+    if response.status_code != 200:
+        print("ERROR RESPONSE:", response.json())
+    assert response.status_code == 200
     assert mock_gemini_client.models.generate_content.call_count == 2
     
     # Verify the history context was passed in the second call (the answer prompt)
@@ -132,37 +134,39 @@ def test_followup_question_resolves(auth_client, db_session, setup_rag_patient, 
     assert "Lisinopril" in prompt_text
     
     db_session.refresh(conv)
-    assert len(conv.turns) == 4
-    assert conv.turns[2]["content"] == "What is it for?"
-    assert conv.turns[3]["content"] == "High blood pressure."
+    assert len(conv.messages) == 4
+    contents = [m.content for m in conv.messages]
+    assert "What is it for?" in contents
+    assert "High blood pressure." in contents
 
     # Scenario 2: Resolving a referential phrase like "the other one"
     conv2 = RAGConversation(
         patient_id=setup_rag_patient, 
         user_id=test_user_id, 
-        turns=[
-            {"role": "user", "content": "List their conditions."},
-            {"role": "assistant", "content": "They have high blood pressure and diabetes."}
-        ]
     )
     db_session.add(conv2)
+    db_session.commit()
+    db_session.refresh(conv2)
+    
+    msg3 = RAGMessage(conversation_id=conv2.id, role="user", content="List their conditions.")
+    msg4 = RAGMessage(conversation_id=conv2.id, role="assistant", content="They have high blood pressure and diabetes.")
+    db_session.add_all([msg3, msg4])
     db_session.commit()
     
     mock_gemini_client.models.generate_content.reset_mock()
     mock_rewrite2 = MagicMock()
     mock_rewrite2.text = "Tell me more about diabetes."
     mock_ans2 = MagicMock()
-    mock_ans2.text = "It is Type 2."
+    mock_ans2.text = '{"is_grounded": true, "answer": "It is Type 2.", "citations": [{"chunk_id": "chunk_0"}]}'
     mock_gemini_client.models.generate_content.side_effect = [mock_rewrite2, mock_ans2]
     
-    with patch("app.services.rag_service.get_embedding", return_value=[0.2]*768):
-        response2 = auth_client.post(
-            f"/api/v1/patients/{setup_rag_patient}/ask",
-            json={"question": "Tell me more about the second one.", "conversation_id": conv2.id}
-        )
-        if response2.status_code != 200:
-            print("ERROR RESPONSE:", response2.json())
-        assert response2.status_code == 200
+    response2 = auth_client.post(
+        f"/api/v1/patients/{setup_rag_patient}/ask",
+        json={"question": "Tell me more about the second one.", "conversation_id": conv2.id}
+    )
+    if response2.status_code != 200:
+        print("ERROR RESPONSE:", response2.json())
+    assert response2.status_code == 200
     assert mock_gemini_client.models.generate_content.call_count == 2
     
 def test_conversation_isolation_across_patients(auth_client, db_session, setup_rag_patient, test_user_id):
@@ -172,7 +176,7 @@ def test_conversation_isolation_across_patients(auth_client, db_session, setup_r
     db_session.add(patient2)
     
     # Create conversation for patient 1
-    conv = RAGConversation(patient_id=setup_rag_patient, user_id=str(test_user_id), turns=[])
+    conv = RAGConversation(patient_id=setup_rag_patient, user_id=str(test_user_id))
     db_session.add(conv)
     db_session.commit()
     
@@ -192,7 +196,7 @@ def test_conversation_isolation_across_users(auth_client, db_session, setup_rag_
     """Test (c): conversation isolation across users."""
     # Create conversation belonging to someone else
     other_user_id = str(uuid.uuid4())
-    conv = RAGConversation(patient_id=setup_rag_patient, user_id=other_user_id, turns=[])
+    conv = RAGConversation(patient_id=setup_rag_patient, user_id=other_user_id)
     db_session.add(conv)
     db_session.commit()
     
@@ -211,16 +215,15 @@ def test_conversation_isolation_across_users(auth_client, db_session, setup_rag_
 def test_audit_logs_written(auth_client, db_session, setup_rag_patient, mock_gemini_client, test_user_id):
     """Test (e): audit log entries still get written per turn."""
     mock_response = MagicMock()
-    mock_response.text = "Lisinopril"
+    mock_response.text = '{"is_grounded": true, "answer": "Lisinopril", "citations": [{"chunk_id": "chunk_0"}]}'
     mock_gemini_client.models.generate_content.return_value = mock_response
     
     initial_log_count = db_session.query(AuditLogEntry).count()
     
-    with patch("app.services.rag_service.get_embedding", return_value=[0.1]*768):
-        auth_client.post(
-            f"/api/v1/patients/{setup_rag_patient}/ask",
-            json={"question": "What is the medication?"}
-        )
+    auth_client.post(
+        f"/api/v1/patients/{setup_rag_patient}/ask",
+        json={"question": "What is the medication?"}
+    )
         
     final_log_count = db_session.query(AuditLogEntry).count()
     assert final_log_count > initial_log_count

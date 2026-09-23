@@ -96,8 +96,8 @@ class ValidationService:
         return log_entry
 
     @staticmethod
-    def get_upload_logs(db: Session, limit: int = 100) -> List[UploadLog]:
+    def get_upload_logs(db: Session, skip: int = 0, limit: int = 100) -> List[UploadLog]:
         """
         Retrieves recent validation log entries for audit trail.
         """
-        return db.query(UploadLog).order_by(UploadLog.timestamp.desc()).limit(limit).all()
+        return db.query(UploadLog).order_by(UploadLog.timestamp.desc()).offset(skip).limit(limit).all()

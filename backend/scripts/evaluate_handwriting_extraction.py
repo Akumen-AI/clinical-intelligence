@@ -162,6 +162,7 @@ def extract_fields_from_image(image_path: str) -> Dict[str, str]:
             ocr_scores,
             confidence_threshold=settings.HANDWRITING_OCR_CONFIDENCE_THRESHOLD,
             proportion_threshold=settings.HANDWRITING_LOW_CONFIDENCE_PROPORTION,
+            consecutive_count_threshold=settings.HANDWRITING_CONSECUTIVE_LOW_CONFIDENCE_COUNT,
         )
     ):
         extraction_method = "gemini_handwriting"

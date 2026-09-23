@@ -44,7 +44,7 @@ class FaissVectorStoreProvider(VectorStoreProvider):
             return
             
         dim = len(chunks[0].embedding)
-        index = faiss.IndexHNSWFlat(dim, 32)  # HNSW for better performance at scale
+        index = faiss.IndexHNSWFlat(dim, 32, faiss.METRIC_INNER_PRODUCT)  # HNSW for better performance at scale
         
         embeddings = np.array([c.embedding for c in chunks], dtype=np.float32)
         # Normalize vectors for cosine similarity

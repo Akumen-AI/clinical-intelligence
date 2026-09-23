@@ -48,25 +48,25 @@ def test_ask_patient_question(mock_genai_client):
         patient = Patient(patient_id="test_rag_patient", mrn="MRN-RAG", name="RAG Test Patient")
         db.add(patient)
         
-        chunk = PatientRAGChunk(
-            patient_id="test_rag_patient",
-            source_document_id="doc1",
-            content="Patient has a history of asthma.",
-            embedding=[0.1, 0.2, 0.3], 
-            metadata_json={"document_type": "Discharge Summary"}
-        )
-        db.add(chunk)
+        from app.providers.rag import get_vector_store, RetrievalScope, RAGChunk
+        get_vector_store().add_chunks(RetrievalScope.PATIENT, [
+            RAGChunk(
+                content="Patient has a history of asthma.",
+                embedding=[0.1]*256, 
+                metadata={"patient_id": "test_rag_patient", "source_document_id": "doc1", "document_type": "Discharge Summary"}
+            )
+        ])
         db.commit()
     finally:
         db.close()
         
     mock_client_instance = mock_genai_client.return_value
     mock_embed_response = MagicMock()
-    mock_embed_response.embeddings = [MagicMock(values=[0.1, 0.2, 0.3])]
+    mock_embed_response.embeddings = [MagicMock(values=[0.1]*256)]
     mock_client_instance.models.embed_content.return_value = mock_embed_response
     
     mock_generate_response = MagicMock()
-    mock_generate_response.text = "The individual's history indicates asthma."
+    mock_generate_response.text = '{"is_grounded": true, "answer": "The individual\'s history indicates asthma.", "citations": [{"chunk_id": "chunk_0"}]}'
     mock_client_instance.models.generate_content.return_value = mock_generate_response
 
     response = client.post(
@@ -99,25 +99,25 @@ def test_rag_citation_object_structure(mock_genai_client):
         patient = Patient(patient_id="patient_citation_test", mrn="MRN-CIT", name="Citation Test Patient")
         db.add(patient)
         
-        chunk = PatientRAGChunk(
-            patient_id="patient_citation_test",
-            source_document_id="doc_synth_999",
-            content="Synthetic patient was prescribed Amoxicillin 500mg daily.",
-            embedding=[0.1, 0.2, 0.3], 
-            metadata_json={"page_number": 1, "document_type": "Prescription"}
-        )
-        db.add(chunk)
+        from app.providers.rag import get_vector_store, RetrievalScope, RAGChunk
+        get_vector_store().add_chunks(RetrievalScope.PATIENT, [
+            RAGChunk(
+                content="Synthetic patient was prescribed Amoxicillin 500mg daily.",
+                embedding=[0.1]*256, 
+                metadata={"patient_id": "patient_citation_test", "source_document_id": "doc_synth_999", "page_number": 1, "document_type": "Prescription"}
+            )
+        ])
         db.commit()
     finally:
         db.close()
         
     mock_client_instance = mock_genai_client.return_value
     mock_embed_response = MagicMock()
-    mock_embed_response.embeddings = [MagicMock(values=[0.1, 0.2, 0.3])]
+    mock_embed_response.embeddings = [MagicMock(values=[0.1]*256)]
     mock_client_instance.models.embed_content.return_value = mock_embed_response
     
     mock_generate_response = MagicMock()
-    mock_generate_response.text = "Amoxicillin 500mg daily was noted."
+    mock_generate_response.text = '{"is_grounded": true, "answer": "Amoxicillin 500mg daily was noted.", "citations": [{"chunk_id": "chunk_0"}]}'
     mock_client_instance.models.generate_content.return_value = mock_generate_response
     
     response = client.post(
@@ -164,20 +164,21 @@ def test_ask_patient_isolation(mock_genai_client):
         db.add_all([patient_a, patient_b])
         
         # Add chunk only to patient B
-        chunk_b = PatientRAGChunk(
-            patient_id="patient_b",
-            source_document_id="doc_b",
-            content="Patient B has diabetes.",
-            embedding=[0.1, 0.2, 0.3],
-        )
-        db.add(chunk_b)
+        from app.providers.rag import get_vector_store, RetrievalScope, RAGChunk
+        get_vector_store().add_chunks(RetrievalScope.PATIENT, [
+            RAGChunk(
+                content="Patient B has diabetes.",
+                embedding=[0.1]*256,
+                metadata={"patient_id": "patient_b", "source_document_id": "doc_b"}
+            )
+        ])
         db.commit()
     finally:
         db.close()
         
     mock_client_instance = mock_genai_client.return_value
     mock_embed_response = MagicMock()
-    mock_embed_response.embeddings = [MagicMock(values=[0.1, 0.2, 0.3])]
+    mock_embed_response.embeddings = [MagicMock(values=[0.1]*256)]
     mock_client_instance.models.embed_content.return_value = mock_embed_response
     
     response = client.post(
@@ -223,7 +224,7 @@ def test_ask_zero_chunks(mock_genai_client):
         
     mock_client_instance = mock_genai_client.return_value
     mock_embed_response = MagicMock()
-    mock_embed_response.embeddings = [MagicMock(values=[0.1, 0.2, 0.3])]
+    mock_embed_response.embeddings = [MagicMock(values=[0.1]*256)]
     mock_client_instance.models.embed_content.return_value = mock_embed_response
     
     response = client.post(
