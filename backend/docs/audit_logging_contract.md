@@ -35,23 +35,6 @@ Examples of established `action_type` formats:
 
 Do not invent ad-hoc naming patterns (e.g., avoid `UploadedDocument`, `Export_Action`, `viewDashboard`).
 
-## 3. Epic 8 (Agent-Assisted Report Generation) Contract
-
-Epic 8 (BRD FR-28 and FR-29) is currently unimplemented. When this epic is built, its audit logging implementation must strictly adhere to the following contracts from the first commit to ensure compliance:
-
-### POST `/reports/generate` (FR-28)
-- **`action_type`**: `"agent_report_generated"`
-- **`patient_id`**: Set to the specific patient's ID if the natural-language request resolves to a single-patient query. Leave as `None` if it is an aggregate/cohort query (e.g., "all diabetic patients this quarter").
-- **`rationale`**: Must include both the natural-language request text and the structured query/filters the agent derived from it. This ensures that the audit trail and the user-facing transparency requirement (FR-28: "shown to the user, not hidden as a black box") are backed by the exact same captured data, rather than two separate implementations. 
-
-### GET/POST `/reports/export` (FR-29)
-- **`action_type`**: `"report_exported"`
-- **`target_entity`**: Must identify the specific report or export batch (e.g., `export_batch:<id>`).
-- **`patient_id`**: Typically `None` since exports are usually cross-patient batch exports. 
-- **`rationale`**: Must state the export format (e.g., PDF/Excel/CSV) and the row/record count. It must **never** include the exported data, PHI values, or sensitive record details.
-
-## 4. Test Enforcement
+## 3. Test Enforcement
 
 To prevent the structural test suite from drifting out of sync with this contract, the test suite actively enforces declarative audit coverage for all state-changing endpoints.
-
-When Epic 8 ships, you **must** update the declarative mapping in `backend/tests/test_audit_coverage_enforced.py` by adding the two new routes (`/reports/generate` and `/reports/export`) and their expected `action_type`s to the verification matrix. This ensures continuous CI/CD enforcement of the audit trail.

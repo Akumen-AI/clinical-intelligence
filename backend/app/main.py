@@ -109,7 +109,7 @@ try:
     logger.info(f"Verified watched folder exists at: {watched_path}")
 except Exception as e:
     # If logger is not fully configured yet, print as fallback
-    print(f"Failed to ensure watched folder exists: {e}")
+    logger.error(f"Failed to ensure watched folder exists: {e}")
 
 from contextlib import asynccontextmanager
 from alembic.config import Config

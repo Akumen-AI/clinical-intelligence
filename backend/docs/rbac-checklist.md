@@ -38,9 +38,9 @@ The table below enumerates every backend route, cross-referencing its current co
 | **Verify / Review** | | | | | | | |
 | POST | `/api/v1/documents/{id}/link-patient` | Verify | Doctor, Nurse, Admin | Doctor, Nurse, Admin | MATCH | `test_link_patient.py` | `ReviewQueuePage` |
 | GET | `/api/v1/documents/{id}/file` | Verify | Doctor, Nurse, Admin | Doctor, Nurse, Admin | MATCH | | `ReviewQueuePage` |
-| GET | `/api/v1/layout/{id}/layout` | Verify | Doctor, Nurse, Admin | Doctor, Nurse, Admin | MATCH | `test_layout_detection.py` | `ReviewQueuePage` |
-| GET | `/api/v1/fields/{id}/fields` | Verify | Doctor, Nurse, Admin | Doctor, Nurse, Admin | MATCH | `test_field_extraction.py` | `ReviewQueuePage` |
-| POST | `/api/v1/fields/{id}/extract` | Verify | Doctor, Nurse, Admin | Doctor, Nurse, Admin | MATCH | `test_field_extraction.py` | `ReviewQueuePage` |
+| GET | `/api/v1/documents/{id}/layout` | Verify | Doctor, Nurse, Admin | Doctor, Nurse, Admin | MATCH | `test_layout_detection.py` | `ReviewQueuePage` |
+| GET | `/api/v1/documents/{id}/fields` | Verify | Doctor, Nurse, Admin | Doctor, Nurse, Admin | MATCH | `test_field_extraction.py` | `ReviewQueuePage` |
+| POST | `/api/v1/documents/{id}/extract` | Verify | Doctor, Nurse, Admin | Doctor, Nurse, Admin | MATCH | `test_field_extraction.py` | `ReviewQueuePage` |
 | GET | `/api/v1/review/pending` | Verify | Doctor, Nurse, Admin | Doctor, Nurse, Admin | MATCH | `test_confidence_router.py` | `ReviewQueuePage` |
 | GET | `/api/v1/review/pending/{id}/context` | Verify | Doctor, Nurse, Admin | Doctor, Nurse, Admin | MATCH | | `ReviewQueuePage` |
 | GET | `/api/v1/review/pending/{id}/image` | Verify | Doctor, Nurse, Admin | Doctor, Nurse, Admin | MATCH | | `ReviewQueuePage` |
