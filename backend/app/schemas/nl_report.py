@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -12,3 +12,4 @@ class NaturalLanguageReportResponse(BaseModel):
     resolved_filters: Dict[str, Any]
     chart_type: str
     data: List[Dict[str, Any]]
+    query_plan: Optional[Dict[str, Any]] = None

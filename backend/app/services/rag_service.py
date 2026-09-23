@@ -1,311 +1,309 @@
 import json
 import logging
+import uuid
 from typing import List, Dict, Any, Tuple
 from sqlalchemy.orm import Session
 from app.models.document import Document
-from app.models.rag_chunk import PatientRAGChunk
+from app.models.extracted_field import ExtractedField, VerificationStatus
+from app.providers.rag import get_llm_provider, get_embedding_provider, get_vector_store, RetrievalScope, RAGChunk
 
 logger = logging.getLogger("app.services.rag_service")
 
-# Basic chunking settings
 CHUNK_SIZE = 500
 CHUNK_OVERLAP = 100
-
-
-def get_embedding(text: str) -> List[float]:
-    """
-    Generate an embedding for the given text using google-genai.
-    Returns a list of floats.
-    """
-    from google import genai
-    from app.config import settings
-
-    if not settings.GEMINI_API_KEY:
-        raise ValueError("[RAG] GEMINI_API_KEY is not set. Cannot generate embeddings.")
-
-    client = genai.Client(api_key=settings.GEMINI_API_KEY)
-    
-    try:
-        response = client.models.embed_content(
-            model="gemini-embedding-2",
-            contents=text,
-        )
-        return response.embeddings[0].values
-    except Exception as e:
-        logger.error(f"[RAG] Failed to generate embedding: {e}")
-        raise RuntimeError(f"Failed to generate embedding: {e}") from e
-
+SIMILARITY_THRESHOLD = 0.6  # Adjust based on embedding model and use case
 
 def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> List[str]:
-    """
-    Split text into overlapping chunks based on characters.
-    """
     if not text:
         return []
-        
     chunks = []
     start = 0
     text_len = len(text)
-    
     while start < text_len:
         end = min(start + chunk_size, text_len)
-        
-        # Try to find a clean break near the end (newline or space)
         if end < text_len:
-            # Look back up to 50 chars for a newline
             newline_pos = text.rfind('\n', max(start, end - 50), end)
             if newline_pos != -1:
                 end = newline_pos + 1
             else:
-                # Look back for a space
                 space_pos = text.rfind(' ', max(start, end - 20), end)
                 if space_pos != -1:
                     end = space_pos + 1
-                    
         chunk = text[start:end].strip()
         if chunk:
             chunks.append(chunk)
-            
         next_start = end - overlap
         if next_start <= start:
             break
         start = next_start
-        
     return chunks
 
-
 def index_document(db: Session, document: Document, ocr_text: str):
-    """
-    Chunk and embed the document's OCR text, storing the chunks in the DB.
-    """
-    if not ocr_text or not document.patient_id:
+    if not document.patient_id:
         return
         
     logger.info(f"[RAG] Indexing document {document.document_id} for patient {document.patient_id}")
+    vector_store = get_vector_store()
+    embedder = get_embedding_provider()
     
-    # Clean up existing chunks for this document
-    db.query(PatientRAGChunk).filter(PatientRAGChunk.source_document_id == document.document_id).delete()
+    vector_store.delete_chunks(RetrievalScope.PATIENT, filters={"source_document_id": document.document_id})
+    chunks = []
     
-    chunks = chunk_text(ocr_text)
+    verified_fields = db.query(ExtractedField).filter(
+        ExtractedField.document_id == document.document_id,
+        ExtractedField.verification_status.in_(["HUMAN_VERIFIED", "AUTO_PASSED"])
+    ).all()
     
-    for i, chunk_text_content in enumerate(chunks):
-        embedding = get_embedding(chunk_text_content)
-        if not embedding:
-            continue
+    for field in verified_fields:
+        text_content = f"{field.field_name}: {field.verified_value or field.raw_value}"
+        embedding = embedder.embed(text_content)
+        if embedding:
+            chunks.append(RAGChunk(
+                content=text_content,
+                embedding=embedding,
+                metadata={
+                    "patient_id": document.patient_id,
+                    "source_document_id": document.document_id,
+                    "source_field_id": field.field_id,
+                    "verification_state": field.verification_status,
+                    "document_type": getattr(document, "document_type", "Unknown"),
+                    "document_revision": document.document_version,
+                    "bounding_box": json.dumps(field.bounding_box) if field.bounding_box else None
+                }
+            ))
+
+    text_chunks = chunk_text(ocr_text)
+    for i, chunk_text_content in enumerate(text_chunks):
+        embedding = embedder.embed(chunk_text_content)
+        if embedding:
+            chunks.append(RAGChunk(
+                content=chunk_text_content,
+                embedding=embedding,
+                metadata={
+                    "patient_id": document.patient_id,
+                    "source_document_id": document.document_id,
+                    "chunk_index": i,
+                    "document_type": getattr(document, "document_type", "Unknown"),
+                    "document_revision": document.document_version,
+                    "type": "ocr_text"
+                }
+            ))
             
-        chunk_record = PatientRAGChunk(
-            patient_id=document.patient_id,
-            source_document_id=document.document_id,
-            content=chunk_text_content,
-            embedding=embedding,
-            metadata_json={"chunk_index": i, "document_type": getattr(document, "document_type", "Unknown")}
-        )
-        db.add(chunk_record)
-        
-    db.commit()
-    logger.info(f"[RAG] Successfully indexed {len(chunks)} chunks for document {document.document_id}")
+    vector_store.add_chunks(RetrievalScope.PATIENT, chunks)
 
-
-def cosine_similarity(v1: List[float], v2: List[float]) -> float:
-    """Calculate cosine similarity between two vectors."""
-    if not v1 or not v2 or len(v1) != len(v2):
-        return 0.0
-        
-    dot_product = sum(a * b for a, b in zip(v1, v2))
-    norm1 = sum(a * a for a in v1) ** 0.5
-    norm2 = sum(b * b for b in v2) ** 0.5
+def retrieve_relevant_chunks(db: Session, patient_id: str, query: str, top_k: int = 5) -> List[Tuple[RAGChunk, float]]:
+    embedder = get_embedding_provider()
+    vector_store = get_vector_store()
     
-    if norm1 == 0 or norm2 == 0:
-        return 0.0
-        
-    return dot_product / (norm1 * norm2)
-
-
-def retrieve_relevant_chunks(db: Session, patient_id: str, query: str, top_k: int = 5) -> List[Tuple[PatientRAGChunk, float]]:
-    """
-    Retrieve the most relevant chunks for a given query and patient.
-    Performs in-memory cosine similarity search since it's scoped to a single patient.
-    """
-    query_embedding = get_embedding(query)
+    query_embedding = embedder.embed(query)
     if not query_embedding:
         return []
         
-    # Get all chunks for this patient
-    all_chunks = db.query(PatientRAGChunk).filter(PatientRAGChunk.patient_id == patient_id).all()
+    chunks = vector_store.search(
+        scope=RetrievalScope.PATIENT,
+        query_vector=query_embedding,
+        top_k=top_k * 2,  # Fetch more to allow threshold filtering
+        filters={"patient_id": patient_id}
+    )
     
-    from app.config import settings
-    scored_chunks = []
-    for chunk in all_chunks:
-        try:
-            # SQLAlchemy JSON column deserializes automatically
-            chunk_embedding = chunk.embedding
-            score = cosine_similarity(query_embedding, chunk_embedding)
-            if score >= settings.RAG_SIMILARITY_THRESHOLD:
-                scored_chunks.append((chunk, score))
-        except Exception as e:
-            logger.warning(f"[RAG] Error processing chunk {chunk.id}: {e}")
-            
-    # Sort by score descending and take top_k
-    scored_chunks.sort(key=lambda x: x[1], reverse=True)
-    return scored_chunks[:top_k]
+    results = []
+    for chunk in chunks:
+        score = chunk.metadata.get("_score", 0.0)
+        if score >= SIMILARITY_THRESHOLD:
+            results.append((chunk, score))
+            if len(results) >= top_k:
+                break
+                
+    return results
 
-
-# RBAC NOTE (FR-20): caller is responsible for verifying role before invoking.
-# This function performs only patient-scoped retrieval (patient_id filter on
-# PatientRAGChunk.patient_id). Role enforcement lives in the router layer via
-# require_clinical_read — do not add role checks here.
 def generate_answer(db: Session, patient_id: str, question: str, user_id: str, conversation_id: str = None) -> Tuple[str, List[Dict[str, Any]], str]:
-
-    """
-    Generate an answer to a user's question based on the patient's retrieved document chunks.
-    Returns (answer_text, citations, conversation_id), where citations is a list of structured objects containing:
-      - document_id: str
-      - snippet: str
-      - location: Optional[str]
-    """
-    from google import genai
-    from app.config import settings
     from app.models.rag_conversation import RAGConversation
-
-    if not settings.GEMINI_API_KEY:
-        raise ValueError("GEMINI_API_KEY is not set. Cannot generate answers.")
-
-    client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    from app.models.rag_message import RAGMessage
+    from app.core.compliance import enforce_ac3
     
-    # Handle conversation session
-    conversation = None
+    llm = get_llm_provider()
+    
+    # Authenticate user and resolve authorization scope
     if conversation_id:
         conversation = db.query(RAGConversation).filter(RAGConversation.id == conversation_id).first()
         if not conversation or conversation.patient_id != patient_id or conversation.user_id != str(user_id):
-            # Strict isolation requirement: if conversation does not match user and patient, deny access
-            from app.core.patient_access_guard import AccessDeniedError
-            raise AccessDeniedError("Invalid conversation ID for this patient and user.")
+            from fastapi import HTTPException
+            raise HTTPException(status_code=403, detail="Invalid conversation ID for this patient and user.")
     else:
-        conversation = RAGConversation(patient_id=patient_id, user_id=str(user_id), turns=[])
+        conversation = RAGConversation(patient_id=patient_id, user_id=str(user_id))
         db.add(conversation)
         db.commit()
         db.refresh(conversation)
 
-    # Use the last N turns for context (e.g. up to 10)
-    history_turns = conversation.turns[-10:] if conversation.turns else []
+    # Use RAGMessage for append-only history
+    history = db.query(RAGMessage).filter(RAGMessage.conversation_id == conversation.id).order_by(RAGMessage.created_at.asc()).all()
+    history_turns = [{"role": msg.role, "content": msg.content} for msg in history[-10:]] if history else []
     
-    # Contextual query rewriting to resolve referential questions
     search_query = question
     if history_turns:
-        history_text = "\n".join([f"{t['role'].capitalize()}: {t['content']}" for t in history_turns])
-        rewrite_prompt = f"""Given the following conversation history and the latest user question, rewrite the question to be a standalone question that can be understood without the conversation history. Do not answer the question, just rewrite it. If it is already standalone, return it as is.
-        
-Conversation History:
-{history_text}
-
-Latest Question: {question}
-
-Standalone Question:"""
+        rewrite_prompt = "Given the following conversation history and the latest user question, rewrite the question to be a standalone question. Do not answer the question, just rewrite it. If it is already standalone, return it as is."
         try:
-            rewrite_response = client.models.generate_content(
-                model="gemini-3.5-flash",
-                contents=rewrite_prompt,
-            )
-            if rewrite_response.text:
-                search_query = rewrite_response.text.strip()
+            rewritten = llm.generate(rewrite_prompt, context=history_turns)
+            if rewritten:
+                search_query = rewritten.strip()
         except Exception as e:
             logger.warning(f"[RAG] Failed to rewrite question for context: {e}")
 
-    # Retrieve top 5 most relevant chunks using the (possibly rewritten) search query
     top_chunks = retrieve_relevant_chunks(db, patient_id, search_query, top_k=5)
+    
+    def _save_turn(role: str, content: str):
+        msg = RAGMessage(conversation_id=conversation.id, role=role, content=content)
+        db.add(msg)
+        db.commit()
+
+    _save_turn("user", question)
     
     if not top_chunks:
         answer_text = "I could not find any relevant information in the patient's documents to answer your question."
-        conversation.turns = conversation.turns + [
-            {"role": "user", "content": question},
-            {"role": "assistant", "content": answer_text}
-        ]
-        db.commit()
+        _save_turn("assistant", answer_text)
         return answer_text, [], conversation.id
         
-    # Build context string and citations list
     context_parts = []
-    citations = []
-    seen = set()
+    chunk_map = {}
     
     for i, (chunk, score) in enumerate(top_chunks):
-        doc_type = chunk.metadata_json.get("document_type", "Unknown") if chunk.metadata_json else "Unknown"
-        context_parts.append(f"--- Document {chunk.source_document_id} ({doc_type}) ---\n{chunk.content}")
+        chunk_identifier = f"chunk_{i}"
+        chunk_map[chunk_identifier] = chunk
         
-        # Build location identifier from metadata if available
-        location = None
-        if chunk.metadata_json and isinstance(chunk.metadata_json, dict):
-            if "section" in chunk.metadata_json and chunk.metadata_json["section"]:
-                location = str(chunk.metadata_json["section"])
-            elif "page_number" in chunk.metadata_json and chunk.metadata_json["page_number"]:
-                location = f"Page {chunk.metadata_json['page_number']}"
-            elif "page" in chunk.metadata_json and chunk.metadata_json["page"]:
-                location = f"Page {chunk.metadata_json['page']}"
-            elif "chunk_index" in chunk.metadata_json:
-                location = f"Chunk {chunk.metadata_json['chunk_index']}"
-            elif doc_type != "Unknown":
-                location = doc_type
-
-        chunk_key = (chunk.source_document_id, chunk.content)
-        if chunk_key not in seen:
-            seen.add(chunk_key)
-            citations.append({
-                "document_id": chunk.source_document_id,
-                "snippet": chunk.content,
-                "location": location,
-            })
+        doc_type = chunk.metadata.get("document_type", "Unknown") if chunk.metadata else "Unknown"
+        doc_id = chunk.metadata.get("source_document_id", "Unknown")
+        context_parts.append(f"--- Chunk ID: {chunk_identifier} | Document {doc_id} ({doc_type}) ---\n{chunk.content}")
         
     context_str = "\n\n".join(context_parts)
     
-    # Build history context for the main prompt
-    history_context = ""
-    if history_turns:
-        history_context = "Conversation History:\n" + "\n".join([f"{t['role'].capitalize()}: {t['content']}" for t in history_turns]) + "\n\n"
-    
     prompt = f"""You are a clinical AI assistant answering questions about a specific patient's medical record.
-You will be provided with a set of retrieved text snippets from the patient's documents.
+You will be provided with a set of retrieved text snippets (chunks) from the patient's documents.
 Answer the user's question based ONLY on the information provided in the snippets.
-If the snippets do not contain the answer, say "I cannot answer this question based on the provided documents."
 
-{history_context}Retrieved Snippets:
+You MUST output your response as a valid JSON object matching this exact schema:
+{{
+  "is_grounded": true or false,
+  "answer": "Your detailed answer here.",
+  "citations": [
+    {{"chunk_id": "chunk_0"}},
+    {{"chunk_id": "chunk_1"}}
+  ]
+}}
+
+Rules:
+1. If the snippets do not contain enough information to fully answer the question, set "is_grounded" to false and say so in the "answer".
+2. You must ONLY use the provided chunks.
+3. Your "citations" array must contain the EXACT "chunk_id" values (e.g. "chunk_0") that you used to form the answer.
+
+Retrieved Snippets:
 {context_str}
 
 Question: {question}
-Answer:"""
+"""
 
-    response = client.models.generate_content(
-        model="gemini-3.5-flash",
-        contents=prompt,
-    )
+    # We use our LLM Provider, expecting JSON back.
+    llm_response = llm.generate(prompt, context=history_turns)
     
-    from app.core.compliance import enforce_ac3
-    answer_text = response.text
+    # Strip markdown codeblocks if LLM adds them
+    llm_response = llm_response.strip()
+    if llm_response.startswith("```json"):
+        llm_response = llm_response[7:-3].strip()
+    elif llm_response.startswith("```"):
+        llm_response = llm_response[3:-3].strip()
+        
+    answer_text = "I could not find any relevant information to answer your question (No grounded answer)."
+    citations = []
+    
+    try:
+        parsed = json.loads(llm_response)
+        
+        if not parsed.get("is_grounded"):
+            answer_text = parsed.get("answer", answer_text)
+        else:
+            answer_text = parsed.get("answer", answer_text)
+            
+            # Deterministic Verification: Check that every cited chunk actually exists in our retrieved context
+            valid_citations = set()
+            for citation in parsed.get("citations", []):
+                cid = citation.get("chunk_id")
+                if cid in chunk_map:
+                    valid_citations.add(cid)
+            
+            if not valid_citations:
+                # The LLM hallucinated citations or failed to cite anything while claiming to be grounded
+                answer_text = "I cannot confidently answer this question as my verification step found insufficient supporting evidence (No grounded answer)."
+            else:
+                seen = set()
+                for cid in valid_citations:
+                    chunk = chunk_map[cid]
+                    
+                    doc_id = chunk.metadata.get("source_document_id", "Unknown")
+                    content = chunk.content
+                    chunk_key = (doc_id, content)
+                    
+                    if chunk_key not in seen:
+                        seen.add(chunk_key)
+                        
+                        doc_type = chunk.metadata.get("document_type")
+                        
+                        location = None
+                        if chunk.metadata:
+                            if "source_field_id" in chunk.metadata:
+                                location = "Structured Field"
+                            elif "section" in chunk.metadata and chunk.metadata["section"]:
+                                location = str(chunk.metadata["section"])
+                            elif "page_number" in chunk.metadata and chunk.metadata["page_number"]:
+                                location = f"Page {chunk.metadata['page_number']}"
+                            elif "page" in chunk.metadata and chunk.metadata["page"]:
+                                location = f"Page {chunk.metadata['page']}"
+                            elif "chunk_index" in chunk.metadata:
+                                location = f"Chunk {chunk.metadata['chunk_index']}"
+                            elif doc_type and doc_type != "Unknown":
+                                location = doc_type
+                        
+                        citations.append({
+                            "document_id": doc_id,
+                            "snippet": content,
+                            "document_type": doc_type,
+                            "page": str(chunk.metadata.get("page", chunk.metadata.get("page_number", ""))) or None,
+                            "source_field_id": chunk.metadata.get("source_field_id"),
+                            "document_revision": chunk.metadata.get("document_revision"),
+                            "bounding_box": chunk.metadata.get("bounding_box"),
+                            "location": location,
+                        })
+
+    except json.JSONDecodeError:
+        logger.error(f"[RAG] Failed to parse structured LLM output: {llm_response}")
+        answer_text = "I encountered an error formatting my response. Please try asking again."
+    
     answer_text = enforce_ac3(answer_text)
     
-    # Persist the new turn
-    new_turns = conversation.turns + [
-        {"role": "user", "content": question},
-        {"role": "assistant", "content": answer_text}
-    ]
-    conversation.turns = new_turns
+    _save_turn("assistant", answer_text)
     
-    # SQLAlchemy requires explicit assignment or flag_modified for JSON column mutations
-    from sqlalchemy.orm.attributes import flag_modified
-    flag_modified(conversation, "turns")
-    db.commit()
+    from app.services import audit_service
+    audit_service.write_entry(
+        db=db,
+        actor_user_id=user_id if isinstance(user_id, uuid.UUID) else uuid.UUID(str(user_id)),
+        action_type="rag_query",
+        target_entity=f"patient:{patient_id}",
+        patient_id=patient_id,
+        rationale=f"RAG query grounded: {bool(citations)}",
+        outcome="success",
+        context={
+            "query": question,
+            "citations": citations,
+            "provider": "VectorStoreProvider"
+        }
+    )
     
     return answer_text, citations, conversation.id
-
 
 async def run_rag_chain(patient_id: str, query: str) -> str:
     from app.core.compliance import enforce_ac3
     answer = "No relevant clinical details found."
     return enforce_ac3(answer)
 
-
 def query_patient_record(db, patient_id: str, query: str, user_id: str = "00000000-0000-0000-0000-000000000001") -> str:
     from app.core.compliance import enforce_ac3
     answer, _, _ = generate_answer(db, patient_id, query, user_id)
     return enforce_ac3(answer)
-
-

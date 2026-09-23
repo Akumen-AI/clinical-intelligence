@@ -1,3 +1,6 @@
+import structlog
+logger = structlog.get_logger(__name__)
+
 import json
 from typing import Optional
 from google import genai
@@ -38,5 +41,5 @@ class GeminiFieldExtractor(ClinicalFieldExtractor):
                 },
             )
         except Exception as e:
-            print(f"[Field Extraction] Gemini extractor failed: {e}. Using rule-based fallback.")
+            logger.info(f"[Field Extraction] Gemini extractor failed: {e}. Using rule-based fallback.")
             return self._fallback_extractor.extract(text, document_type)

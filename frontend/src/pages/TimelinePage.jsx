@@ -57,6 +57,9 @@ export default function TimelinePage() {
   const [noteText, setNoteText] = useState('');
   const [showNoteEntry, setShowNoteEntry] = useState(false);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+
   const loadData = useCallback(async (isPolling = false) => {
     if (!patientId) {
       setError("No Patient ID provided in route.");
@@ -309,7 +312,7 @@ export default function TimelinePage() {
           </div>
         ) : (
           <div className="flex flex-col gap-6">
-            {events.map((event, index) => {
+            {events.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((event, index) => {
               const cfg = getEventConfig(event.event_type || event.field_name);
               const fileUrl = getDocumentFileUrl(event.document_id);
               
@@ -387,6 +390,32 @@ export default function TimelinePage() {
           </div>
         )}
       </div>
+
+      {/* Pagination Controls */}
+      {!loading && events.length > 0 && (
+        <div className="flex items-center justify-between mt-4 mb-8 text-sm pl-4 sm:pl-8">
+          <div className="text-on-surface-variant ml-8 sm:ml-12">
+            Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, events.length)} of {events.length} events
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 rounded-lg border border-outline-variant/30 bg-surface-container hover:bg-surface-variant disabled:opacity-50 transition-colors"
+            >
+              Previous
+            </button>
+            <span className="px-3 py-1.5 font-medium">Page {currentPage} of {Math.ceil(events.length / pageSize) || 1}</span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(Math.ceil(events.length / pageSize), p + 1))}
+              disabled={currentPage === (Math.ceil(events.length / pageSize) || 1)}
+              className="px-3 py-1.5 rounded-lg border border-outline-variant/30 bg-surface-container hover:bg-surface-variant disabled:opacity-50 transition-colors"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Story 10.1: Note-Entry Screen with Clinical Context Panel ── */}
       {showNoteEntry && (

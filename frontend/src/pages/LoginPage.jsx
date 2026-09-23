@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import axios from 'axios';
+import apiClient from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import { Activity } from 'lucide-react';
 
@@ -23,13 +23,12 @@ const LoginPage = () => {
     setIsLoading(true);
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/auth/login`, {
+      await apiClient.post('/auth/login', {
         email,
         password
       });
 
-      const { access_token, refresh_token } = response.data;
-      login(access_token, refresh_token);
+      await login();
       navigate(from, { replace: true });
     } catch (err) {
       console.error(err);

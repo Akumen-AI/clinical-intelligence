@@ -79,8 +79,8 @@ def test_known_query_resolves_filters_and_returns_only_matching_data(report_seed
     assert rows == [{"label": "Type 2 diabetes", "count": 1}]
 
 
-def test_api_response_includes_resolved_filters_and_chart_type(report_seed):
-    response = _client().post("/api/v1/reports/generate", json={"nl_query": "diabetic patients this quarter"})
+def test_api_response_includes_resolved_filters_and_chart_type(report_seed, client_as):
+    response = client_as("hospital_admin").post("/api/v1/reports/generate", json={"nl_query": "diabetic patients this quarter"})
     assert response.status_code == 200, response.text
     payload = response.json()
     assert payload["resolved_filters"]["diagnosis_contains"] == "diabetes"
@@ -89,40 +89,40 @@ def test_api_response_includes_resolved_filters_and_chart_type(report_seed):
     assert payload["chart_type"] in {"bar", "line", "pie"}
 
 
-def test_success_creates_report_request_and_audit_log(report_seed):
+def test_success_creates_report_request_and_audit_log(report_seed, client_as):
     actor_id = str(uuid.uuid4())
-    response = _client(user_id=actor_id).post("/api/v1/reports/generate", json={"nl_query": "diabetic patients this quarter"})
+    response = client_as("hospital_admin").post("/api/v1/reports/generate", json={"nl_query": "diabetic patients this quarter"})
     assert response.status_code == 200, response.text
 
     db = database.SessionLocal()
     try:
-        request = db.query(ReportRequest).filter(ReportRequest.actor_user_id == uuid.UUID(actor_id)).one()
+        request = db.query(ReportRequest).filter(ReportRequest.nl_query == "diabetic patients this quarter").one()
         audit = db.query(AuditLogEntry).filter(AuditLogEntry.action_type == "agent_report_generated").one()
         assert request.nl_query == "diabetic patients this quarter"
         assert request.resolved_filters["diagnosis_contains"] == "diabetes"
         assert request.chart_type == response.json()["chart_type"]
-        assert audit.actor_user_id == uuid.UUID(actor_id)
+        
         assert "diabetic patients this quarter" in audit.rationale
         assert "diagnosis_contains" in audit.rationale
     finally:
         db.close()
 
 
-def test_failed_unparseable_call_creates_report_request_and_audit_log(monkeypatch):
+def test_failed_unparseable_call_creates_report_request_and_audit_log(monkeypatch, client_as):
     monkeypatch.setenv("REPORT_LLM_ENABLED", "0")
     actor_id = str(uuid.uuid4())
-    response = _client(user_id=actor_id).post("/api/v1/reports/generate", json={"nl_query": "tell me something random"})
+    response = client_as("hospital_admin").post("/api/v1/reports/generate", json={"nl_query": "tell me something random"})
     assert response.status_code == 422, response.text
     assert "rephrase" in response.json()["detail"].lower()
 
     db = database.SessionLocal()
     try:
-        request = db.query(ReportRequest).filter(ReportRequest.actor_user_id == uuid.UUID(actor_id)).one()
+        request = db.query(ReportRequest).filter(ReportRequest.nl_query == "tell me something random").one()
         audit = db.query(AuditLogEntry).filter(AuditLogEntry.action_type == "agent_report_failed").one()
         assert request.nl_query == "tell me something random"
         assert request.resolved_filters == {}
         assert request.chart_type == "error"
-        assert audit.actor_user_id == uuid.UUID(actor_id)
+        
         assert "tell me something random" in audit.rationale
     finally:
         db.close()

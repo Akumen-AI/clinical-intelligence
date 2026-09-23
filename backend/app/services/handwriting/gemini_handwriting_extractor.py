@@ -1,3 +1,6 @@
+import structlog
+logger = structlog.get_logger(__name__)
+
 """
 Gemini multimodal handwriting extraction engine.
 
@@ -93,7 +96,7 @@ class GeminiHandwritingExtractor(HandwritingExtractor):
             return self._parse_response(data)
 
         except Exception as e:
-            print(f"[Handwriting Extraction] Gemini extractor failed: {e}")
+            logger.info(f"[Handwriting Extraction] Gemini extractor failed: {e}")
             return HandwritingExtractionResult()
 
     @staticmethod
@@ -168,7 +171,7 @@ class GeminiHandwritingExtractor(HandwritingExtractor):
         try:
             fields = ClinicalFieldsSchema.model_validate(cleaned_fields)
         except Exception as e:
-            print(f"[Handwriting Extraction] Schema validation failed: {e}")
+            logger.info(f"[Handwriting Extraction] Schema validation failed: {e}")
             fields = ClinicalFieldsSchema()
 
         return HandwritingExtractionResult(

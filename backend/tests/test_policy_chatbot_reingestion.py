@@ -15,12 +15,7 @@ def policy_runtime(monkeypatch, tmp_path):
     # patient_id column. Keep these tests runnable against that database while
     # still exercising the real upload, audit, ingestion, and retrieval paths.
     with test_engine.begin() as connection:
-        audit_columns = {
-            column["name"]
-            for column in inspect(test_engine).get_columns("audit_log_entries")
-        }
-        if "patient_id" not in audit_columns:
-            connection.execute(text("ALTER TABLE audit_log_entries ADD COLUMN patient_id VARCHAR"))
+        pass
 
     monkeypatch.setattr(policy_chatbot_router, "DEFAULT_POLICY_DOCUMENTS_DIR", str(tmp_path))
     monkeypatch.setattr(policy_ingestion_service, "SessionLocal", TestingSessionLocal)

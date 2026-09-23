@@ -1,10 +1,11 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.document import Document, DocumentStatus
+from app.core.authorization import AuthorizationService, Operation
 from app.schemas.extracted_field import DocumentFieldsResponseSchema
 from app.services.field_extraction_service import (
     extract_and_persist_fields,
@@ -25,6 +26,7 @@ router = APIRouter(
 )
 async def get_document_fields(
     document_id: str,
+    request: Request,
     min_confidence: Optional[float] = Query(
         default=None,
         ge=0.0,
@@ -55,6 +57,8 @@ async def get_document_fields(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Document with ID '{document_id}' not found.",
         )
+        
+    AuthorizationService.assert_can_access_document(db, request.state.user, document_id, Operation.READ)
 
     response = get_document_fields_response(
         db, document_id,
@@ -81,6 +85,7 @@ async def get_document_fields(
 )
 async def extract_document_fields(
     document_id: str,
+    request: Request,
     db: Session = Depends(get_db),
 ):
     """
@@ -94,6 +99,8 @@ async def extract_document_fields(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Document with ID '{document_id}' not found.",
         )
+        
+    AuthorizationService.assert_can_access_document(db, request.state.user, document_id, Operation.WRITE)
 
     doc.status = DocumentStatus.EXTRACTED.value
     db.commit()

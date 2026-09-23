@@ -94,8 +94,7 @@ export default function FileUploader({ onUploadSuccess }) {
         // Server responded with a structured error (validation failure, etc.)
         detail = err.response.data.detail;
       } else if (err.code === 'ERR_NETWORK' || err.code === 'ERR_CONNECTION_REFUSED' || !err.response) {
-        // Network error — backend is not reachable
-        detail = 'Cannot reach the server. Please ensure the backend is running on http://localhost:8000 and try again.';
+        detail = 'Cannot reach the server. Please ensure the backend is running and reachable, then try again.';
       } else {
         detail = `Upload failed (HTTP ${err.response?.status ?? 'unknown'}). Please verify file integrity and server state.`;
       }

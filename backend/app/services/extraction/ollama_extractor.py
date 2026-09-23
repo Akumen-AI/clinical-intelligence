@@ -1,3 +1,6 @@
+import structlog
+logger = structlog.get_logger(__name__)
+
 import json
 import time
 import requests
@@ -60,7 +63,7 @@ class OllamaFieldExtractor(ClinicalFieldExtractor):
                     raw_response = data.get("thinking", "").strip()
 
                 if not raw_response:
-                    print("[Field Extraction] Ollama returned empty response. Using rule-based fallback.")
+                    logger.info("[Field Extraction] Ollama returned empty response. Using rule-based fallback.")
                     return self._fallback_extractor.extract(text, document_type)
 
                 result_json = clean_and_parse_json(raw_response, default={})
@@ -87,7 +90,7 @@ class OllamaFieldExtractor(ClinicalFieldExtractor):
                     )
             except Exception as e:
                 # Non-retryable errors (JSON parse, validation, etc.) — fail fast
-                print(f"[Field Extraction] Ollama extraction failed: {e}. Using rule-based fallback.")
+                logger.info(f"[Field Extraction] Ollama extraction failed: {e}. Using rule-based fallback.")
                 return self._fallback_extractor.extract(text, document_type)
 
         return self._fallback_extractor.extract(text, document_type)

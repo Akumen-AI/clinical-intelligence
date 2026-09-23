@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { jwtDecode } from 'jwt-decode';
+import apiClient from '../api/client';
 
 const AuthContext = createContext(null);
 
@@ -7,50 +7,36 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const initAuth = () => {
-      const token = localStorage.getItem('token');
-      if (token) {
-        try {
-          const decoded = jwtDecode(token);
-          // Allow token decode even if close to expiry, the interceptor handles refresh
-          setUser({
-            id: decoded.sub || decoded.id,
-            role: decoded.role || 'user',
-            email: decoded.email || decoded.sub
-          });
-        } catch (e) {
-          console.error("Failed to decode token", e);
-          localStorage.removeItem('token');
-          localStorage.removeItem('refresh_token');
-        }
-      }
-      setIsLoading(false);
-    };
-    initAuth();
-  }, []);
-
-  const login = (access_token, refresh_token) => {
-    localStorage.setItem('token', access_token);
-    if (refresh_token) {
-      localStorage.setItem('refresh_token', refresh_token);
-    }
+  const fetchUser = async () => {
     try {
-      const decoded = jwtDecode(access_token);
-      setUser({
-        id: decoded.sub || decoded.id,
-        role: decoded.role || 'user',
-        email: decoded.email || decoded.sub
-      });
+      const response = await apiClient.get('/auth/me');
+      setUser(response.data);
     } catch (e) {
-      console.error("Failed to decode token on login", e);
+      setUser(null);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('refresh_token');
-    setUser(null);
+  useEffect(() => {
+    fetchUser();
+  }, []);
+
+  const login = async () => {
+    // The login form already POSTed to /auth/login and got cookies
+    // Now we just fetch the profile to populate the app state
+    await fetchUser();
+  };
+
+  const logout = async () => {
+    try {
+      await apiClient.post('/auth/logout');
+    } catch (e) {
+      console.error("Logout failed", e);
+    } finally {
+      setUser(null);
+      window.location.href = '/login';
+    }
   };
 
   return (

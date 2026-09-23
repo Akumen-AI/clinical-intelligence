@@ -1,3 +1,6 @@
+import structlog
+logger = structlog.get_logger(__name__)
+
 import requests
 from app.config import settings
 from app.services.classification.base import DocumentClassifier
@@ -22,22 +25,22 @@ def get_document_classifier() -> DocumentClassifier:
 
     if provider == "gemini":
         # Explicitly configured for Gemini
-        print("[Classification] Using Gemini classifier (configured via AI_PROVIDER).")
+        logger.info("[Classification] Using Gemini classifier (configured via AI_PROVIDER).")
         from app.services.classification.gemini_classifier import GeminiClassifier
         return GeminiClassifier()
 
     # Default / "ollama" provider: try Ollama first, fall back to Gemini
     if _is_ollama_available():
-        print("[Classification] Using Ollama classifier (local model detected).")
+        logger.info("[Classification] Using Ollama classifier (local model detected).")
         return OllamaClassifier()
 
     # Ollama not available — try Gemini as fallback
     if settings.GEMINI_API_KEY:
-        print("[Classification] Ollama not available. Falling back to Gemini classifier.")
+        logger.info("[Classification] Ollama not available. Falling back to Gemini classifier.")
         from app.services.classification.gemini_classifier import GeminiClassifier
         return GeminiClassifier()
 
-    print("[Classification] WARNING: No classifier available. Ollama is not running and GEMINI_API_KEY is not set.")
+    logger.info("[Classification] WARNING: No classifier available. Ollama is not running and GEMINI_API_KEY is not set.")
     # Return Ollama anyway; it will fail gracefully with Unknown/0.0
     return OllamaClassifier()
 

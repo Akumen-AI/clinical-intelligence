@@ -20,6 +20,11 @@ class Medication(Base):
     discontinued_reason = Column(String(500), nullable=True)
     discontinued_date = Column(String(100), nullable=True)
     started_date = Column(String(100), nullable=True)
+    
+    mapping_status = Column(String(20), nullable=True)
+    mapping_version = Column(String(50), nullable=True)
+    mapping_confidence = Column(Float, nullable=True)
+    mapping_provenance = Column(String(100), nullable=True)
 
 
 class Diagnosis(Base):
@@ -31,6 +36,11 @@ class Diagnosis(Base):
     raw_text = Column(String(500), nullable=False)
     icd10_code = Column(String(100), nullable=True)
     snomed_code = Column(String(100), nullable=True)
+    
+    mapping_status = Column(String(20), nullable=True)
+    mapping_version = Column(String(50), nullable=True)
+    mapping_confidence = Column(Float, nullable=True)
+    mapping_provenance = Column(String(100), nullable=True)
 
 
 class Allergy(Base):
@@ -43,6 +53,11 @@ class Allergy(Base):
     allergen = Column(String(255), nullable=False)
     reaction = Column(String(500), nullable=True)
     severity = Column(String(20), nullable=True)
+    
+    mapping_status = Column(String(20), nullable=True)
+    mapping_version = Column(String(50), nullable=True)
+    mapping_confidence = Column(Float, nullable=True)
+    mapping_provenance = Column(String(100), nullable=True)
 
 
 class LabResult(Base):
@@ -60,6 +75,11 @@ class LabResult(Base):
     reference_range = Column(String(100), nullable=True)
     flag = Column(String(20), nullable=True)
     recorded_at = Column(String(100), nullable=True)
+    
+    mapping_status = Column(String(20), nullable=True)
+    mapping_version = Column(String(50), nullable=True)
+    mapping_confidence = Column(Float, nullable=True)
+    mapping_provenance = Column(String(100), nullable=True)
 
 
 class Vital(Base):
@@ -84,3 +104,8 @@ class Procedure(Base):
     code = Column(String(100), nullable=True)
     description = Column(String(500), nullable=True)
     date = Column(String(100), nullable=True)
+    
+    mapping_status = Column(String(20), nullable=True)
+    mapping_version = Column(String(50), nullable=True)
+    mapping_confidence = Column(Float, nullable=True)
+    mapping_provenance = Column(String(100), nullable=True)

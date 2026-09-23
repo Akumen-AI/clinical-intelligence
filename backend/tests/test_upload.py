@@ -54,6 +54,8 @@ def test_upload_single_valid_pdf(client):
         ("files", ("patient_report.pdf", io.BytesIO(file_content), "application/pdf"))
     ]
     response = client.post("/api/v1/documents/upload", files=files)
+    if response.status_code != 201:
+        print("ERROR:", response.json())
     assert response.status_code == 201
     data = response.json()
     assert data["accepted_count"] == 1
@@ -168,9 +170,9 @@ def test_upload_path_traversal(client):
     from app.services import upload_service
     doc = upload_service.get_document_by_id(db, doc_id)
     assert doc is not None
-    # Verify that the filename was sanitized in the stored URI
+    # Verify that the filename was sanitized in the stored URI and only uses document ID
     assert doc.raw_uri.startswith("uploads/")
-    assert doc.raw_uri.endswith("evil.pdf")
+    assert doc.raw_uri.endswith(f"{doc_id}.pdf")
 
 def test_invalid_document_type_forces_manual_review(client, mocker):
     file_content = make_valid_pdf_bytes()

@@ -55,3 +55,5 @@ backend/app/static/
 .DS_Store
 Thumbs.db
 pyrefly.toml
+
+private-docs/

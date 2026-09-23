@@ -14,12 +14,12 @@ from app.services import audit_service
 
 logger = logging.getLogger("app.services.folder_watcher_service")
 
-def scan_watched_folder(db: Session, actor_user_id: uuid.UUID) -> dict:
+def scan_watched_folder_logic(db: Session, actor_user_id: uuid.UUID) -> dict:
     """
     Scans the watched folder root for new files, ignoring dotfiles, _ingested/, _failed/,
     and files currently being written (mtime < 2 seconds old).
     
-    Validates, ingests, and processes each valid file.
+    Validates, ingests, and enqueues each valid file to the Celery process_document_task.
     Moves successfully ingested files to _ingested/.
     Moves validation-failed files to _failed/.
     Leaves files that encounter unexpected errors in place for the next scan cycle.
@@ -94,8 +94,9 @@ def scan_watched_folder(db: Session, actor_user_id: uuid.UUID) -> dict:
                 filetype=ext
             )
             
-            # Process synchronously as requested by folder watcher pattern
-            upload_service.process_document(db, doc.document_id, actor_user_id)
+            # Process asynchronously via Celery job
+            from app.tasks.document_tasks import process_document_task
+            process_document_task.delay(doc.document_id, str(actor_user_id))
             
             # Write audit trail
             audit_service.write_entry(

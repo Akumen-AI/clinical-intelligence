@@ -88,15 +88,18 @@ def dashboard_seed():
         db.close()
 
 
-def test_dashboard_department_metrics_are_live_and_filterable(dashboard_seed):
-    token = create_access_token({"sub": "00000000-0000-0000-0000-000000000111", "role": "department_head", "email": "head@demo.com"})
-    client = TestClient(app)
-    client.headers.update({"Authorization": f"Bearer {token}"})
+def test_dashboard_department_metrics_are_live_and_filterable(dashboard_seed, client_as):
+    client = client_as("department_head", department_access=["Cardiology", "Neurology"])
 
     response = client.get(
         "/api/v1/dashboards/department",
         params={"department": "Cardiology", "start_date": "2026-02-01", "end_date": "2026-02-28"},
     )
+
+    print(response.json())
+    from app.database import SessionLocal
+    from app.models.user import User
+    print("USER DEP IN TEST:", SessionLocal().query(User).first().department_access)
 
     assert response.status_code == 200, response.text
     payload = response.json()
@@ -113,16 +116,16 @@ def test_dashboard_department_metrics_are_live_and_filterable(dashboard_seed):
     assert disease["series"][0]["count"] == 2
     assert readmission["value"] == 50.0
 
-    hospital_response = client.get("/api/v1/dashboards/hospital", params={"start_date": "2026-02-01", "end_date": "2026-02-28"})
+    hospital_admin = client_as("hospital_admin")
+    hospital_response = hospital_admin.get("/api/v1/dashboards/hospital", params={"start_date": "2026-02-01", "end_date": "2026-02-28"})
     assert hospital_response.status_code == 200, hospital_response.text
     assert hospital_response.json()["metrics"][0]["key"] == "admissions"
 
 
+
 @pytest.mark.parametrize("role", ["doctor", "it", "compliance"])
-def test_dashboard_requires_admin_or_department_head(role):
-    token = create_access_token({"sub": "00000000-0000-0000-0000-000000000222", "role": role, "email": "sample@example.com"})
-    client = TestClient(app)
-    client.headers.update({"Authorization": f"Bearer {token}"})
+def test_dashboard_requires_admin_or_department_head(role, client_as):
+    client = client_as(role)
 
     response = client.get("/api/v1/dashboards/hospital")
     assert response.status_code == 403, response.text

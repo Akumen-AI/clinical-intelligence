@@ -41,6 +41,11 @@ class MedicationResponse(BaseModel):
     discontinued_reason: Optional[str] = None
     discontinued_date: Optional[str] = None
     started_date: Optional[str] = None
+    
+    mapping_status: Optional[str] = None
+    mapping_version: Optional[str] = None
+    mapping_confidence: Optional[float] = None
+    mapping_provenance: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -49,6 +54,11 @@ class DiagnosisResponse(BaseModel):
     raw_text: str
     icd10_code: Optional[str] = None
     snomed_code: Optional[str] = None
+    
+    mapping_status: Optional[str] = None
+    mapping_version: Optional[str] = None
+    mapping_confidence: Optional[float] = None
+    mapping_provenance: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -62,6 +72,11 @@ class LabResultResponse(BaseModel):
     unit: Optional[str] = None
     flag: Optional[str] = None
     recorded_at: Optional[str] = None
+    
+    mapping_status: Optional[str] = None
+    mapping_version: Optional[str] = None
+    mapping_confidence: Optional[float] = None
+    mapping_provenance: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 class AllergyResponse(BaseModel):
@@ -69,6 +84,11 @@ class AllergyResponse(BaseModel):
     allergen: str
     reaction: Optional[str] = None
     severity: Optional[str] = None
+    
+    mapping_status: Optional[str] = None
+    mapping_version: Optional[str] = None
+    mapping_confidence: Optional[float] = None
+    mapping_provenance: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -98,6 +118,11 @@ class AskRequest(BaseModel):
 class CitationSchema(BaseModel):
     document_id: str
     snippet: str
+    document_type: Optional[str] = None
+    page: Optional[str] = None
+    source_field_id: Optional[str] = None
+    document_revision: Optional[int] = None
+    bounding_box: Optional[str] = None
     location: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
@@ -107,4 +132,5 @@ class AskResponse(BaseModel):
     conversation_id: str
     source_documents: List[CitationSchema] = []
     citations: List[CitationSchema] = []
+
 

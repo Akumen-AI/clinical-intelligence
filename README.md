@@ -7,7 +7,7 @@ An enterprise-grade clinical document intake, computer vision preprocessing, dua
 ## 🌟 Key Capabilities
 
 - **Document Intake & Multi-Layer Validation**  
-  Accepts single or bulk document uploads (`PDF`, `PNG`, `JPG`, `JPEG`, `TIFF`, up to 20 MB). Validates file signatures, MIME types, file sizes, and corruption before processing. Maintains an audit trail of all accepted and rejected attempts in an `UploadLog` table. Includes an automated **Background Folder Watcher** that continuously monitors a configured local directory for new scanned documents and ingests them directly.
+  Accepts single or bulk document uploads (`PDF`, `PNG`, `JPG`, `JPEG`, `TIFF`, up to 20 MB). Validates file signatures, MIME types, file sizes, and corruption before processing. Maintains an audit trail of all accepted and rejected attempts in an `UploadLog` table. Includes an automated **Background Folder Watcher** (driven by Celery Beat and Redis distributed locking) that continuously monitors a configured local directory for new scanned documents and ingests them directly with guaranteed idempotency.
 
 - **Computer Vision Preprocessing Pipeline**  
   Automated document cleanup using OpenCV and PyMuPDF: deskewing, noise reduction, contrast enhancement (CLAHE), adaptive binarization, and multi-page PDF rendering.
@@ -41,11 +41,24 @@ An enterprise-grade clinical document intake, computer vision preprocessing, dua
 - **Authentication & Role-Based Access Control (RBAC)**  
   Secure JWT-based authentication enforcing granular access control with distinct roles (e.g., Doctor, Nurse, Admin, IT, Compliance). Includes strict controls for patient data access tailored by user roles.
 
-- **Comprehensive Audit Logging & Correction Tracking**  
-  Centralized logging of critical actions (authentication, document uploads, patient access, configuration changes) and a correction log for tracking manual overrides to extracted clinical fields.
+- **Portfolio-Grade Security & Unified Authorization**  
+  Features a dedicated, server-side `AuthorizationService` that acts as a unified guardrail across all endpoints (patients, reports, uploads). Enforces strict record-level access constraints without relying on LLM decisions for auth. Includes zero-leak generic exception handling, zero-trust local storage abstraction (`LocalStorageProvider`), and secure file serving with strict `Cache-Control` to prevent browser caching of PHI.
 
-- **Clinical Policy Chatbot (RAG)**  
-  AI-powered chatbot integrating internal policies via Retrieval-Augmented Generation (RAG) to answer operational and clinical policy queries based on the hospital's knowledge base.
+- **Operational Visibility & Platform Hardening**  
+  Built for realistic concurrent use with robust infrastructure features:
+  - **Structured Observability:** Full application logging via `structlog` with JSON formatting and `X-Correlation-ID` tracing across background Celery tasks and API boundaries.
+  - **Abuse Protection:** Request rate limiting powered by `slowapi` on critical endpoints (Login, RAG, File Uploads) to prevent resource starvation.
+  - **Performance at Scale:** $O(N)$ patient duplicate detection, DB-side metrics aggregation (eliminating $N+1$ ORM queries), strict pagination (`skip`/`limit`), and `IndexHNSWFlat` FAISS vector stores. Includes SQLAlchemy schema indexes for frequently queried clinical tables.
+  - **Kubernetes-Ready Health Checks:** Dedicated liveness, database readiness, and queue depth endpoints (`/api/v1/health/*`).
+
+- **Append-Only Audit Logging & Asynchronous Traceability**  
+  A centralized, immutable audit log that records all security-sensitive and AI-driven actions (authentication, document uploads, patient access, configuration changes) with exact models and outcomes. Integrates unique request `correlation_id`s through `contextvars` to seamlessly trace asynchronous background tasks back to the original authenticated user action. Includes a distinct correction log for tracking explicit manual overrides to extracted clinical fields.
+
+- **Clinical Policy Chatbot & Grounded Patient Q&A (RAG)**  
+  AI-powered Retrieval-Augmented Generation (RAG) system with dual, strictly isolated scopes:
+  - **Policy Chatbot:** Answers operational and clinical policy queries based on the hospital's knowledge base.
+  - **Patient Q&A:** Allows clinicians to ask complex questions directly against a specific patient's clinical history.
+  - Features deterministic, mathematical verification to reject AI hallucinations—every answer is guaranteed to be grounded in retrieved evidence with exact, clickable citations (document ID, page, bounding box). Patient data is securely isolated from policy data and constrained by RBAC.
 
 ---
 
@@ -103,7 +116,6 @@ An enterprise-grade clinical document intake, computer vision preprocessing, dua
 
 ```text
 clinical-intelligence/
-├── alembic/                               # Database migration scripts (project root)
 ├── backend/
 │   ├── alembic/                           # Backend-scoped Alembic migrations
 │   ├── app/
@@ -130,6 +142,7 @@ clinical-intelligence/
 │   │   │   ├── review.py                  # Confidence review queue CRUD endpoints
 │   │   │   └── policy_chatbot.py          # RAG-powered clinical policy chatbot
 │   │   ├── tasks/                         # Celery background tasks
+│   │   │   ├── document_tasks.py          # Durable async document processing
 │   │   │   ├── routing_tasks.py           # Async confidence routing
 │   │   │   ├── rag_tasks.py               # RAG chunk ingestion background task
 │   │   │   └── correction_export.py       # Correction log periodic exports
@@ -190,11 +203,11 @@ clinical-intelligence/
 | **OCR Engines** | [PaddleOCR 3.7](https://github.com/PaddlePaddle/PaddleOCR), PyMuPDF (digital text) |
 | **Multimodal Vision & Handwriting** | [Google Gemini API](https://ai.google.dev/) (`google-genai`) |
 | **LLM Classification & Extraction** | [Ollama](https://ollama.com/) (Local) / [Google Gemini](https://ai.google.dev/) (Cloud) |
-| **Task Queue** | [Celery](https://docs.celeryq.dev/) (async confidence routing) |
+| **Task Queue** | [Celery](https://docs.celeryq.dev/) + Redis (async document processing, folder watching, & routing) |
 | **Security & Auth** | JWT Authentication, Role-Based Access Control (RBAC) |
 | **Database Migrations** | [Alembic](https://alembic.sqlalchemy.org/) |
 | **Frontend SPA** | React 18, Vite 5, Tailwind CSS, Lucide Icons, Axios |
-| **Testing** | Pytest, Pytest-Mock |
+| **Testing** | Pytest, Pytest-Mock (350+ robust automated tests ensuring stable integration & strict security checks) |
 
 ---
 
@@ -204,6 +217,7 @@ clinical-intelligence/
 
 - **Python 3.10+**
 - **Node.js 18+** & **npm**
+- **Redis** (required for Celery distributed locking and task queuing)
 - *(Optional)* [Ollama](https://ollama.com/) running locally for on-device inference
 - *(Optional)* [Google Gemini API Key](https://aistudio.google.com/) for handwriting recognition and cloud LLM fallback
 
@@ -243,9 +257,20 @@ clinical-intelligence/
    GEMINI_API_KEY=your-gemini-api-key-here
    OLLAMA_MODEL=qwen3:4b
    DOCUMENT_CLASSIFICATION_THRESHOLD=0.80
+   CELERY_BROKER_URL=redis://localhost:6379/0
+   CELERY_RESULT_BACKEND=redis://localhost:6379/0
    ```
 
-5. Start the FastAPI development server:
+5. Ensure Redis is running locally on port `6379`.
+
+6. Start the Celery worker and beat scheduler (in a separate terminal):
+   ```bash
+   cd backend
+   source .venv/bin/activate
+   celery -A app.celery_app worker -B --loglevel=info
+   ```
+
+7. Start the FastAPI development server:
    ```bash
    uvicorn app.main:app --reload --port 8000
    ```
@@ -353,7 +378,7 @@ The platform enforces strict Role-Based Access Control (RBAC) at both the API ro
 | **Compliance** | Access to system-wide audit logs and policy management (uploading policies). |
 
 ### Patient-Level Access Guardrails
-Beyond endpoint-level role protection, the system enforces **record-level access controls** for clinical roles (`Doctor`, `Nurse`). If an authenticated clinical user attempts to access a patient record, document, or RAG context panel for a patient not explicitly bound to their access list, the `RbacAccessGuard` rejects the request with a `403 Forbidden` error.
+Beyond endpoint-level role protection, the system enforces **record-level access controls** for clinical roles (`Doctor`, `Nurse`). A unified, server-side `AuthorizationService` acts as a strict guardrail across all data access endpoints. If an authenticated clinical user attempts to access a patient record, document, report, or RAG context panel for a patient not explicitly bound to their access list, the service immediately rejects the request with a `403 Forbidden` error, securely logging the unauthorized attempt without leaking system internals.
 
 ---
 
@@ -422,12 +447,21 @@ All document routes are served under `/api/v1/documents`.
 | `GET` | `/api/v1/audit-log` | Retrieve comprehensive audit logs for compliance monitoring. |
 | `GET` | `/api/v1/correction_logs` | Retrieve manual correction history on clinical records. |
 
+### Health Checks & Observability
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/v1/health/liveness` | Basic liveness probe to verify application is running. |
+| `GET` | `/api/v1/health/readiness` | Readiness probe to verify database and dependency connectivity. |
+| `GET` | `/api/v1/health/queue` | Deep health check on Redis and Celery worker background queue lengths. |
+
 ### Patient & Policy Endpoints
 
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/api/v1/patients/{patient_id}` | Retrieve canonical patient records (RBAC protected). |
 | `GET` | `/api/v1/dashboards/{patient_id}` | Retrieve comprehensive clinical dashboard data including lab trends and active medications (RBAC protected). |
+| `POST` | `/api/v1/patients/{patient_id}/ask` | Ask natural-language questions about a specific patient's history. Answers are grounded with exact citations. (RAG) |
 | `POST` | `/api/v1/policy-chatbot/query` | Ask clinical and operational policy questions (RAG). |
 
 ---

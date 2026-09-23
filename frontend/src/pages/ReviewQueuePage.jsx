@@ -18,8 +18,8 @@ import {
   fetchPendingReviews,
   fetchReviewContext,
   submitReviewAction,
-  getReviewImageUrl,
-  getDocumentStaticUrl,
+  fetchReviewImageBlob,
+  fetchDocumentFileBlob,
   fetchDocuments,
 } from '../api';
 
@@ -72,6 +72,14 @@ export default function ReviewQueuePage() {
 
   const [reviewedToday, setReviewedToday] = useState(0);
   const startTimeRef = useRef(Date.now());
+  const [currentTime, setCurrentTime] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const [isClaiming, setIsClaiming] = useState(false);
 
   const loadQueue = useCallback(async () => {
     setIsLoading(true);
@@ -135,39 +143,17 @@ export default function ReviewQueuePage() {
   useEffect(() => {
     if (!currentItem) {
       setContext(null);
-      setImgSrc(null);
       return;
     }
 
     let cancelled = false;
-
     const loadContext = async () => {
       setIsLoadingContext(true);
-      setContext(null);
-      setImgLoaded(false);
-      setImgError(false);
       try {
         const ctx = await fetchReviewContext(currentItem.id);
-        if (!cancelled) {
-          setContext(ctx);
-          const imageUrl = getReviewImageUrl(currentItem.id, showFullPage);
-          setImgSrc(imageUrl);
-        }
+        if (!cancelled) setContext(ctx);
       } catch (err) {
-        if (!cancelled) {
-          if (currentItem.document_id) {
-            try {
-              const fallbackCtx = await fetchReviewContext(currentItem.id);
-              if (!cancelled && fallbackCtx?.raw_uri) {
-                setContext(fallbackCtx);
-                setImgSrc(getDocumentStaticUrl(fallbackCtx.raw_uri));
-              }
-            } catch (_) {
-              setContext(null);
-              setImgSrc(null);
-            }
-          }
-        }
+        if (!cancelled) setContext(null);
       } finally {
         if (!cancelled) setIsLoadingContext(false);
       }
@@ -175,14 +161,51 @@ export default function ReviewQueuePage() {
 
     loadContext();
     return () => { cancelled = true; };
-  }, [currentItem?.id, showFullPage]);
+  }, [currentItem?.id]);
 
   useEffect(() => {
-    if (currentItem) {
-      setImgLoaded(false);
-      setImgSrc(getReviewImageUrl(currentItem.id, showFullPage));
+    if (!currentItem) {
+      setImgSrc(null);
+      return;
     }
-  }, [showFullPage]);
+
+    let cancelled = false;
+    setImgLoaded(false);
+    setImgError(false);
+
+    setImgSrc((prev) => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return null;
+    });
+
+    const loadImage = async () => {
+      try {
+        const blob = await fetchReviewImageBlob(currentItem.id, showFullPage);
+        if (!cancelled) {
+          setImgSrc(URL.createObjectURL(blob));
+        }
+      } catch (err) {
+        if (!cancelled) {
+          if (currentItem.document_id) {
+            try {
+              const blob = await fetchDocumentFileBlob(currentItem.document_id);
+              if (!cancelled) {
+                setImgSrc(URL.createObjectURL(blob));
+              }
+            } catch (_) {
+              if (!cancelled) setImgError(true);
+            }
+          } else {
+            setImgError(true);
+          }
+        }
+      }
+    };
+
+    loadImage();
+
+    return () => { cancelled = true; };
+  }, [currentItem?.id, showFullPage]);
 
   const showToast = (msg, type = 'success') => {
     setToastMsg({ msg, type });
@@ -226,7 +249,7 @@ export default function ReviewQueuePage() {
   const handlePrev = useCallback(() => setCurrentIndex((i) => Math.max(0, i - 1)), []);
   const handleNext = useCallback(() => setCurrentIndex((i) => Math.min(docItems.length - 1, i + 1)), [docItems.length]);
 
-  const elapsedSec = Math.floor((Date.now() - startTimeRef.current) / 1000);
+  const elapsedSec = Math.floor((currentTime - startTimeRef.current) / 1000);
   const elapsedStr =
     elapsedSec >= 60
       ? `${Math.floor(elapsedSec / 60)}m ${elapsedSec % 60}s`
@@ -330,13 +353,20 @@ export default function ReviewQueuePage() {
                     </div>
                   </div>
                   <button 
-                    className="px-5 py-2.5 bg-gradient-to-r from-primary to-secondary text-white rounded-lg font-semibold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
-                    onClick={() => {
+                    className="px-5 py-2.5 bg-gradient-to-r from-primary to-secondary text-white rounded-lg font-semibold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity disabled:opacity-50"
+                    disabled={isClaiming}
+                    onClick={async () => {
+                      setIsClaiming(true);
+                      setToastMsg({ msg: 'Locking document for review...', type: 'info' });
+                      // Simulate a claim request to backend
+                      await new Promise(r => setTimeout(r, 600));
+                      setIsClaiming(false);
                       setSelectedDocId(docId);
                       setViewMode('review');
+                      setToastMsg({ msg: 'Document claimed successfully.', type: 'success' });
                     }}
                   >
-                    Start Review
+                    {isClaiming ? 'Claiming...' : 'Start Review'}
                   </button>
                 </div>
               );
@@ -348,7 +378,12 @@ export default function ReviewQueuePage() {
           <div className="mb-4">
             <button 
               className="flex items-center gap-2 px-4 py-2 bg-surface-variant text-on-surface rounded-lg font-semibold border border-outline-variant/30 hover:bg-surface-variant/80 transition-colors text-sm"
-              onClick={() => { setViewMode('list'); setSelectedDocId(null); }}
+              onClick={() => {
+                if (window.confirm("Return to queue? Any unsaved edits on the current field will be lost.")) {
+                  setViewMode('list'); 
+                  setSelectedDocId(null);
+                }
+              }}
             >
               <RotateCcw size={16} className="-rotate-45" /> Back to Queue
             </button>

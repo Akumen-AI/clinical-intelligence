@@ -182,6 +182,9 @@ def test_conversation_isolation_across_patients(auth_client, db_session, setup_r
         json={"question": "hello?", "conversation_id": conv.id}
     )
     
+    if response.status_code == 500:
+        print(response.json())
+
     assert response.status_code == 403
     assert "Invalid conversation ID" in response.json()["detail"]
 
@@ -199,6 +202,9 @@ def test_conversation_isolation_across_users(auth_client, db_session, setup_rag_
         json={"question": "hello?", "conversation_id": conv.id}
     )
     
+    if response.status_code == 500:
+        print(response.json())
+
     assert response.status_code == 403
     assert "Invalid conversation ID" in response.json()["detail"]
 

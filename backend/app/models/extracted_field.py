@@ -42,6 +42,12 @@ class ExtractedField(Base):
 
     field_id = Column(String(36), primary_key=True, default=generate_uuid, index=True)
     id = synonym("field_id")
+    extraction_run_id = Column(
+        String(36),
+        ForeignKey("extraction_runs.run_id", ondelete="CASCADE"),
+        nullable=True,  # Initially true for migration
+        index=True,
+    )
     document_id = Column(
         String(36),
         ForeignKey("documents.document_id", ondelete="CASCADE"),

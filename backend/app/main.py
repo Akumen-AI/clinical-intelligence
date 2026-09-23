@@ -31,6 +31,7 @@ from app.models.clinical_entities import Medication, Diagnosis, LabResult, Vital
 from app.models.rag_chunk import PatientRAGChunk
 from app.models.rag_conversation import RAGConversation
 from app.models.report_request import ReportRequest
+from app.models.refresh_token import RefreshToken
 
 # Register SQLAlchemy hooks
 import app.services.layout_trigger  # noqa
@@ -59,11 +60,42 @@ from app.core.rbac import check_rbac
 from app.services.upload_service import ensure_upload_directory_exists
 
 from fastapi.responses import JSONResponse, FileResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+import uuid
+from app.core.context import set_correlation_id
+from app.core.logging_config import configure_logging
+from app.core.rate_limit import limiter
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+import structlog
 
+# Initialize structured logging
+configure_logging()
+logger = structlog.get_logger("app.main")
 
-# Create database tables automatically on startup
-Base.metadata.create_all(bind=engine)
+class CorrelationIdMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        correlation_id = request.headers.get("X-Correlation-ID", str(uuid.uuid4()))
+        set_correlation_id(correlation_id)
+        # Store in request state for convenient access if needed
+        request.state.correlation_id = correlation_id
+        
+        # Add a simple metrics log for request duration
+        import time
+        start_time = time.time()
+        
+        try:
+            response = await call_next(request)
+            duration_ms = (time.time() - start_time) * 1000
+            logger.info("request_completed", method=request.method, url=str(request.url), status_code=response.status_code, duration_ms=round(duration_ms, 2))
+            response.headers["X-Correlation-ID"] = correlation_id
+            return response
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error("request_failed", method=request.method, url=str(request.url), error=str(e), duration_ms=round(duration_ms, 2))
+            raise
 
+# Create database tables automatically on startup (Removed - use Alembic migrations instead)
 
 
 # Ensure upload storage folder exists
@@ -81,44 +113,36 @@ except Exception as e:
     # If logger is not fully configured yet, print as fallback
     print(f"Failed to ensure watched folder exists: {e}")
 
-import asyncio
 from contextlib import asynccontextmanager
+import logging
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+from alembic.runtime.migration import MigrationContext
 
-async def folder_watcher_loop():
-    from app.services.audit_service import SYSTEM_ACTOR_ID
-    from app.database import SessionLocal
-    from app.services.folder_watcher_service import scan_watched_folder
-    from app.services.watched_folder_config_service import get_watched_folder_interval
-    import logging
-    logger = logging.getLogger("app.main.folder_watcher")
+logger = logging.getLogger("app.main")
+
+def check_schema_status():
+    alembic_cfg = Config("alembic.ini")
+    script = ScriptDirectory.from_config(alembic_cfg)
     
-    logger.info("[FolderWatcher] Background task started.")
-    try:
-        while True:
-            interval = get_watched_folder_interval()
-            await asyncio.sleep(interval)
-            
-            db = SessionLocal()
-            try:
-                result = await asyncio.to_thread(scan_watched_folder, db, SYSTEM_ACTOR_ID)
-                if result.get("queued") or result.get("failed"):
-                    logger.info(f"[FolderWatcher] Cycle complete. Queued: {len(result['queued'])}, Failed: {len(result['failed'])}")
-            except Exception as e:
-                logger.error(f"[FolderWatcher] Cycle error: {e}")
-            finally:
-                db.close()
-    except asyncio.CancelledError:
-        logger.info("[FolderWatcher] Background task stopped.")
+    with engine.connect() as connection:
+        context = MigrationContext.configure(connection)
+        current_rev = context.get_current_revision()
+        head_rev = script.get_current_head()
+        
+        if current_rev != head_rev:
+            raise RuntimeError(
+                f"Database schema is not up to date! "
+                f"Current revision: {current_rev}, Head revision: {head_rev}. "
+                f"Please run 'alembic upgrade head'."
+            )
+        logger.info("Database schema validation passed (Alembic heads match).")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    watcher_task = asyncio.create_task(folder_watcher_loop())
+    # Validate schema at startup
+    check_schema_status()
     yield
-    watcher_task.cancel()
-    try:
-        await watcher_task
-    except asyncio.CancelledError:
-        pass
 
 app = FastAPI(
     title="AI Clinical Intelligence Platform API",
@@ -128,6 +152,9 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Configure CORS for frontend access
 origins = [
@@ -144,11 +171,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve uploaded documents statically
-app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
+app.add_middleware(CorrelationIdMiddleware)
 
 # Include routers
-
 app.include_router(policy_chatbot_router)
 app.include_router(upload.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 app.include_router(layout.router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
@@ -168,11 +193,9 @@ app.include_router(rag_context_compliance_router)
 app.include_router(duplicates_router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 app.include_router(completeness_router, prefix="/api/v1", dependencies=[Depends(check_rbac)])
 
-
 @app.exception_handler(ComplianceViolationError)
 async def compliance_violation_handler(request, exc):
     return JSONResponse(status_code=422, content={"detail": str(exc)})
-
 
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_dir):
@@ -182,6 +205,39 @@ if os.path.exists(static_dir):
 async def serve_ui():
     ui_path = os.path.join(static_dir, "index.html")
     return FileResponse(ui_path)
+
+@app.get("/api/v1/health", tags=["Health Check"])
+async def health():
+    return {"status": "Healthy"}
+
+@app.get("/api/v1/health/liveness", tags=["Health Check"])
+async def liveness():
+    return {"status": "ok"}
+
+@app.get("/api/v1/health/readiness", tags=["Health Check"])
+async def readiness():
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        db_status = "ok"
+    except Exception as e:
+        logger.error("readiness_db_failure", error=str(e))
+        return JSONResponse(status_code=503, content={"status": "unhealthy", "db": "failed"})
+    
+    return {"status": "healthy", "db": db_status}
+
+@app.get("/api/v1/health/queue", tags=["Health Check"])
+async def queue_health():
+    try:
+        import redis
+        import os
+        r = redis.Redis.from_url(os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0"))
+        # Using Celery's default queue name 'celery'
+        q_len = r.llen("celery")
+        return {"status": "healthy", "queue_length": q_len}
+    except Exception as e:
+        logger.error("queue_health_failure", error=str(e))
+        return JSONResponse(status_code=503, content={"status": "unhealthy", "queue": "failed"})
 
 @app.get("/", tags=["Health Check"])
 async def root():

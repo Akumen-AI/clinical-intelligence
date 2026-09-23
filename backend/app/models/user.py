@@ -21,4 +21,5 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=True)
     role: Mapped[UserRole] = mapped_column(SAEnum(UserRole), nullable=False, default=UserRole.NURSE)
     patient_access: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    department_access: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))

@@ -2,9 +2,8 @@ from typing import List, Optional
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.db.session import get_async_db
+from sqlalchemy.orm import Session
+from app.database import get_db
 from app.core.security import get_current_user, User
 from app.models.user import UserRole
 from app.models.patient_duplicate_flag import PatientDuplicateFlag
@@ -26,29 +25,27 @@ def check_admin_role(user: User):
 
 @router.get("", response_model=List[PatientDuplicateFlagResponse])
 @router.get("/", response_model=List[PatientDuplicateFlagResponse], include_in_schema=False)
-async def list_duplicate_flags(
+def list_duplicate_flags(
     status_filter: Optional[str] = Query("pending", alias="status"),
-    db: AsyncSession = Depends(get_async_db),
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
     Doctors, Nurses, and Admins may view the duplicate flags queue.
     """
-    stmt = select(PatientDuplicateFlag)
+    query = db.query(PatientDuplicateFlag)
     if status_filter:
-        stmt = stmt.where(PatientDuplicateFlag.status == status_filter)
-    stmt = stmt.order_by(PatientDuplicateFlag.flagged_at.desc())
-
-    result = await db.execute(stmt)
-    flags = result.scalars().all()
+        query = query.filter(PatientDuplicateFlag.status == status_filter)
+    
+    flags = query.order_by(PatientDuplicateFlag.flagged_at.desc()).all()
     return flags
 
 
 @router.post("/{flag_id}/merge")
-async def merge_duplicate_patients(
+def merge_duplicate_patients(
     flag_id: str,
     payload: MergePatientRequest,
-    db: AsyncSession = Depends(get_async_db),
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -57,7 +54,7 @@ async def merge_duplicate_patients(
     check_admin_role(current_user)
     service = DuplicateDetectionService()
     try:
-        keep_patient = await service.merge_patients(
+        keep_patient = service.merge_patients(
             db=db,
             flag_id=flag_id,
             keep_patient_id=payload.keep_patient_id,
@@ -73,9 +70,9 @@ async def merge_duplicate_patients(
 
 
 @router.post("/{flag_id}/ignore", response_model=PatientDuplicateFlagResponse)
-async def ignore_duplicate_flag(
+def ignore_duplicate_flag(
     flag_id: str,
-    db: AsyncSession = Depends(get_async_db),
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -84,15 +81,15 @@ async def ignore_duplicate_flag(
     check_admin_role(current_user)
     service = DuplicateDetectionService()
     try:
-        flag = await service.ignore_flag(db=db, flag_id=flag_id, current_user=current_user)
+        flag = service.ignore_flag(db=db, flag_id=flag_id, current_user=current_user)
         return flag
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
 
 @router.post("/scan")
-async def trigger_duplicate_scan(
-    db: AsyncSession = Depends(get_async_db),
+def trigger_duplicate_scan(
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -100,7 +97,7 @@ async def trigger_duplicate_scan(
     """
     check_admin_role(current_user)
     service = DuplicateDetectionService()
-    created_flags = await service.scan_all_patients(db=db)
+    created_flags = service.scan_all_patients(db=db)
     return {
         "status": "success",
         "created_flags_count": len(created_flags),

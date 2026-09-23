@@ -9,6 +9,8 @@ export default function PatientsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 12;
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -44,6 +46,16 @@ export default function PatientsPage() {
     const patientNumber = (p.patient_number || '').toLowerCase();
     return name.includes(query) || mrn.includes(query) || patientNumber.includes(query);
   });
+
+  const totalPages = Math.ceil(filteredPatients.length / pageSize);
+  const paginatedPatients = filteredPatients.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
 
   return (
     <div className="app-container">
@@ -106,7 +118,7 @@ export default function PatientsPage() {
             <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
               No patients match your search.
             </div>
-          ) : filteredPatients.map(patient => (
+          ) : paginatedPatients.map(patient => (
               <div 
                 key={patient.patient_id} 
               className="glass-card patient-card-hover" 
@@ -176,6 +188,33 @@ export default function PatientsPage() {
           ))}
         </div>
       )}
+
+      {/* Pagination Controls */}
+      {!loading && filteredPatients.length > 0 && (
+        <div className="flex items-center justify-between mt-8 mb-4 text-sm px-4">
+          <div className="text-on-surface-variant">
+            Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, filteredPatients.length)} of {filteredPatients.length} entries
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 rounded-lg border border-outline-variant/30 bg-surface-container hover:bg-surface-variant disabled:opacity-50 transition-colors"
+            >
+              Previous
+            </button>
+            <span className="px-3 py-1.5 font-medium">Page {currentPage} of {totalPages || 1}</span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === (totalPages || 1)}
+              className="px-3 py-1.5 rounded-lg border border-outline-variant/30 bg-surface-container hover:bg-surface-variant disabled:opacity-50 transition-colors"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+      
       <style dangerouslySetInnerHTML={{__html: `
         .patient-card-hover:hover {
           transform: translateY(-2px);

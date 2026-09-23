@@ -8,7 +8,8 @@ from app.database import get_db
 from app.models.patient import Patient
 from app.models.clinical_entities import Medication, Allergy, LabResult, Diagnosis
 from app.schemas.dashboard import PatientDashboardResponse, LabTrendPointSchema, CurrentMedicationSchema
-from app.core.patient_access_guard import RbacAccessGuard, AccessDeniedError
+from app.core.authorization import AuthorizationService, ResourceType, Operation
+from fastapi import HTTPException
 from app.services.timeline_service import build_patient_timeline
 
 router = APIRouter(
@@ -38,8 +39,8 @@ def get_patient_dashboard(
 
     current_user = http_request.state.user
     try:
-        RbacAccessGuard().assert_can_query_patient(current_user, patient.patient_id)
-    except AccessDeniedError as e:
+        AuthorizationService.assert_can_access_patient(current_user, patient.patient_id)
+    except HTTPException as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
 
     # Current Medications

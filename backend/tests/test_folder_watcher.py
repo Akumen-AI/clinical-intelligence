@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from app.models.document import Document
 from app.models.upload_log import UploadLog
-from app.services.folder_watcher_service import scan_watched_folder
+from app.services.folder_watcher_service import scan_watched_folder_logic
 from app.utils.validators import FileValidationError
 from tests.conftest import TestingSessionLocal
 from app.services import upload_service
@@ -27,7 +27,7 @@ def mock_detect_corruption():
 
 @pytest.fixture
 def mock_process_document():
-    with patch("app.services.folder_watcher_service.upload_service.process_document") as m:
+    with patch("app.tasks.document_tasks.process_document_task.delay") as m:
         yield m
 
 @pytest.fixture
@@ -56,7 +56,7 @@ def test_new_files_are_queued(db_session, tmp_path, mock_detect_corruption, mock
     actor_id = uuid.uuid4()
     
     with patch("app.services.folder_watcher_service.get_watched_folder_path_info", return_value=(str(tmp_path), "env")):
-        result = scan_watched_folder(db_session, actor_id)
+        result = scan_watched_folder_logic(db_session, actor_id)
         
     assert len(result["queued"]) == 2
     assert len(result["failed"]) == 0
@@ -76,7 +76,7 @@ def test_duplicate_filename_does_not_overwrite(db_session, tmp_path, mock_detect
     # First scan
     _create_test_file(tmp_path, "scan001.pdf", b"content1")
     with patch("app.services.folder_watcher_service.get_watched_folder_path_info", return_value=(str(tmp_path), "env")):
-        result1 = scan_watched_folder(db_session, actor_id)
+        result1 = scan_watched_folder_logic(db_session, actor_id)
         
     assert len(result1["queued"]) == 1
     doc1_id = result1["queued"][0]
@@ -89,7 +89,7 @@ def test_duplicate_filename_does_not_overwrite(db_session, tmp_path, mock_detect
     # Second scan with SAME filename but DIFFERENT content
     _create_test_file(tmp_path, "scan001.pdf", b"content2")
     with patch("app.services.folder_watcher_service.get_watched_folder_path_info", return_value=(str(tmp_path), "env")):
-        result2 = scan_watched_folder(db_session, actor_id)
+        result2 = scan_watched_folder_logic(db_session, actor_id)
         
     assert len(result2["queued"]) == 1
     doc2_id = result2["queued"][0]
@@ -128,7 +128,7 @@ def test_unreadable_file_logs_and_continues(db_session, tmp_path, mock_detect_co
     actor_id = uuid.uuid4()
     
     with patch("app.services.folder_watcher_service.get_watched_folder_path_info", return_value=(str(tmp_path), "env")):
-        result = scan_watched_folder(db_session, actor_id)
+        result = scan_watched_folder_logic(db_session, actor_id)
         
     assert len(result["queued"]) == 1
     assert len(result["failed"]) == 1
@@ -157,11 +157,11 @@ def test_rescan_skips_already_ingested_files(db_session, tmp_path, mock_detect_c
     
     with patch("app.services.folder_watcher_service.get_watched_folder_path_info", return_value=(str(tmp_path), "env")):
         # First scan
-        res1 = scan_watched_folder(db_session, actor_id)
+        res1 = scan_watched_folder_logic(db_session, actor_id)
         assert len(res1["queued"]) == 1
         
         # Second scan (nothing new added, file is in _ingested)
-        res2 = scan_watched_folder(db_session, actor_id)
+        res2 = scan_watched_folder_logic(db_session, actor_id)
         assert len(res2["queued"]) == 0
         assert len(res2["failed"]) == 0
         

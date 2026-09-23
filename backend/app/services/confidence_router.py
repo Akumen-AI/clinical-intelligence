@@ -126,8 +126,18 @@ def route_extraction_result(
 
     try:
         threshold = get_confidence_threshold(db)
-
         document = db.query(Document).filter(Document.document_id == document_id).first()
+        
+        # Document-Level Trust Gate
+        # If classification is uncertain, route EVERYTHING to pending review.
+        trust_gate_passed = True
+        if document:
+            doc_type = (document.document_type or "").lower()
+            if doc_type == "unknown":
+                trust_gate_passed = False
+            elif document.classification_confidence is not None and document.classification_confidence < threshold:
+                trust_gate_passed = False
+        
         if document and not document.patient_id:
             # Check for patient_identifier to attempt fuzzy matching
             patient_id_field = fields_data.get("patient_identifier")
@@ -181,10 +191,8 @@ def route_extraction_result(
                 confidence = 0.0
 
             total_confidence += confidence
-            field_count += 1
-
-            # Inclusive check: confidence >= threshold -> canonical record
-            if confidence >= threshold:
+            field_count += 1            # Inclusive check: confidence >= threshold -> canonical record
+            if confidence >= threshold and trust_gate_passed:
                 canonical_record_service.upsert_field(
                     document_id=document_id,
                     field_name=field_name,

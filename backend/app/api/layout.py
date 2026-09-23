@@ -1,19 +1,21 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.document import Document
 from app.models.layout_region import LayoutRegion
 from app.schemas.layout import LayoutRegionResponse
+from app.core.authorization import AuthorizationService, Operation
 
 
 router = APIRouter(prefix="/documents", tags=["Document Layout Detection"])
 
 
 @router.get("/{document_id}/layout", response_model=List[LayoutRegionResponse])
-async def get_layout_regions(document_id: str, db: Session = Depends(get_db)):
+async def get_layout_regions(document_id: str, request: Request, db: Session = Depends(get_db)):
+    AuthorizationService.assert_can_access_document(db, request.state.user, document_id, Operation.READ)
     if not db.get(Document, document_id):
         raise HTTPException(status_code=404, detail=f"Document with ID '{document_id}' not found.")
     return (

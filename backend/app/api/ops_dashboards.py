@@ -11,16 +11,12 @@ from app.schemas.dashboard import DepartmentDashboardResponse, HospitalDashboard
 from app.services.dashboard_service import get_department_dashboard, get_hospital_dashboard
 from app.services.audit_service import write_entry
 from app.services.dashboard_export_service import build_dashboard_csv, build_dashboard_pdf, build_dashboard_xlsx
+from app.core.authorization import AuthorizationService
 
 router = APIRouter(prefix="/dashboards", tags=["Dashboards"])
 
 
 def _require_dashboard_access(current_user: User = Depends(get_current_user)):
-    if current_user.role not in {UserRole.HOSPITAL_ADMIN, UserRole.DEPARTMENT_HEAD}:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied: hospital_admin and department_head are the only roles allowed for operational dashboards.",
-        )
     return current_user
 
 
@@ -32,6 +28,7 @@ async def department_dashboard(
     db: Session = Depends(get_db),
     _current_user: User = Depends(_require_dashboard_access),
 ):
+    AuthorizationService.assert_can_access_dashboard(_current_user, department=department)
     from app.services import audit_service
     audit_service.write_entry(
         db=db,
@@ -51,6 +48,7 @@ async def hospital_dashboard(
     db: Session = Depends(get_db),
     _current_user: User = Depends(_require_dashboard_access),
 ):
+    AuthorizationService.assert_can_access_dashboard(_current_user, department=None)
     from app.services import audit_service
     audit_service.write_entry(
         db=db,
@@ -72,6 +70,8 @@ async def export_hospital_dashboard(
     db: Session = Depends(get_db),
     current_user: User = Depends(_require_dashboard_access),
 ):
+    AuthorizationService.assert_can_export_report(current_user, department=department)
+    
     if department:
         dashboard = get_department_dashboard(db, department=department, start_date=start_date, end_date=end_date)
     else:

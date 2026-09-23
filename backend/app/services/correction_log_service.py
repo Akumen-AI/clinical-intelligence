@@ -1,11 +1,10 @@
 import hashlib
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
-from app.models.correction_log import CorrectionLog
+from sqlalchemy.orm import Session
+from sqlalchemy import update
 from app.schemas.correction_log import CorrectionLogCreate, CorrectionExportRow, ExportBatchResponse
-
+from app.models.correction_log import CorrectionLog
 PHI_FIELD_NAMES: set[str] = {
     "patient_name", "date_of_birth", "ssn", "address",
     "phone", "email", "mrn", "insurance_id",
@@ -24,9 +23,9 @@ def _phi_safe_value(field_name: str, value: str | None) -> str | None:
 
 class CorrectionLogService:
 
-    async def log_correction(
+    def log_correction(
         self,
-        db: AsyncSession,
+        db: Session,
         payload: CorrectionLogCreate,
         reviewer_id: uuid.UUID,
         reviewer_role: str | None,
@@ -61,51 +60,37 @@ class CorrectionLogService:
         if payload.action in ("accept", "edit"):
             try:
                 from app.models.pending_review import PendingReview
-                stmt = (
-                    select(PendingReview)
-                    .where(
-                        (PendingReview.document_id == str(payload.document_id)) &
-                        (PendingReview.field_name == payload.field_name)
-                    )
-                )
-                result = await db.execute(stmt)
-                queue_entries = result.scalars().all()
+                queue_entries = db.query(PendingReview).filter(
+                    (PendingReview.document_id == str(payload.document_id)) &
+                    (PendingReview.field_name == payload.field_name)
+                ).all()
                 for queue_entry in queue_entries:
-                    await db.delete(queue_entry)
+                    db.delete(queue_entry)
             except Exception:
                 pass
 
-        await db.flush()   # catch constraint violations before commit
-        await db.commit()
-        await db.refresh(log)
+        db.flush()   # catch constraint violations before commit
+        db.commit()
+        db.refresh(log)
         return log
 
-    async def get_logs_for_document(
+    def get_logs_for_document(
         self,
-        db: AsyncSession,
+        db: Session,
         document_id: uuid.UUID,
     ) -> list[CorrectionLog]:
-        stmt = (
-            select(CorrectionLog)
-            .where(CorrectionLog.document_id == document_id)
-            .order_by(CorrectionLog.reviewed_at.asc())
-        )
-        result = await db.execute(stmt)
-        return list(result.scalars().all())
+        return db.query(CorrectionLog).filter(CorrectionLog.document_id == document_id).order_by(CorrectionLog.reviewed_at.asc()).all()
 
-    async def get_log_by_id(
+    def get_log_by_id(
         self,
-        db: AsyncSession,
+        db: Session,
         log_id: uuid.UUID,
     ) -> CorrectionLog | None:
-        result = await db.execute(
-            select(CorrectionLog).where(CorrectionLog.id == log_id)
-        )
-        return result.scalar_one_or_none()
+        return db.query(CorrectionLog).filter(CorrectionLog.id == log_id).first()
 
-    async def export_for_retraining(
+    def export_for_retraining(
         self,
-        db: AsyncSession,
+        db: Session,
         limit: int = 1000,
         actor_user_id: uuid.UUID | None = None,
     ) -> ExportBatchResponse:
@@ -115,17 +100,12 @@ class CorrectionLogService:
         """
         batch_id = f"batch_{uuid.uuid4().hex[:12]}"
 
-        stmt = (
-            select(CorrectionLog)
-            .where(CorrectionLog.retraining_exported == False)
-            .order_by(CorrectionLog.reviewed_at.asc())
-            .limit(limit)
-        )
+        query = db.query(CorrectionLog).filter(CorrectionLog.retraining_exported == False).order_by(CorrectionLog.reviewed_at.asc()).limit(limit)
+        
         if db.bind and db.bind.dialect.name != "sqlite":
-            stmt = stmt.with_for_update(skip_locked=True)
+            query = query.with_for_update(skip_locked=True)
 
-        result = await db.execute(stmt)
-        logs = list(result.scalars().all())
+        logs = query.all()
 
         rows: list[CorrectionExportRow] = []
         ids_to_mark: list[uuid.UUID] = []
@@ -149,15 +129,15 @@ class CorrectionLogService:
             ids_to_mark.append(log.id)
 
         if ids_to_mark:
-            await db.execute(
+            db.execute(
                 update(CorrectionLog)
                 .where(CorrectionLog.id.in_(ids_to_mark))
                 .values(retraining_exported=True, export_batch_id=batch_id)
             )
-            await db.commit()
+            db.commit()
 
             from app.services import audit_service
-            await audit_service.write_entry_async(
+            audit_service.write_entry(
                 db=db,
                 actor_user_id=actor_user_id or audit_service.SYSTEM_ACTOR_ID,
                 action_type="correction_log_export",

@@ -1,6 +1,6 @@
 import apiClient from './client';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 export const uploadDocuments = async (files) => {
   const formData = new FormData();
@@ -13,6 +13,11 @@ export const uploadDocuments = async (files) => {
       'Content-Type': 'multipart/form-data',
     },
   });
+  return response.data;
+};
+
+export const fetchHealth = async () => {
+  const response = await apiClient.get('/health');
   return response.data;
 };
 
@@ -98,12 +103,10 @@ export const fetchReviewContext = async (reviewId) => {
  * @param {string} reviewId
  * @param {'approve'|'reject'} action
  * @param {string|null} correctedValue - if set, writes this value to the canonical record
- * @param {string|null} reviewerId
  */
-export const submitReviewAction = async (reviewId, action, correctedValue = null, reviewerId = null) => {
+export const submitReviewAction = async (reviewId, action, correctedValue = null) => {
   const payload = { action };
   if (correctedValue !== null) payload.corrected_value = correctedValue;
-  if (reviewerId) payload.reviewer_id = reviewerId;
   const response = await apiClient.patch(`/review/pending/${reviewId}`, payload);
   return response.data;
 };
@@ -115,10 +118,8 @@ export const submitReviewAction = async (reviewId, action, correctedValue = null
  */
 export const getReviewImageUrl = (reviewId, fullPage = false) => {
   const base = API_BASE_URL.replace(/\/$/, '');
-  const token = localStorage.getItem('token') || '';
   const qs = new URLSearchParams();
   if (fullPage) qs.append('full_page', 'true');
-  if (token) qs.append('token', token);
   const qsStr = qs.toString();
   return `${base}/review/pending/${reviewId}/image${qsStr ? '?' + qsStr : ''}`;
 };
@@ -137,14 +138,23 @@ export const getDocumentStaticUrl = (rawUri) => {
   return `${apiOrigin}${relative}`;
 };
 
-/** Returns the browser-accessible URL for the original uploaded document. */
 export const getDocumentFileUrl = (documentId) => {
   if (!documentId) return null;
   const base = API_BASE_URL.replace(/\/$/, '');
-  const token = localStorage.getItem('token') || '';
-  const qs = token ? `?token=${token}` : '';
-  return `${base}/documents/${documentId}/file${qs}`;
+  return `${base}/documents/${documentId}/file`;
 };
+
+export const fetchDocumentFileBlob = async (documentId) => {
+  const response = await apiClient.get(`/documents/${documentId}/file`, { responseType: 'blob' });
+  return response.data;
+};
+
+export const fetchReviewImageBlob = async (reviewId, fullPage = false) => {
+  const params = fullPage ? { full_page: true } : {};
+  const response = await apiClient.get(`/review/pending/${reviewId}/image`, { params, responseType: 'blob' });
+  return response.data;
+};
+
 
 export const fetchThresholdConfig = async () => {
   const response = await apiClient.get('/review/config/threshold');

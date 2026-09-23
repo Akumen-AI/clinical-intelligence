@@ -7,6 +7,7 @@ from app.models.report_request import ReportRequest
 from app.schemas.nl_report import NaturalLanguageReportRequest, NaturalLanguageReportResponse
 from app.services.audit_service import write_entry
 from app.services.report_agent_service import ReportParseError, choose_chart_type, parse_nl_request, render_chart, run_structured_query
+from app.core.authorization import AuthorizationService
 
 router = APIRouter(prefix="/reports", tags=["Natural Language Reports"])
 
@@ -30,22 +31,37 @@ def _persist_attempt(db: Session, current_user: User, payload: NaturalLanguageRe
     return record
 
 
+from app.core.rate_limit import limiter
+from fastapi import Request
+
 @router.post("/generate", response_model=NaturalLanguageReportResponse)
-def generate_report(
+@limiter.limit("5/minute")
+def generate_report_endpoint(
+    request: Request,
     payload: NaturalLanguageReportRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     try:
-        resolved = parse_nl_request(payload.nl_query)
-        data = run_structured_query(db, resolved["filters"])
-        chart_type = choose_chart_type(data)
-        chart = render_chart(data, chart_type)
-        _persist_attempt(db, current_user, payload, resolved["filters"], chart_type, "agent_report_generated", "Report generated successfully.")
-        return {"chart": chart, "resolved_filters": resolved["filters"], "chart_type": chart_type, "data": data}
+        from app.services.nl_report_service import generate_report
+        
+        result = generate_report(db, payload.nl_query, current_user)
+        filters = result["filters"]
+        chart_type = result["chart_type"]
+        
+        _persist_attempt(db, current_user, payload, filters, chart_type, "agent_report_generated", "Report generated successfully.")
+        return {
+            "chart": result["chart"], 
+            "resolved_filters": filters, 
+            "chart_type": chart_type, 
+            "data": result["data"],
+            "query_plan": result["query_plan"]
+        }
     except ReportParseError as exc:
         _persist_attempt(db, current_user, payload, {}, "error", "agent_report_failed", str(exc))
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    except HTTPException:
+        raise
     except Exception as exc:
         db.rollback()
         _persist_attempt(db, current_user, payload, {}, "error", "agent_report_failed", "Report generation failed.")

@@ -10,7 +10,7 @@ from app.models.clinical_entities import Diagnosis, Medication, LabResult, Aller
 from app.schemas.patient import PatientCreate, PatientUpdate, PatientResponse, PatientProfileResponse, AskRequest, AskResponse
 from app.core.security import User
 from app.models.user import UserRole
-from app.core.patient_access_guard import RbacAccessGuard, AccessDeniedError
+from app.core.authorization import AuthorizationService, Operation, ResourceType
 from fastapi import Request
 from app.services.context_panel_service import ContextPanelService
 
@@ -64,10 +64,7 @@ def get_patient_records(
         )
 
     current_user = http_request.state.user
-    try:
-        RbacAccessGuard().assert_can_query_patient(current_user, patient.patient_id)
-    except AccessDeniedError as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    AuthorizationService.assert_can_access_patient(current_user, patient.patient_id, Operation.READ)
 
     documents = db.query(Document).filter(Document.patient_id == patient_id).all()
     diagnoses = db.query(Diagnosis).filter(Diagnosis.patient_id == patient_id).all()
@@ -89,6 +86,8 @@ def get_patient_records(
 def list_patients(
     http_request: Request,
     search: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 100,
     db: Session = Depends(get_db)
 ):
     """List all patients with optional search by name or MRN."""
@@ -104,13 +103,17 @@ def list_patients(
         
     current_user = http_request.state.user
     user_role = getattr(current_user, "role", None)
-    if user_role in (UserRole.DOCTOR, UserRole.NURSE, "doctor", "nurse"):
+    
+    if AuthorizationService._has_global_access(current_user, ResourceType.PATIENT, Operation.READ):
+        # Global access gets all patients matching query
+        pass
+    elif user_role in (UserRole.DOCTOR, UserRole.NURSE, "doctor", "nurse"):
         access_list = getattr(current_user, "patient_access", []) or []
         query = query.filter(Patient.patient_id.in_(access_list))
-    elif user_role in (UserRole.DEPARTMENT_HEAD, "department_head"):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Department Head is not authorized to list patient records.")
+    else:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Role is not authorized to list patient records.")
         
-    return query.all()
+    return query.offset(skip).limit(limit).all()
 
 
 @router.get("/{patient_id}", response_model=PatientResponse)
@@ -134,10 +137,7 @@ def get_patient(
         )
 
     current_user = http_request.state.user
-    try:
-        RbacAccessGuard().assert_can_query_patient(current_user, patient.patient_id)
-    except AccessDeniedError as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    AuthorizationService.assert_can_access_patient(current_user, patient.patient_id, Operation.READ)
 
     return patient
 
@@ -153,10 +153,7 @@ def update_patient(patient_id: str, patient_in: PatientUpdate, http_request: Req
         )
         
     current_user = http_request.state.user
-    try:
-        RbacAccessGuard().assert_can_query_patient(current_user, patient.patient_id)
-    except AccessDeniedError as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    AuthorizationService.assert_can_access_patient(current_user, patient.patient_id, Operation.WRITE)
         
     if patient_in.mrn and patient_in.mrn != patient.mrn:
         existing = db.query(Patient).filter(Patient.mrn == patient_in.mrn).first()
@@ -202,17 +199,17 @@ def get_context_panel(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found.")
 
     current_user = http_request.state.user
-    try:
-        RbacAccessGuard().assert_can_query_patient(current_user, patient.patient_id)
-    except AccessDeniedError as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    AuthorizationService.assert_can_access_patient(current_user, patient.patient_id, Operation.READ)
 
     # ── Build panel (AC-2: canonical DB only, AC-3: no diagnoses) ─────
     panel = ContextPanelService().build_context(db, patient.patient_id)
     return panel.to_dict()
 
 
+from app.core.rate_limit import limiter
+
 @router.post("/{patient_id}/ask", response_model=AskResponse)
+@limiter.limit("20/minute")
 def ask_patient_question(
     patient_id: str, 
     request: AskRequest, 
@@ -238,13 +235,7 @@ def ask_patient_question(
 
     current_user = http_request.state.user
 
-    try:
-        RbacAccessGuard().assert_can_query_patient(current_user, patient.patient_id)
-    except AccessDeniedError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e)
-        )
+    AuthorizationService.assert_can_access_patient(current_user, patient.patient_id, Operation.READ)
         
     from app.services.rag_service import generate_answer
     from app.services import audit_service
@@ -273,11 +264,8 @@ def ask_patient_question(
             source_documents=citations,
             citations=citations
         )
-    except AccessDeniedError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e)
-        )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -26,7 +26,8 @@ from app.services.confidence_router import (
     get_confidence_threshold_info,
     set_confidence_threshold,
 )
-from app.core.patient_access_guard import RbacAccessGuard, AccessDeniedError
+from app.core.authorization import AuthorizationService, ResourceType, Operation
+from fastapi import HTTPException
 from app.models.user import UserRole
 from sqlalchemy import or_
 
@@ -46,16 +47,13 @@ def _upload_base_dir() -> str:
 
 
 def _resolve_doc_path(raw_uri: str) -> str:
-    """Convert a raw_uri like 'uploads/xyz_file.png' to an absolute filesystem path."""
-    uploads_dir = _upload_base_dir()
-    # raw_uri may be 'uploads/<filename>' or an absolute path
-    if os.path.isabs(raw_uri):
-        return raw_uri
-    # Strip leading 'uploads/' prefix if present
-    relative = raw_uri.lstrip("/")
-    if relative.startswith("uploads/"):
-        relative = relative[len("uploads/"):]
-    return os.path.join(uploads_dir, relative)
+    """Convert a raw_uri to an absolute filesystem path using StorageProvider."""
+    from app.services import upload_service
+    filename = os.path.basename(raw_uri)
+    path = upload_service.storage_provider.get_path(filename)
+    if not path:
+        raise FileNotFoundError(f"Document file not found: {filename}")
+    return path
 
 
 def _render_document_image(raw_uri: str, filetype: str) -> Image.Image:
@@ -208,8 +206,8 @@ def get_review_context(
     doc = db.query(Document).filter(Document.document_id == review_rec.document_id).first()
     
     try:
-        RbacAccessGuard().assert_can_query_patient(http_request.state.user, doc.patient_id if doc else None)
-    except AccessDeniedError as e:
+        AuthorizationService.assert_can_access_patient(http_request.state.user, doc.patient_id if doc else None)
+    except HTTPException as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
 
     # Fetch bounding box from ExtractedField (most recent match)
@@ -293,8 +291,8 @@ def get_review_image(
         )
         
     try:
-        RbacAccessGuard().assert_can_query_patient(http_request.state.user, doc.patient_id)
-    except AccessDeniedError as e:
+        AuthorizationService.assert_can_access_patient(http_request.state.user, doc.patient_id)
+    except HTTPException as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
 
     # Get bounding box
@@ -329,7 +327,12 @@ def get_review_image(
     result_img.save(buf, format="JPEG", quality=88, optimize=True)
     buf.seek(0)
 
-    return StreamingResponse(buf, media_type="image/jpeg")
+    headers = {
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    }
+    return StreamingResponse(buf, media_type="image/jpeg", headers=headers)
 
 
 @router.patch(
@@ -367,8 +370,8 @@ def review_pending_field(
     doc = db.query(Document).filter(Document.document_id == review_rec.document_id).first()
     if doc:
         try:
-            RbacAccessGuard().assert_can_query_patient(http_request.state.user, doc.patient_id)
-        except AccessDeniedError as e:
+            AuthorizationService.assert_can_access_patient(http_request.state.user, doc.patient_id)
+        except HTTPException as e:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
 
     if payload.action == "approve":
@@ -397,9 +400,10 @@ def review_pending_field(
                     action_type="document_linked_to_patient",
                     target_entity=f"document:{doc.document_id}",
                     patient_id=doc.patient_id,
-                    rationale="Document linked to patient via review correction"
+                    rationale="Document linked to patient via review correction",
+                    outcome="success",
+                    context={"patient_id": doc.patient_id}
                 )
-                audit_service.backfill_patient_id_for_document(db, doc.document_id, doc.patient_id)
         else:
             # Use corrected value when reviewer edited, otherwise fall back to extracted
             value_to_write = (
@@ -419,8 +423,7 @@ def review_pending_field(
     elif payload.action == "reject":
         review_rec.status = ReviewStatus.REJECTED
 
-    if payload.reviewer_id:
-        review_rec.reviewer_id = payload.reviewer_id
+    review_rec.reviewer_id = str(http_request.state.user.id)
 
     review_rec.reviewed_at = datetime.now(timezone.utc)
     db.commit()
@@ -442,13 +445,19 @@ def review_pending_field(
         action_type=f"review_{payload.action}",
         target_entity=f"pending_review:{review_rec.id}",
         patient_id=doc.patient_id if doc else None,
-        rationale=f"Reviewer {payload.action}ed field '{review_rec.field_name}'"
+        rationale=f"Reviewer {payload.action}ed field '{review_rec.field_name}'",
+        outcome="success",
+        context={"field_name": review_rec.field_name, "corrected_value": payload.corrected_value}
     )
 
-    # Trigger background indexing if document is already linked to a patient
     if doc and doc.patient_id:
         from app.tasks.rag_tasks import index_document_task
-        background_tasks.add_task(index_document_task, doc.document_id)
+        background_tasks.add_task(
+            index_document_task,
+            doc.document_id,
+            getattr(http_request.state, "correlation_id", None),
+            str(http_request.state.user.id)
+        )
 
     return PendingReviewResponse.model_validate(review_rec)
 

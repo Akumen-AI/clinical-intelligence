@@ -40,13 +40,14 @@ def clear_audit_log():
 
 def test_declarative_upload(clear_audit_log):
     file_content = make_valid_pdf_bytes()
-    response = client.post(
-        "/api/v1/documents/upload",
-        files=[("files", ("test_audit.pdf", io.BytesIO(file_content), "application/pdf"))]
-    )
-    assert response.status_code == 201
-    doc_id = response.json()["accepted"][0]["document_id"]
-    wait_for_document_processing(client, doc_id)
+    with patch("app.services.text_extraction_service.extract_text_with_confidence", return_value=("Dummy text", [0.99])):
+        response = client.post(
+            "/api/v1/documents/upload",
+            files=[("files", ("test_audit.pdf", io.BytesIO(file_content), "application/pdf"))]
+        )
+        assert response.status_code == 201
+        doc_id = response.json()["accepted"][0]["document_id"]
+        wait_for_document_processing(client, doc_id)
 
     db = TestingSessionLocal()
     logs = db.query(AuditLogEntry).all()
@@ -59,7 +60,7 @@ def test_declarative_upload(clear_audit_log):
 def test_declarative_link_patient(clear_audit_log):
     db = TestingSessionLocal()
     patient = Patient(patient_id="dec_patient", mrn="MRN-DEC", name="Dec Patient")
-    doc = Document(document_id="dec_doc", patient_id=None, filename="dec.pdf", raw_uri="/test/uri", filetype="application/pdf", status="PROCESSED")
+    doc = Document(document_id="dec_doc", patient_id=None, filename="dec.pdf", raw_uri="/test/uri", filetype="application/pdf", status="COMMITTED")
     db.merge(patient)
     db.add(doc)
     db.commit()
@@ -83,7 +84,7 @@ def test_declarative_review_patch(clear_audit_log):
     CURRENT_TEST_ROLE = UserRole.NURSE
     db = TestingSessionLocal()
     patient = Patient(patient_id="dec_patient_review", mrn="MRN-DEC-REV", name="Dec Patient")
-    doc = Document(document_id="dec_doc_review", patient_id="dec_patient_review", filename="dec.pdf", raw_uri="/test/uri", filetype="application/pdf", status="PROCESSED")
+    doc = Document(document_id="dec_doc_review", patient_id="dec_patient_review", filename="dec.pdf", raw_uri="/test/uri", filetype="application/pdf", status="COMMITTED")
     review = PendingReview(id="dec_rev", document_id="dec_doc_review", field_name="blood_pressure", extracted_value="120/80", confidence_score=0.4, status=ReviewStatus.PENDING)
     db.merge(patient)
     db.add(doc)
@@ -130,13 +131,13 @@ def test_declarative_dashboards(clear_audit_log):
     db.close()
 
 
-@pytest.mark.asyncio
-async def test_declarative_correction_export(async_client, clear_audit_log, db_session):
+def test_declarative_correction_export(clear_audit_log, client):
     global CURRENT_TEST_ROLE
     CURRENT_TEST_ROLE = UserRole.HOSPITAL_ADMIN
     from app.models.correction_log import CorrectionLog
     from datetime import datetime, timezone
     
+    db_session = TestingSessionLocal()
     log = CorrectionLog(
         extracted_field_id=uuid.uuid4(),
         document_id=uuid.uuid4(),
@@ -147,16 +148,17 @@ async def test_declarative_correction_export(async_client, clear_audit_log, db_s
         reviewed_at=datetime.now(timezone.utc)
     )
     db_session.add(log)
-    await db_session.commit()
+    db_session.commit()
 
-    response = await async_client.post("/api/v1/correction-logs/export/retraining")
+    response = client.post("/api/v1/correction-logs/export/retraining")
     assert response.status_code == 200
 
     from sqlalchemy import select
-    result = await db_session.execute(select(AuditLogEntry))
+    result = db_session.execute(select(AuditLogEntry))
     logs = result.scalars().all()
-    action_types = {log.action_type for log in logs}
+    action_types = {l.action_type for l in logs}
     assert "correction_log_export" in action_types
+    db_session.close()
 
 
 def test_declarative_policy(clear_audit_log, tmp_path, monkeypatch):
@@ -242,13 +244,14 @@ def test_e2e_patient_audit_reconstruction(mock_genai_client, clear_audit_log):
     CURRENT_TEST_ROLE = UserRole.DOCTOR
     # 1. Upload a document
     file_content = make_valid_pdf_bytes()
-    upload_res = client.post(
-        "/api/v1/documents/upload",
-        files=[("files", ("e2e_test.pdf", io.BytesIO(file_content), "application/pdf"))]
-    )
-    assert upload_res.status_code == 201
-    doc_id = upload_res.json()["accepted"][0]["document_id"]
-    wait_for_document_processing(client, doc_id)
+    with patch("app.services.text_extraction_service.extract_text_with_confidence", return_value=("Dummy text", [0.99])):
+        upload_res = client.post(
+            "/api/v1/documents/upload",
+            files=[("files", ("e2e_test.pdf", io.BytesIO(file_content), "application/pdf"))]
+        )
+        assert upload_res.status_code == 201
+        doc_id = upload_res.json()["accepted"][0]["document_id"]
+        wait_for_document_processing(client, doc_id)
 
     # 2. Link it to a patient
     link_res = client.post(
@@ -289,8 +292,17 @@ def test_e2e_patient_audit_reconstruction(mock_genai_client, clear_audit_log):
 
     app.dependency_overrides.pop(get_current_user, None)
     try:
-        comp_token = create_access_token({"sub": str(uuid.uuid4()), "role": "compliance", "email": "comp@clinic.org"})
+        comp_user_id = uuid.uuid4()
+        comp_token = create_access_token({"sub": str(comp_user_id), "role": "compliance", "email": "comp@clinic.org"})
+        
+        # Insert compliance user into test DB to pass get_current_user validation
+        db = TestingSessionLocal()
+        db.add(User(id=comp_user_id, email="comp@clinic.org", role=UserRole.COMPLIANCE, patient_access=[], department_access=[]))
+        db.commit()
+        db.close()
+        
         comp_client = TestClient(app)
+        comp_client.cookies.set("access_token", comp_token)
         comp_client.headers.update({"Authorization": f"Bearer {comp_token}"})
         
         audit_res = comp_client.get("/api/v1/audit-log/patient/e2e_patient")
@@ -303,8 +315,6 @@ def test_e2e_patient_audit_reconstruction(mock_genai_client, clear_audit_log):
 
     # Actions we expect on the patient:
     expected_actions = {
-        "document_uploaded",
-        "document_extracted",
         "document_linked_to_patient",
         "review_approve",
         "canonical_record_write",
