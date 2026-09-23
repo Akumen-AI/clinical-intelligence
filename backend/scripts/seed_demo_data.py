@@ -389,13 +389,47 @@ def seed_demo_data():
                     )
                     db.add(field)
 
-                    # Create actual entity
                     entity = EntityClass(
                         id=str(uuid.uuid4()),
                         patient_id=custom_id,
                         source_field_id=field_id,
                         raw_text=text
                     )
+                    
+                    # Optional: apply terminology normalization to seed data so the dashboard looks complete
+                    if EntityClass.__name__ == "Medication":
+                        from app.services.terminology_service import normalize_clinical_term
+                        mapping = normalize_clinical_term("medications", text, attr_mapping.get("rxnorm_code"))
+                        entity.mapping_status = mapping["mapping_status"]
+                        entity.mapping_version = mapping["mapping_version"]
+                        entity.mapping_confidence = mapping["mapping_confidence"]
+                        entity.mapping_provenance = mapping["mapping_provenance"]
+                        if mapping["mapped_code"]: attr_mapping["rxnorm_code"] = mapping["mapped_code"]
+                    elif EntityClass.__name__ == "Diagnosis":
+                        from app.services.terminology_service import normalize_clinical_term
+                        mapping = normalize_clinical_term("diagnoses", text, attr_mapping.get("icd10_code") or attr_mapping.get("snomed_code"))
+                        entity.mapping_status = mapping["mapping_status"]
+                        entity.mapping_version = mapping["mapping_version"]
+                        entity.mapping_confidence = mapping["mapping_confidence"]
+                        entity.mapping_provenance = mapping["mapping_provenance"]
+                        if mapping["mapped_code"]: attr_mapping["icd10_code"] = mapping["mapped_code"]
+                    elif EntityClass.__name__ == "LabResult":
+                        from app.services.terminology_service import normalize_clinical_term
+                        mapping = normalize_clinical_term("lab_results", attr_mapping.get("test_name", ""), attr_mapping.get("loinc_code"))
+                        entity.mapping_status = mapping["mapping_status"]
+                        entity.mapping_version = mapping["mapping_version"]
+                        entity.mapping_confidence = mapping["mapping_confidence"]
+                        entity.mapping_provenance = mapping["mapping_provenance"]
+                        if mapping["mapped_code"]: attr_mapping["loinc_code"] = mapping["mapped_code"]
+                    elif EntityClass.__name__ == "Procedure":
+                        from app.services.terminology_service import normalize_clinical_term
+                        mapping = normalize_clinical_term("procedures", text, attr_mapping.get("code"))
+                        entity.mapping_status = mapping["mapping_status"]
+                        entity.mapping_version = mapping["mapping_version"]
+                        entity.mapping_confidence = mapping["mapping_confidence"]
+                        entity.mapping_provenance = mapping["mapping_provenance"]
+                        if mapping["mapped_code"]: attr_mapping["code"] = mapping["mapped_code"]
+                        
                     for attr, val in attr_mapping.items():
                         setattr(entity, attr, val)
                     db.add(entity)

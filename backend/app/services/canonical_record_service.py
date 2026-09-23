@@ -61,6 +61,8 @@ def route_to_normalized_tables(
     document_id: str
 ):
     """Helper to route a structured value to its normalized clinical entity table."""
+    from app.services.terminology_service import normalize_clinical_term
+
     
     # Clean up previous unverified entities for idempotency across runs
     clean_unverified_canonical_entities(db, document_id, field_name)
@@ -70,23 +72,37 @@ def route_to_normalized_tables(
             from app.models.clinical_entities import Medication
             for item in final_value:
                 if isinstance(item, dict):
+                    raw_text = item.get("medication_name", str(item))
+                    extracted_code = item.get("rxnorm_code")
+                    mapping = normalize_clinical_term("medications", raw_text, extracted_code)
                     db.add(Medication(
                         patient_id=patient_id,
                         source_field_id=field_id,
-                        raw_text=item.get("medication_name", str(item)),
-                        rxnorm_code=item.get("rxnorm_code"),
+                        raw_text=raw_text,
+                        rxnorm_code=mapping["mapped_code"],
+                        mapping_status=mapping["mapping_status"],
+                        mapping_version=mapping["mapping_version"],
+                        mapping_confidence=mapping["mapping_confidence"],
+                        mapping_provenance=mapping["mapping_provenance"],
                         status="active"
                     ))
         elif field_name in ("diagnoses", "diagnosis"):
             from app.models.clinical_entities import Diagnosis
             for item in final_value:
                 if isinstance(item, dict):
+                    raw_text = item.get("condition_name", str(item))
+                    extracted_code = item.get("icd10_code") or item.get("snomed_code")
+                    mapping = normalize_clinical_term("diagnoses", raw_text, extracted_code)
                     db.add(Diagnosis(
                         patient_id=patient_id,
                         source_field_id=field_id,
-                        raw_text=item.get("condition_name", str(item)),
-                        icd10_code=item.get("icd10_code"),
-                        snomed_code=item.get("snomed_code")
+                        raw_text=raw_text,
+                        icd10_code=mapping["mapped_code"] if (not item.get("icd10_code") or mapping["mapped_code"]) else item.get("icd10_code"),
+                        snomed_code=item.get("snomed_code"),
+                        mapping_status=mapping["mapping_status"],
+                        mapping_version=mapping["mapping_version"],
+                        mapping_confidence=mapping["mapping_confidence"],
+                        mapping_provenance=mapping["mapping_provenance"]
                     ))
         elif field_name == "allergies":
             from app.models.clinical_entities import Allergy
@@ -123,12 +139,20 @@ def route_to_normalized_tables(
                             except ValueError:
                                 pass
 
+                    raw_text = str(item)
+                    extracted_code = item.get("loinc_code")
+                    test_name = item.get("test_name", "")
+                    mapping = normalize_clinical_term("lab_results", test_name, extracted_code)
                     db.add(LabResult(
                         patient_id=patient_id,
                         source_field_id=field_id,
-                        raw_text=str(item),
-                        test_name=item.get("test_name"),
-                        loinc_code=item.get("loinc_code"),
+                        raw_text=raw_text,
+                        test_name=test_name,
+                        loinc_code=mapping["mapped_code"],
+                        mapping_status=mapping["mapping_status"],
+                        mapping_version=mapping["mapping_version"],
+                        mapping_confidence=mapping["mapping_confidence"],
+                        mapping_provenance=mapping["mapping_provenance"],
                         value_text=val_text,
                         value_numeric=val_num,
                         unit=item.get("unit"),
@@ -139,11 +163,20 @@ def route_to_normalized_tables(
         elif field_name == "procedures":
             from app.models.clinical_entities import Procedure
             for item in final_value:
-                if isinstance(item, str):
+                if isinstance(item, dict) or isinstance(item, str):
+                    raw_text = item.get("text", str(item)) if isinstance(item, dict) else item
+                    extracted_code = item.get("code") if isinstance(item, dict) else None
+                    mapping = normalize_clinical_term("procedures", raw_text, extracted_code)
                     db.add(Procedure(
                         patient_id=patient_id,
                         source_field_id=field_id,
-                        raw_text=item
+                        raw_text=raw_text,
+                        code=mapping["mapped_code"],
+                        mapping_status=mapping["mapping_status"],
+                        mapping_version=mapping["mapping_version"],
+                        mapping_confidence=mapping["mapping_confidence"],
+                        mapping_provenance=mapping["mapping_provenance"],
+                        date=item.get("date") if isinstance(item, dict) else None
                     ))
     elif final_value and isinstance(final_value, dict):
         if field_name == "vitals":
