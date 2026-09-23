@@ -98,6 +98,11 @@ class AskRequest(BaseModel):
 class CitationSchema(BaseModel):
     document_id: str
     snippet: str
+    document_type: Optional[str] = None
+    page: Optional[str] = None
+    source_field_id: Optional[str] = None
+    document_revision: Optional[int] = None
+    bounding_box: Optional[str] = None
     location: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
@@ -107,4 +112,5 @@ class AskResponse(BaseModel):
     conversation_id: str
     source_documents: List[CitationSchema] = []
     citations: List[CitationSchema] = []
+
 

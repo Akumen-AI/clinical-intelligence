@@ -1,5 +1,6 @@
 import json
 import logging
+import uuid
 from typing import List, Dict, Any, Tuple
 from sqlalchemy.orm import Session
 from app.models.document import Document
@@ -10,9 +11,9 @@ logger = logging.getLogger("app.services.rag_service")
 
 CHUNK_SIZE = 500
 CHUNK_OVERLAP = 100
+SIMILARITY_THRESHOLD = 0.6  # Adjust based on embedding model and use case
 
 def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> List[str]:
-    """Split text into overlapping chunks based on characters."""
     if not text:
         return []
     chunks = []
@@ -38,24 +39,16 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVE
     return chunks
 
 def index_document(db: Session, document: Document, ocr_text: str):
-    """
-    Index a document and its verified extracted fields into the patient RAG index.
-    Unverified fields are strictly excluded.
-    """
     if not document.patient_id:
         return
         
     logger.info(f"[RAG] Indexing document {document.document_id} for patient {document.patient_id}")
-    
     vector_store = get_vector_store()
     embedder = get_embedding_provider()
     
-    # 1. Clean up existing chunks for this document
     vector_store.delete_chunks(RetrievalScope.PATIENT, filters={"source_document_id": document.document_id})
-    
     chunks = []
     
-    # 2. Index verified extracted fields (structured clinical facts)
     verified_fields = db.query(ExtractedField).filter(
         ExtractedField.document_id == document.document_id,
         ExtractedField.verification_status.in_(["HUMAN_VERIFIED", "AUTO_PASSED"])
@@ -73,12 +66,12 @@ def index_document(db: Session, document: Document, ocr_text: str):
                     "source_document_id": document.document_id,
                     "source_field_id": field.field_id,
                     "verification_state": field.verification_status,
-                    "document_type": getattr(document, "document_type", "Unknown")
+                    "document_type": getattr(document, "document_type", "Unknown"),
+                    "document_revision": document.document_version,
+                    "bounding_box": json.dumps(field.bounding_box) if field.bounding_box else None
                 }
             ))
 
-    # 3. Only index the full OCR text if it's verified/safe, but for now we index the text chunks 
-    # tagging them as 'ocr_text' so they can be distinguished from verified facts.
     text_chunks = chunk_text(ocr_text)
     for i, chunk_text_content in enumerate(text_chunks):
         embedding = embedder.embed(chunk_text_content)
@@ -91,13 +84,12 @@ def index_document(db: Session, document: Document, ocr_text: str):
                     "source_document_id": document.document_id,
                     "chunk_index": i,
                     "document_type": getattr(document, "document_type", "Unknown"),
+                    "document_revision": document.document_version,
                     "type": "ocr_text"
                 }
             ))
             
     vector_store.add_chunks(RetrievalScope.PATIENT, chunks)
-    logger.info(f"[RAG] Successfully indexed {len(chunks)} chunks for document {document.document_id}")
-
 
 def retrieve_relevant_chunks(db: Session, patient_id: str, query: str, top_k: int = 5) -> List[Tuple[RAGChunk, float]]:
     embedder = get_embedding_provider()
@@ -107,35 +99,45 @@ def retrieve_relevant_chunks(db: Session, patient_id: str, query: str, top_k: in
     if not query_embedding:
         return []
         
-    # Strict Boundary: Hardcode RetrievalScope.PATIENT and filter by patient_id
     chunks = vector_store.search(
         scope=RetrievalScope.PATIENT,
         query_vector=query_embedding,
-        top_k=top_k,
+        top_k=top_k * 2,  # Fetch more to allow threshold filtering
         filters={"patient_id": patient_id}
     )
     
-    return [(chunk, chunk.metadata.get("_score", 0.0)) for chunk in chunks]
-
+    results = []
+    for chunk in chunks:
+        score = chunk.metadata.get("_score", 0.0)
+        if score >= SIMILARITY_THRESHOLD:
+            results.append((chunk, score))
+            if len(results) >= top_k:
+                break
+                
+    return results
 
 def generate_answer(db: Session, patient_id: str, question: str, user_id: str, conversation_id: str = None) -> Tuple[str, List[Dict[str, Any]], str]:
     from app.models.rag_conversation import RAGConversation
+    from app.models.rag_message import RAGMessage
+    from app.core.compliance import enforce_ac3
     
     llm = get_llm_provider()
     
-    conversation = None
+    # Authenticate user and resolve authorization scope
     if conversation_id:
         conversation = db.query(RAGConversation).filter(RAGConversation.id == conversation_id).first()
         if not conversation or conversation.patient_id != patient_id or conversation.user_id != str(user_id):
             from fastapi import HTTPException
             raise HTTPException(status_code=403, detail="Invalid conversation ID for this patient and user.")
     else:
-        conversation = RAGConversation(patient_id=patient_id, user_id=str(user_id), turns=[])
+        conversation = RAGConversation(patient_id=patient_id, user_id=str(user_id))
         db.add(conversation)
         db.commit()
         db.refresh(conversation)
 
-    history_turns = conversation.turns[-10:] if conversation.turns else []
+    # Use RAGMessage for append-only history
+    history = db.query(RAGMessage).filter(RAGMessage.conversation_id == conversation.id).order_by(RAGMessage.created_at.asc()).all()
+    history_turns = [{"role": msg.role, "content": msg.content} for msg in history[-10:]] if history else []
     
     search_query = question
     if history_turns:
@@ -149,77 +151,135 @@ def generate_answer(db: Session, patient_id: str, question: str, user_id: str, c
 
     top_chunks = retrieve_relevant_chunks(db, patient_id, search_query, top_k=5)
     
+    def _save_turn(role: str, content: str):
+        msg = RAGMessage(conversation_id=conversation.id, role=role, content=content)
+        db.add(msg)
+        db.commit()
+
+    _save_turn("user", question)
+    
     if not top_chunks:
         answer_text = "I could not find any relevant information in the patient's documents to answer your question."
-        conversation.turns = conversation.turns + [
-            {"role": "user", "content": question},
-            {"role": "assistant", "content": answer_text}
-        ]
-        db.commit()
+        _save_turn("assistant", answer_text)
         return answer_text, [], conversation.id
         
     context_parts = []
-    citations = []
-    seen = set()
+    chunk_map = {}
     
     for i, (chunk, score) in enumerate(top_chunks):
+        chunk_identifier = f"chunk_{i}"
+        chunk_map[chunk_identifier] = chunk
+        
         doc_type = chunk.metadata.get("document_type", "Unknown") if chunk.metadata else "Unknown"
         doc_id = chunk.metadata.get("source_document_id", "Unknown")
-        context_parts.append(f"--- Document {doc_id} ({doc_type}) ---\n{chunk.content}")
-        
-        location = None
-        if chunk.metadata:
-            if "source_field_id" in chunk.metadata:
-                location = "Structured Field"
-            elif "section" in chunk.metadata and chunk.metadata["section"]:
-                location = str(chunk.metadata["section"])
-            elif "page_number" in chunk.metadata and chunk.metadata["page_number"]:
-                location = f"Page {chunk.metadata['page_number']}"
-            elif "page" in chunk.metadata and chunk.metadata["page"]:
-                location = f"Page {chunk.metadata['page']}"
-            elif "chunk_index" in chunk.metadata:
-                location = f"Chunk {chunk.metadata['chunk_index']}"
-            elif doc_type != "Unknown":
-                location = doc_type
-
-        chunk_key = (doc_id, chunk.content)
-        if chunk_key not in seen:
-            seen.add(chunk_key)
-            citations.append({
-                "document_id": doc_id,
-                "snippet": chunk.content,
-                "location": location,
-            })
+        context_parts.append(f"--- Chunk ID: {chunk_identifier} | Document {doc_id} ({doc_type}) ---\n{chunk.content}")
         
     context_str = "\n\n".join(context_parts)
     
     prompt = f"""You are a clinical AI assistant answering questions about a specific patient's medical record.
-You will be provided with a set of retrieved text snippets from the patient's documents.
+You will be provided with a set of retrieved text snippets (chunks) from the patient's documents.
 Answer the user's question based ONLY on the information provided in the snippets.
-If the snippets do not contain the answer, say "I cannot answer this question based on the provided documents."
+
+You MUST output your response as a valid JSON object matching this exact schema:
+{{
+  "is_grounded": true or false,
+  "answer": "Your detailed answer here.",
+  "citations": [
+    {{"chunk_id": "chunk_0"}},
+    {{"chunk_id": "chunk_1"}}
+  ]
+}}
+
+Rules:
+1. If the snippets do not contain enough information to fully answer the question, set "is_grounded" to false and say so in the "answer".
+2. You must ONLY use the provided chunks.
+3. Your "citations" array must contain the EXACT "chunk_id" values (e.g. "chunk_0") that you used to form the answer.
 
 Retrieved Snippets:
 {context_str}
 
 Question: {question}
-Answer:"""
+"""
 
-    answer_text = llm.generate(prompt, context=history_turns)
+    # We use our LLM Provider, expecting JSON back.
+    llm_response = llm.generate(prompt, context=history_turns)
     
-    from app.core.compliance import enforce_ac3
+    # Strip markdown codeblocks if LLM adds them
+    llm_response = llm_response.strip()
+    if llm_response.startswith("```json"):
+        llm_response = llm_response[7:-3].strip()
+    elif llm_response.startswith("```"):
+        llm_response = llm_response[3:-3].strip()
+        
+    answer_text = "I could not find any relevant information to answer your question (No grounded answer)."
+    citations = []
+    
+    try:
+        parsed = json.loads(llm_response)
+        
+        if not parsed.get("is_grounded"):
+            answer_text = parsed.get("answer", answer_text)
+        else:
+            answer_text = parsed.get("answer", answer_text)
+            
+            # Deterministic Verification: Check that every cited chunk actually exists in our retrieved context
+            valid_citations = set()
+            for citation in parsed.get("citations", []):
+                cid = citation.get("chunk_id")
+                if cid in chunk_map:
+                    valid_citations.add(cid)
+            
+            if not valid_citations:
+                # The LLM hallucinated citations or failed to cite anything while claiming to be grounded
+                answer_text = "I cannot confidently answer this question as my verification step found insufficient supporting evidence (No grounded answer)."
+            else:
+                seen = set()
+                for cid in valid_citations:
+                    chunk = chunk_map[cid]
+                    
+                    doc_id = chunk.metadata.get("source_document_id", "Unknown")
+                    content = chunk.content
+                    chunk_key = (doc_id, content)
+                    
+                    if chunk_key not in seen:
+                        seen.add(chunk_key)
+                        
+                        doc_type = chunk.metadata.get("document_type")
+                        
+                        location = None
+                        if chunk.metadata:
+                            if "source_field_id" in chunk.metadata:
+                                location = "Structured Field"
+                            elif "section" in chunk.metadata and chunk.metadata["section"]:
+                                location = str(chunk.metadata["section"])
+                            elif "page_number" in chunk.metadata and chunk.metadata["page_number"]:
+                                location = f"Page {chunk.metadata['page_number']}"
+                            elif "page" in chunk.metadata and chunk.metadata["page"]:
+                                location = f"Page {chunk.metadata['page']}"
+                            elif "chunk_index" in chunk.metadata:
+                                location = f"Chunk {chunk.metadata['chunk_index']}"
+                            elif doc_type and doc_type != "Unknown":
+                                location = doc_type
+                        
+                        citations.append({
+                            "document_id": doc_id,
+                            "snippet": content,
+                            "document_type": doc_type,
+                            "page": str(chunk.metadata.get("page", chunk.metadata.get("page_number", ""))) or None,
+                            "source_field_id": chunk.metadata.get("source_field_id"),
+                            "document_revision": chunk.metadata.get("document_revision"),
+                            "bounding_box": chunk.metadata.get("bounding_box"),
+                            "location": location,
+                        })
+
+    except json.JSONDecodeError:
+        logger.error(f"[RAG] Failed to parse structured LLM output: {llm_response}")
+        answer_text = "I encountered an error formatting my response. Please try asking again."
+    
     answer_text = enforce_ac3(answer_text)
     
-    new_turns = conversation.turns + [
-        {"role": "user", "content": question},
-        {"role": "assistant", "content": answer_text}
-    ]
-    conversation.turns = new_turns
+    _save_turn("assistant", answer_text)
     
-    from sqlalchemy.orm.attributes import flag_modified
-    flag_modified(conversation, "turns")
-    db.commit()
-    
-    import uuid
     from app.services import audit_service
     audit_service.write_entry(
         db=db,
@@ -227,7 +287,7 @@ Answer:"""
         action_type="rag_query",
         target_entity=f"patient:{patient_id}",
         patient_id=patient_id,
-        rationale="Patient record queried via RAG",
+        rationale=f"RAG query grounded: {bool(citations)}",
         outcome="success",
         context={
             "query": question,

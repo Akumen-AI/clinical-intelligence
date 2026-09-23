@@ -10,6 +10,8 @@ from app.models.extracted_field import ExtractedField
 from app.models.canonical_patient_record import CanonicalPatientRecord
 from app.models.clinical_entities import Medication, Diagnosis, LabResult, Vital, Procedure
 from app.models.refresh_token import RefreshToken
+from app.models.rag_conversation import RAGConversation
+from app.models.rag_message import RAGMessage
 
 __all__ = [
     "Note",
@@ -28,4 +30,6 @@ __all__ = [
     "Vital",
     "Procedure",
     "RefreshToken",
+    "RAGConversation",
+    "RAGMessage",
 ]

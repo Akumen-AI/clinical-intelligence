@@ -47,8 +47,11 @@ An enterprise-grade clinical document intake, computer vision preprocessing, dua
 - **Append-Only Audit Logging & Asynchronous Traceability**  
   A centralized, immutable audit log that records all security-sensitive and AI-driven actions (authentication, document uploads, patient access, configuration changes) with exact models and outcomes. Integrates unique request `correlation_id`s through `contextvars` to seamlessly trace asynchronous background tasks back to the original authenticated user action. Includes a distinct correction log for tracking explicit manual overrides to extracted clinical fields.
 
-- **Clinical Policy Chatbot (RAG)**  
-  AI-powered chatbot integrating internal policies via Retrieval-Augmented Generation (RAG) to answer operational and clinical policy queries based on the hospital's knowledge base.
+- **Clinical Policy Chatbot & Grounded Patient Q&A (RAG)**  
+  AI-powered Retrieval-Augmented Generation (RAG) system with dual, strictly isolated scopes:
+  - **Policy Chatbot:** Answers operational and clinical policy queries based on the hospital's knowledge base.
+  - **Patient Q&A:** Allows clinicians to ask complex questions directly against a specific patient's clinical history.
+  - Features deterministic, mathematical verification to reject AI hallucinations—every answer is guaranteed to be grounded in retrieved evidence with exact, clickable citations (document ID, page, bounding box). Patient data is securely isolated from policy data and constrained by RBAC.
 
 ---
 
@@ -443,6 +446,7 @@ All document routes are served under `/api/v1/documents`.
 |---|---|---|
 | `GET` | `/api/v1/patients/{patient_id}` | Retrieve canonical patient records (RBAC protected). |
 | `GET` | `/api/v1/dashboards/{patient_id}` | Retrieve comprehensive clinical dashboard data including lab trends and active medications (RBAC protected). |
+| `POST` | `/api/v1/patients/{patient_id}/ask` | Ask natural-language questions about a specific patient's history. Answers are grounded with exact citations. (RAG) |
 | `POST` | `/api/v1/policy-chatbot/query` | Ask clinical and operational policy questions (RAG). |
 
 ---

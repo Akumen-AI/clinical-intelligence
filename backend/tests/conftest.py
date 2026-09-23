@@ -36,16 +36,19 @@ import os
 import asyncio
 from sqlalchemy.pool import StaticPool
 
-@pytest.fixture(autouse=True)
-def setup_db():
+@pytest.fixture(autouse=True, scope="session")
+def setup_db_schema():
     from alembic.config import Config
     from alembic import command
     import os
     
-    # Run alembic upgrade head to initialize the schema exactly as production
+    # Run alembic upgrade head to initialize the schema exactly as production once per session
     alembic_cfg = Config(os.path.join(os.path.dirname(os.path.dirname(__file__)), "alembic.ini"))
     alembic_cfg.attributes["connection"] = engine
     command.upgrade(alembic_cfg, "head")
+
+@pytest.fixture(autouse=True)
+def setup_db():
 
     # Patch the global SessionLocal so Celery tasks in the same process use the test DB
     import app.database
