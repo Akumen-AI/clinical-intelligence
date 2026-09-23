@@ -29,7 +29,7 @@ from tests.conftest import TestingSessionLocal, engine
 
 @pytest.fixture(autouse=True)
 def setup_test_database():
-    Base.metadata.create_all(bind=engine)
+
     db = TestingSessionLocal()
     # Create test parent document to satisfy foreign keys
     test_doc = db.query(Document).filter(Document.document_id == "test-doc-123").first()

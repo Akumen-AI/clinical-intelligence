@@ -38,4 +38,11 @@ class Document(Base):
     extraction_confidence = Column(Float, nullable=True)
     needs_manual_review = Column(Boolean, default=False, nullable=False)
     rejection_reason = Column(String(500), nullable=True)
+    
+    current_extraction_run_id = Column(
+        String(36),
+        ForeignKey("extraction_runs.run_id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    document_version = Column(Integer, default=1, nullable=False)
 

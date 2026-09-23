@@ -17,7 +17,6 @@ depends_on = None
 
 
 def upgrade() -> None:
-    try:
         op.create_table(
             'refresh_tokens',
             sa.Column('id', sa.UUID(), nullable=False),
@@ -30,13 +29,8 @@ def upgrade() -> None:
             sa.PrimaryKeyConstraint('id')
         )
         op.create_index(op.f('ix_refresh_tokens_token_jti'), 'refresh_tokens', ['token_jti'], unique=True)
-    except Exception:
-        pass
 
 
 def downgrade() -> None:
-    try:
         op.drop_index(op.f('ix_refresh_tokens_token_jti'), table_name='refresh_tokens')
         op.drop_table('refresh_tokens')
-    except Exception:
-        pass

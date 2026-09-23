@@ -73,9 +73,25 @@ def extract_and_persist_fields(
         raw_field_confidences = result.field_confidences
 
     doc_id = document.document_id
-    db.query(ExtractedField).filter(ExtractedField.document_id == doc_id).delete(
-        synchronize_session=False
+    # Instead of deleting fields, we create a new ExtractionRun
+    from app.models.extraction_run import ExtractionRun
+    import os
+    
+    previous_run_id = document.current_extraction_run_id
+    
+    new_run = ExtractionRun(
+        run_id=str(uuid.uuid4()),
+        document_id=doc_id,
+        extractor_name=os.getenv("AI_PROVIDER", "gemini_multimodal") if not pre_extracted_fields else "pre_extracted",
+        extractor_version="1.0", # hardcoded for now, could be dynamic based on models
+        status="completed",
+        supersedes_run_id=previous_run_id
     )
+    db.add(new_run)
+    db.flush()
+    
+    document.current_extraction_run_id = new_run.run_id
+    document.document_version += 1
 
     # Build the full field_map first (needed for Signal D cross-field consistency)
     field_mapping: Dict[str, Any] = {
@@ -127,6 +143,7 @@ def extract_and_persist_fields(
         record = ExtractedField(
             field_id=str(uuid.uuid4()),
             document_id=doc_id,
+            extraction_run_id=new_run.run_id,
             field_name=field_name,
             raw_value=value,
             confidence_score=score,
@@ -197,6 +214,7 @@ def get_document_fields_response(
     query = (
         db.query(ExtractedField)
         .filter(ExtractedField.document_id == document_id)
+        .filter(ExtractedField.extraction_run_id == doc.current_extraction_run_id)
     )
     if min_confidence is not None:
         query = query.filter(ExtractedField.confidence_score >= min_confidence)

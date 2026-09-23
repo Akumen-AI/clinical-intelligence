@@ -458,7 +458,8 @@ async def link_patient(
             patient_id=patient_id,
             field_name=record.field_name,
             field_id=record.source_field_id,
-            final_value=record.value
+            final_value=record.value,
+                document_id=document_id
         )
         db.delete(record)
 

@@ -88,10 +88,7 @@ def upgrade() -> None:
     with op.batch_alter_table('layout_regions', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_layout_regions_document_id'), ['document_id'], unique=False)
 
-    with op.batch_alter_table('refresh_tokens', schema=None) as batch_op:
-        batch_op.drop_index(batch_op.f('ix_refresh_tokens_token_jti'))
 
-    op.drop_table('refresh_tokens')
     with op.batch_alter_table('audit_log_entries', schema=None) as batch_op:
         batch_op.alter_column('log_id',
                existing_type=sa.NUMERIC(),
@@ -241,18 +238,7 @@ def downgrade() -> None:
                type_=sa.NUMERIC(),
                existing_nullable=False)
 
-    op.create_table('refresh_tokens',
-    sa.Column('id', sa.NUMERIC(), nullable=False),
-    sa.Column('user_id', sa.NUMERIC(), nullable=False),
-    sa.Column('token_jti', sa.VARCHAR(length=255), nullable=False),
-    sa.Column('expires_at', sa.DATETIME(), nullable=False),
-    sa.Column('revoked', sa.BOOLEAN(), nullable=False),
-    sa.Column('created_at', sa.DATETIME(), nullable=False),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
-    )
-    with op.batch_alter_table('refresh_tokens', schema=None) as batch_op:
-        batch_op.create_index(batch_op.f('ix_refresh_tokens_token_jti'), ['token_jti'], unique=1)
+
 
     with op.batch_alter_table('layout_regions', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_layout_regions_document_id'))

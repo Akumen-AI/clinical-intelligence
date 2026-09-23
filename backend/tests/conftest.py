@@ -4,10 +4,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.models.document import Document
-from app.models.upload_log import UploadLog
-from app.models.layout_region import LayoutRegion
-from app.models.extracted_field import ExtractedField
+from app.models import *
 from app.database import Base, get_db
 from app.main import app
 
@@ -60,6 +57,13 @@ def setup_db():
     celery_app.conf.task_always_eager = True
     celery_app.conf.task_eager_propagates = True
     
+    with engine.connect() as conn:
+        conn.execute(text("PRAGMA foreign_keys = OFF;"))
+        for table_name in Base.metadata.tables.keys():
+            conn.execute(text(f"DELETE FROM {table_name}"))
+        conn.execute(text("PRAGMA foreign_keys = ON;"))
+        conn.commit()
+
     yield
     
     # Clear all data without dropping tables to avoid 'database is locked' errors
