@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import FileUploader from '../components/FileUploader';
 import ExtractedFieldsModal from '../components/ExtractedFieldsModal';
-import { fetchDocuments, fetchDocumentStatus, deleteDocument, deleteAllDocuments, fetchUploadLogs, getWatchedFolderConfig, updateWatchedFolderConfig } from '../api';
+import { fetchDocuments, fetchDocumentStatus, deleteDocument, deleteAllDocuments, fetchUploadLogs, getWatchedFolderConfig, updateWatchedFolderConfig, fetchHealth, API_BASE_URL } from '../api';
 
 export default function UploadPage() {
   const navigate = useNavigate();
@@ -40,6 +40,11 @@ export default function UploadPage() {
   const [watchFolderPath, setWatchFolderPath] = useState('');
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [toastMsg, setToastMsg] = useState(null);
+  const [pipelineActive, setPipelineActive] = useState(true);
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 15;
 
   const refreshInFlight = useRef(false);
 
@@ -82,15 +87,29 @@ export default function UploadPage() {
     }
   };
 
+  const checkHealth = async () => {
+    try {
+      await fetchHealth();
+      setPipelineActive(true);
+    } catch (err) {
+      setPipelineActive(false);
+    }
+  };
+
   useEffect(() => {
     loadData();
     loadConfig();
+    checkHealth();
+    
+    // Poll health every 15 seconds
+    const healthInterval = setInterval(checkHealth, 15000);
+    return () => clearInterval(healthInterval);
   }, [filterNeedsReview, filterDocType, user]); // Re-fetch when filters change
 
   const pollingRef = useRef({});
 
   useEffect(() => {
-    const TERMINAL = new Set(['extracted', 'failed']);
+    const TERMINAL = new Set(['extracted', 'failed', 'verified', 'committed', 'unlinked', 'rejected', 'pending_review']);
     const MIN_DELAY = 2000;
     const MAX_DELAY = 15000;
     const BACKOFF_FACTOR = 1.5;
@@ -160,7 +179,12 @@ export default function UploadPage() {
     classified: 'Extracting text...',
     extracting: 'Extracting text...',
     extracted: 'Extracted',
-    failed: 'failed'
+    failed: 'Failed',
+    verified: 'Verified',
+    committed: 'Committed',
+    unlinked: 'Unlinked',
+    rejected: 'Rejected',
+    pending_review: 'Pending Review'
   }[(status || '').toLowerCase()] || status || 'Queued');
 
   const getStatusBadgeClass = (status) => {
@@ -234,6 +258,24 @@ export default function UploadPage() {
     );
   });
 
+  // Calculate paginated slices
+  const totalPages = Math.ceil(filteredDocuments.length / pageSize);
+  const paginatedDocuments = filteredDocuments.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  const totalLogPages = Math.ceil(filteredLogs.length / pageSize);
+  const paginatedLogs = filteredLogs.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  // Reset page to 1 when filters or tabs change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterNeedsReview, filterDocType, activeTab]);
+
   const queuedCount = documents.filter((d) => d.status === 'QUEUED' || d.status === 'new').length;
   const rejectedLogsCount = uploadLogs.filter((l) => l.status === 'REJECTED').length;
   const acceptedLogsCount = uploadLogs.filter((l) => l.status === 'ACCEPTED').length;
@@ -264,12 +306,19 @@ export default function UploadPage() {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20">
-            <div className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(6,182,212,0.6)]"></div>
-            <span className="text-sm font-semibold text-primary">Pipeline Active</span>
-          </div>
+          {pipelineActive ? (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20">
+              <div className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(6,182,212,0.6)]"></div>
+              <span className="text-sm font-semibold text-primary">Pipeline Active</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-error-container/20 border border-error/30">
+              <div className="w-2 h-2 rounded-full bg-error shadow-[0_0_8px_rgba(239,68,68,0.6)]"></div>
+              <span className="text-sm font-semibold text-error">Pipeline Offline</span>
+            </div>
+          )}
           <a
-            href="http://localhost:8000/docs"
+            href={`${API_BASE_URL.replace('/api/v1', '')}/docs`}
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-secondary" style={{ padding: '0.5rem 1rem' }}
@@ -472,7 +521,7 @@ export default function UploadPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/10">
-                  {filteredDocuments.map((doc) => (
+                  {paginatedDocuments.map((doc) => (
                     <tr 
                       key={doc.document_id} 
                       className="hover:bg-surface-variant/30 transition-colors cursor-pointer"
@@ -566,7 +615,7 @@ export default function UploadPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/10">
-                  {filteredLogs.map((log) => (
+                  {paginatedLogs.map((log) => (
                     <tr key={log.id} className="hover:bg-surface-variant/30 transition-colors">
                       <td className="px-6 py-4 text-on-surface-variant text-xs">
                         {formatDate(log.timestamp)}
@@ -599,6 +648,32 @@ export default function UploadPage() {
           )
         )}
       </div>
+
+      {/* Pagination Controls */}
+      {!isLoading && (
+        <div className="flex items-center justify-between mt-4 mb-8 text-sm">
+          <div className="text-on-surface-variant">
+            Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, activeTab === 'documents' ? filteredDocuments.length : filteredLogs.length)} of {activeTab === 'documents' ? filteredDocuments.length : filteredLogs.length} entries
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 rounded-lg border border-outline-variant/30 bg-surface-container hover:bg-surface-variant disabled:opacity-50 transition-colors"
+            >
+              Previous
+            </button>
+            <span className="px-3 py-1.5 font-medium">Page {currentPage} of {activeTab === 'documents' ? (totalPages || 1) : (totalLogPages || 1)}</span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(activeTab === 'documents' ? totalPages : totalLogPages, p + 1))}
+              disabled={currentPage === (activeTab === 'documents' ? (totalPages || 1) : (totalLogPages || 1))}
+              className="px-3 py-1.5 rounded-lg border border-outline-variant/30 bg-surface-container hover:bg-surface-variant disabled:opacity-50 transition-colors"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Extracted Fields Modal */}
       {selectedDocForFields && (

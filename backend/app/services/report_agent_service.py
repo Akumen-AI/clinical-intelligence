@@ -17,8 +17,8 @@ def parse_nl_request(nl_query: str) -> dict:
     return _parse_nl_request(nl_query)
 
 
-def run_structured_query(db, filters: dict) -> list[dict]:
-    return _run_structured_query(db, filters)
+def run_structured_query(db, filters: dict, current_user=None) -> list[dict]:
+    return _run_structured_query(db, filters, current_user)
 
 
 def choose_chart_type(data: list[dict]) -> str:

@@ -32,22 +32,26 @@ def _persist_attempt(db: Session, current_user: User, payload: NaturalLanguageRe
 
 
 @router.post("/generate", response_model=NaturalLanguageReportResponse)
-def generate_report(
+def generate_report_endpoint(
     payload: NaturalLanguageReportRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     try:
-        resolved = parse_nl_request(payload.nl_query)
-        filters = resolved.get("filters", {})
+        from app.services.nl_report_service import generate_report
         
-        AuthorizationService.assert_can_export_report(current_user, department=filters.get("department"))
+        result = generate_report(db, payload.nl_query, current_user)
+        filters = result["filters"]
+        chart_type = result["chart_type"]
         
-        data = run_structured_query(db, filters)
-        chart_type = choose_chart_type(data)
-        chart = render_chart(data, chart_type)
         _persist_attempt(db, current_user, payload, filters, chart_type, "agent_report_generated", "Report generated successfully.")
-        return {"chart": chart, "resolved_filters": filters, "chart_type": chart_type, "data": data}
+        return {
+            "chart": result["chart"], 
+            "resolved_filters": filters, 
+            "chart_type": chart_type, 
+            "data": result["data"],
+            "query_plan": result["query_plan"]
+        }
     except ReportParseError as exc:
         _persist_attempt(db, current_user, payload, {}, "error", "agent_report_failed", str(exc))
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc

@@ -112,6 +112,11 @@ export default function PatientQAPage() {
   };
 
   const handleClearPatient = () => {
+    if (history.length > 0) {
+      if (!window.confirm("Are you sure you want to change patients? This will end the current active session and clear history.")) {
+        return;
+      }
+    }
     setPatientIdInput('');
     setActivePatientId('');
     setActivePatient(null);

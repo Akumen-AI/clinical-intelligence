@@ -151,10 +151,22 @@ def parse_nl_request(nl_query: str) -> dict[str, Any]:
     return resolve_report_request(nl_query)
 
 
-def run_structured_query(db: Session, filters: dict[str, Any]) -> list[dict[str, Any]]:
+def run_structured_query(db: Session, filters: dict[str, Any], current_user: Any = None) -> list[dict[str, Any]]:
     """The only data-access tool exposed to the report agent."""
     grouping = filters.get("group_by", "department")
     base = db.query(Visit).join(Document, Visit.document_id == Document.document_id).filter(Document.status == DocumentStatus.COMMITTED.value)
+    
+    # Enforce RBAC independently of LLM filters
+    if current_user:
+        role = getattr(current_user, "role", None)
+        if role in ("doctor", "nurse", "UserRole.DOCTOR", "UserRole.NURSE"):
+            patient_access = getattr(current_user, "patient_access", []) or []
+            base = base.filter(Visit.patient_id.in_(patient_access))
+        elif role in ("department_head", "UserRole.DEPARTMENT_HEAD"):
+            department_access = getattr(current_user, "department_access", []) or []
+            base = base.filter(Visit.department.in_(department_access))
+            
+    # Apply requested filters
     if filters.get("department"):
         base = base.filter(Visit.department == filters["department"])
     if _coerce_date(filters.get("date_from")):
@@ -214,9 +226,28 @@ def choose_chart_type(data: list[dict[str, Any]]) -> str:
     return "bar"
 
 
-def generate_report(db: Session, request: str) -> dict[str, Any]:
+def generate_report(db: Session, request: str, current_user: Any = None) -> dict[str, Any]:
     resolved = parse_nl_request(request)
-    data = run_structured_query(db, resolved["filters"])
+    data = run_structured_query(db, resolved["filters"], current_user)
     chart_type = choose_chart_type(data)
     chart = render_chart(data, chart_type)
-    return {"request": request, "filters": resolved["filters"], "chart_type": chart_type, "data": data, "chart": chart}
+    
+    filters = resolved["filters"]
+    
+    cohort_desc = "All Patients"
+    if current_user:
+         role = getattr(current_user, "role", None)
+         if role in ("doctor", "nurse", "UserRole.DOCTOR", "UserRole.NURSE"):
+             cohort_desc = "Authorized Patients Only"
+             
+    query_plan = {
+        "cohort": cohort_desc,
+        "date_range": f"{filters.get('date_from', 'Any')} to {filters.get('date_to', 'Any')}",
+        "department_scope": filters.get("department", "All Departments"),
+        "metric": filters.get("group_by", "department"),
+        "grouping": filters.get("group_by", "department"),
+        "filters": filters,
+        "sort_order": "descending",
+    }
+    
+    return {"request": request, "filters": filters, "chart_type": chart_type, "data": data, "chart": chart, "query_plan": query_plan}

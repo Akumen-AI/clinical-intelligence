@@ -20,7 +20,7 @@ def _coerce_date(value: Optional[str]) -> Optional[datetime]:
     try:
         return datetime.fromisoformat(value)
     except ValueError:
-        return None
+        raise ValueError(f"Invalid date format: {value}")
 
 
 def _base_visit_query(db: Session, department: Optional[str], start_date: Optional[str], end_date: Optional[str]):
@@ -41,6 +41,18 @@ def _base_visit_query(db: Session, department: Optional[str], start_date: Option
 
 
 def get_admissions_metric(db: Session, department: Optional[str], start_date: Optional[str], end_date: Optional[str]) -> Dict[str, Any]:
+    """
+    Metric: Admissions
+    Population: All recorded visits with a valid visit_date.
+    Inclusion Rules: Visit falls within [start_date, end_date] and belongs to the specified department (if any).
+    Exclusion Rules: Visits with null visit_date.
+    Numerator: Count of included visits.
+    Denominator: N/A
+    Time Window: [start_date, end_date]
+    Grouping: By date (for the chart).
+    Source Tables: Visit, Document.
+    Known Limitations: Treats every visit row as an admission; may overcount if outpatient visits are mixed with inpatient admissions.
+    """
     query = _base_visit_query(db, department, start_date, end_date)
     total = query.filter(Visit.visit_date.isnot(None)).count()
     rows = query.filter(Visit.visit_date.isnot(None)).order_by(Visit.visit_date).all()
@@ -57,19 +69,30 @@ def get_admissions_metric(db: Session, department: Optional[str], start_date: Op
 
 
 def get_occupancy_metric(db: Session, department: Optional[str], start_date: Optional[str], end_date: Optional[str]) -> Dict[str, Any]:
+    """
+    Metric: Occupancy
+    Population: Inpatients currently occupying a bed at the end of the time window (or now).
+    Inclusion Rules: admission_date <= target_date AND (discharge_date IS NULL OR discharge_date > target_date).
+    Exclusion Rules: Outpatient visits lacking an admission_date.
+    Numerator: Active admissions at the end of the window.
+    Denominator: Configured or assumed hospital/department capacity.
+    Time Window: target_date is end_date (or today if not provided).
+    Grouping: N/A
+    Source Tables: Visit, Document.
+    Known Limitations: Capacity is hardcoded as a demo metric (200 hospital-wide, 50 per department).
+    """
     query = (
         db.query(Visit)
         .join(Document, Visit.document_id == Document.document_id)
         .filter(Document.status == DocumentStatus.COMMITTED.value)
+        .filter(Visit.admission_date.isnot(None))
     )
     if department:
         query = query.filter(Visit.department == department)
-    start_dt = _coerce_date(start_date)
-    end_dt = _coerce_date(end_date)
-    if start_dt:
-        query = query.filter(Visit.discharge_date >= start_dt)
-    if end_dt:
-        query = query.filter(Visit.admission_date < (end_dt + timedelta(days=1)))
+    
+    target_dt = _coerce_date(end_date) or datetime.utcnow()
+    query = query.filter(Visit.admission_date <= target_dt)
+    query = query.filter((Visit.discharge_date.is_(None)) | (Visit.discharge_date > target_dt))
     
     active_count = query.count()
     capacity = 50 if department else 200
@@ -86,8 +109,20 @@ def get_occupancy_metric(db: Session, department: Optional[str], start_date: Opt
     }
 
 def get_disease_distribution_metric(db: Session, department: Optional[str], start_date: Optional[str], end_date: Optional[str]) -> Dict[str, Any]:
+    """
+    Metric: Disease Distribution
+    Population: Diagnoses recorded in committed documents within the time window.
+    Inclusion Rules: Visit falls within [start_date, end_date] and department.
+    Exclusion Rules: Uncommitted documents, null raw_text.
+    Numerator: Distinct count of patients per diagnosis raw_text.
+    Denominator: N/A
+    Time Window: [start_date, end_date] based on visit_date.
+    Grouping: By diagnosis raw_text.
+    Source Tables: Diagnosis, ExtractedField, Document, Visit.
+    Known Limitations: Groups by raw_text rather than normalized code, potentially fragmenting identical conditions.
+    """
     query = (
-        db.query(Diagnosis.raw_text, func.count(Diagnosis.id).label("count"))
+        db.query(Diagnosis.raw_text, func.count(func.distinct(Diagnosis.patient_id)).label("count"))
         .join(ExtractedField, Diagnosis.source_field_id == ExtractedField.field_id)
         .join(Document, ExtractedField.document_id == Document.document_id)
         .join(Visit, Visit.document_id == Document.document_id)
@@ -102,14 +137,14 @@ def get_disease_distribution_metric(db: Session, department: Optional[str], star
         query = query.filter(Visit.visit_date >= start_dt)
     if end_dt:
         query = query.filter(Visit.visit_date < (end_dt + timedelta(days=1)))
-    query = query.group_by(Diagnosis.raw_text).order_by(func.count(Diagnosis.id).desc())
+    query = query.group_by(Diagnosis.raw_text).order_by(func.count(func.distinct(Diagnosis.patient_id)).desc())
     rows = query.all()
     series = [{"name": raw_text, "count": int(count)} for raw_text, count in rows]
     return {
         "key": "disease_distribution",
         "label": "Disease Distribution",
-        "value": series[0]["count"] if series else 0,
-        "unit": "patients",
+        "value": sum(s["count"] for s in series),
+        "unit": "diagnoses",
         "chart": series,
         "series": series,
         "available": True,
@@ -117,31 +152,52 @@ def get_disease_distribution_metric(db: Session, department: Optional[str], star
 
 
 def get_readmission_rate_metric(db: Session, department: Optional[str], start_date: Optional[str], end_date: Optional[str]) -> Dict[str, Any]:
-    visit_query = (
-        db.query(Visit.patient_id, Visit.visit_date, Visit.department)
+    """
+    Metric: Readmission Rate (30-day)
+    Population: Patients discharged within the time window.
+    Inclusion Rules: Visit discharge_date falls within [start_date, end_date] and department.
+    Exclusion Rules: Visits with no discharge_date.
+    Numerator: Discharges that were followed by an admission within 30 days.
+    Denominator: Total discharges in the window.
+    Time Window: [start_date, end_date] based on discharge_date.
+    Grouping: N/A
+    Source Tables: Visit, Document.
+    Known Limitations: A simplistic demo implementation mapping readmissions over any department if the first discharge was in the target department.
+    """
+    discharge_query = (
+        db.query(Visit)
         .join(Document, Visit.document_id == Document.document_id)
         .filter(Document.status == DocumentStatus.COMMITTED.value)
+        .filter(Visit.discharge_date.isnot(None))
     )
     if department:
-        visit_query = visit_query.filter(Visit.department == department)
+        discharge_query = discharge_query.filter(Visit.department == department)
     start_dt = _coerce_date(start_date)
     end_dt = _coerce_date(end_date)
     if start_dt:
-        visit_query = visit_query.filter(Visit.visit_date >= start_dt)
+        discharge_query = discharge_query.filter(Visit.discharge_date >= start_dt)
     if end_dt:
-        visit_query = visit_query.filter(Visit.visit_date < (end_dt + timedelta(days=1)))
-    visits = visit_query.order_by(Visit.patient_id, Visit.visit_date).all()
-    patient_counts: Dict[str, int] = {}
-    for patient_id, _, _ in visits:
-        if not patient_id:
+        discharge_query = discharge_query.filter(Visit.discharge_date < (end_dt + timedelta(days=1)))
+    
+    discharges = discharge_query.all()
+    
+    readmissions = 0
+    for d in discharges:
+        if not d.patient_id:
             continue
-        patient_counts.setdefault(patient_id, 0)
-        patient_counts[patient_id] += 1
+        readmission_query = (
+            db.query(Visit)
+            .filter(Visit.patient_id == d.patient_id)
+            .filter(Visit.visit_id != d.visit_id)
+            .filter(Visit.admission_date >= d.discharge_date)
+            .filter(Visit.admission_date <= (d.discharge_date + timedelta(days=30)))
+        )
+        if readmission_query.first():
+            readmissions += 1
 
-    repeat_visits = sum(count - 1 for count in patient_counts.values() if count > 1)
-    total_visits = len(visits)
-    rate = (repeat_visits / total_visits * 100.0) if total_visits else 0.0
-    chart = [{"label": "Repeat visits", "value": repeat_visits}, {"label": "Unique visits", "value": total_visits - repeat_visits}]
+    total_discharges = len(discharges)
+    rate = (readmissions / total_discharges * 100.0) if total_discharges else 0.0
+    chart = [{"label": "30-day Readmissions", "value": readmissions}, {"label": "No Readmission", "value": total_discharges - readmissions}]
     return {
         "key": "readmission_rate",
         "label": "Readmission Rate",
@@ -153,6 +209,18 @@ def get_readmission_rate_metric(db: Session, department: Optional[str], start_da
     }
 
 def get_average_stay_metric(db: Session, department: Optional[str], start_date: Optional[str], end_date: Optional[str]) -> Dict[str, Any]:
+    """
+    Metric: Average Length of Stay
+    Population: Discharged inpatient visits.
+    Inclusion Rules: Visit discharge_date falls within [start_date, end_date] and department. admission_date and discharge_date must be present.
+    Exclusion Rules: Active admissions (not yet discharged).
+    Numerator: Sum of days between admission and discharge. (Min 1 day).
+    Denominator: Total count of discharges.
+    Time Window: [start_date, end_date] based on discharge_date.
+    Grouping: N/A
+    Source Tables: Visit, Document.
+    Known Limitations: Treats same-day discharges as 1 day instead of 0 or fractional days.
+    """
     query = (
         db.query(Visit)
         .join(Document, Visit.document_id == Document.document_id)
@@ -165,9 +233,9 @@ def get_average_stay_metric(db: Session, department: Optional[str], start_date: 
     start_dt = _coerce_date(start_date)
     end_dt = _coerce_date(end_date)
     if start_dt:
-        query = query.filter(Visit.visit_date >= start_dt)
+        query = query.filter(Visit.discharge_date >= start_dt)
     if end_dt:
-        query = query.filter(Visit.visit_date < (end_dt + timedelta(days=1)))
+        query = query.filter(Visit.discharge_date < (end_dt + timedelta(days=1)))
     
     visits = query.all()
     if not visits:

@@ -187,6 +187,10 @@ async def serve_ui():
     ui_path = os.path.join(static_dir, "index.html")
     return FileResponse(ui_path)
 
+@app.get("/api/v1/health", tags=["Health Check"])
+async def health():
+    return {"status": "Healthy"}
+
 @app.get("/", tags=["Health Check"])
 async def root():
     return {

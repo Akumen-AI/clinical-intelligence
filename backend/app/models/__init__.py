@@ -12,6 +12,7 @@ from app.models.clinical_entities import Medication, Diagnosis, LabResult, Vital
 from app.models.refresh_token import RefreshToken
 from app.models.rag_conversation import RAGConversation
 from app.models.rag_message import RAGMessage
+from app.models.scheduled_report import ScheduledReport
 
 __all__ = [
     "Note",
@@ -32,4 +33,5 @@ __all__ = [
     "RefreshToken",
     "RAGConversation",
     "RAGMessage",
+    "ScheduledReport",
 ]

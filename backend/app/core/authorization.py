@@ -143,9 +143,14 @@ class AuthorizationService:
             if not department:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Department Heads cannot export hospital-wide reports.")
             
-            print("DEPT:", repr(department), "ACCESS:", repr(department_access), "TYPE:", type(department_access), "ROLE:", repr(role))
-
             department_access = getattr(user, "department_access", []) or []
+            if isinstance(department_access, str):
+                import json
+                try:
+                    department_access = json.loads(department_access)
+                except json.JSONDecodeError:
+                    pass
+
             if department in department_access:
                 return
             

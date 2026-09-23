@@ -1,6 +1,6 @@
 import apiClient from './client';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 export const uploadDocuments = async (files) => {
   const formData = new FormData();
@@ -13,6 +13,11 @@ export const uploadDocuments = async (files) => {
       'Content-Type': 'multipart/form-data',
     },
   });
+  return response.data;
+};
+
+export const fetchHealth = async () => {
+  const response = await apiClient.get('/health');
   return response.data;
 };
 
@@ -98,12 +103,10 @@ export const fetchReviewContext = async (reviewId) => {
  * @param {string} reviewId
  * @param {'approve'|'reject'} action
  * @param {string|null} correctedValue - if set, writes this value to the canonical record
- * @param {string|null} reviewerId
  */
-export const submitReviewAction = async (reviewId, action, correctedValue = null, reviewerId = null) => {
+export const submitReviewAction = async (reviewId, action, correctedValue = null) => {
   const payload = { action };
   if (correctedValue !== null) payload.corrected_value = correctedValue;
-  if (reviewerId) payload.reviewer_id = reviewerId;
   const response = await apiClient.patch(`/review/pending/${reviewId}`, payload);
   return response.data;
 };
