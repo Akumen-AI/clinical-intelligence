@@ -1,4 +1,4 @@
-import React from 'react';
+import PropTypes from 'prop-types';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { RBAC_MATRIX } from './Sidebar';
@@ -33,4 +33,10 @@ export const RoleProtectedRoute = ({ children, routeKey, routeKeys }) => {
   }
 
   return children;
+};
+
+RoleProtectedRoute.propTypes = {
+  children: PropTypes.any,
+  routeKey: PropTypes.any,
+  routeKeys: PropTypes.any
 };

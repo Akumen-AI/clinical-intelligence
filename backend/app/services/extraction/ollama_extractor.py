@@ -78,13 +78,13 @@ class OllamaFieldExtractor(ClinicalFieldExtractor):
             except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectionError) as e:
                 last_exception = e
                 if attempt < _MAX_RETRIES:
-                    print(
+                    logger.warning(
                         f"[Field Extraction] Ollama attempt {attempt}/{_MAX_RETRIES} failed: {e}. "
                         f"Retrying in {_RETRY_DELAY_SECONDS}s..."
                     )
                     time.sleep(_RETRY_DELAY_SECONDS)
                 else:
-                    print(
+                    logger.error(
                         f"[Field Extraction] Ollama extraction failed after {_MAX_RETRIES} attempts: {e}. "
                         f"Using rule-based fallback."
                     )

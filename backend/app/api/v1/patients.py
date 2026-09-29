@@ -20,6 +20,26 @@ router = APIRouter(
 )
 
 
+@router.get("/next-mrn")
+def get_next_mrn(db: Session = Depends(get_db)):
+    """Get the next available sequential MRN."""
+    count = db.query(Patient).count()
+    highest = db.query(Patient.mrn).filter(Patient.mrn.like('MRN-%')).all()
+    max_num = 2000
+    for row in highest:
+        try:
+            num = int(row[0].split('-')[1])
+            # Only consider numbers in the seeded range (e.g., up to 99999)
+            # to ignore previously generated date-based random MRNs
+            if num > max_num and num < 100000:
+                max_num = num
+        except (ValueError, IndexError):
+            pass
+    
+    next_num = max(max_num + 1, 2001 + count)
+    return {"next_mrn": f"MRN-{next_num}"}
+
+
 @router.post("", response_model=PatientResponse, status_code=status.HTTP_201_CREATED)
 def create_patient(patient_in: PatientCreate, db: Session = Depends(get_db)):
     """Create a new patient record."""
@@ -212,8 +232,8 @@ from app.core.rate_limit import limiter
 @limiter.limit("20/minute")
 def ask_patient_question(
     patient_id: str, 
-    request: AskRequest, 
-    http_request: Request,
+    payload: AskRequest, 
+    request: Request,
     db: Session = Depends(get_db)
 ):
     """
@@ -233,7 +253,7 @@ def ask_patient_question(
             detail="Patient not found."
         )
 
-    current_user = http_request.state.user
+    current_user = request.state.user
 
     AuthorizationService.assert_can_access_patient(current_user, patient.patient_id, Operation.READ)
         
@@ -243,21 +263,10 @@ def ask_patient_question(
         answer, citations, conv_id = generate_answer(
             db=db, 
             patient_id=patient.patient_id, 
-            question=request.question,
+            question=payload.question,
             user_id=current_user.id,
-            conversation_id=request.conversation_id
+            conversation_id=payload.conversation_id
         )
-        
-        has_answer = len(citations) > 0
-        audit_service.write_entry(
-            db=db,
-            actor_user_id=current_user.id,
-            action_type="rag_query",
-            target_entity=f"patient:{patient.patient_id}",
-            patient_id=patient.patient_id,
-            rationale=f"Asked: '{request.question}'. Grounded answer found: {has_answer}"
-        )
-        
         return AskResponse(
             answer=answer,
             conversation_id=conv_id,
@@ -267,7 +276,9 @@ def ask_patient_question(
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate answer: {str(e)}"
+            detail=f"Failed to generate answer: {repr(e)}"
         )

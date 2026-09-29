@@ -1,4 +1,4 @@
-import React from 'react';
+import PropTypes from 'prop-types';
 import { User } from 'lucide-react';
 
 export default function PatientHeaderBanner({ patient, allergies = [] }) {
@@ -70,3 +70,8 @@ export default function PatientHeaderBanner({ patient, allergies = [] }) {
     </div>
   );
 }
+
+PatientHeaderBanner.propTypes = {
+  patient: PropTypes.any,
+  allergies: PropTypes.any
+};

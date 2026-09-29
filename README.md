@@ -4,6 +4,15 @@ An enterprise-grade clinical document intake, computer vision preprocessing, dua
 
 ---
 
+## ⚠️ Clinical Safety Boundary & Product Scope
+
+**IMPORTANT**: This platform is designed as an **administrative and operational assistant**. It is **NOT** a certified medical device and must not be used for direct diagnostic or therapeutic decision-making. 
+- All AI-extracted clinical data (especially handwriting and LLM-classified fields) must be verified by a licensed clinician before entering the canonical patient record.
+- The system includes a mandatory confidence-based write-gate (Review Queue) to enforce this safety boundary.
+- Do not use the platform for emergency response or real-time patient monitoring.
+
+---
+
 ## 🌟 Key Capabilities
 
 - **Document Intake & Multi-Layer Validation**  
@@ -284,13 +293,7 @@ Run the seed script in dev mode:
 DEV_MODE=true python scripts/seed_users.py
 ```
 
-The generated accounts are:
-- `doctor@demo.com` (Password: `doctorPassword123!`) - Role: `doctor`
-- `nurse@demo.com` (Password: `nursePassword123!`) - Role: `nurse`
-- `admin@demo.com` (Password: `adminPassword123!`) - Role: `hospital_admin`
-- `head@demo.com` (Password: `headPassword123!`) - Role: `department_head`
-- `it@demo.com` (Password: `itPassword123!`) - Role: `it`
-- `compliance@demo.com` (Password: `compliancePassword123!`) - Role: `compliance`
+The script will output the generated emails and passwords for the following roles: `doctor`, `nurse`, `hospital_admin`, `department_head`, `it`, and `compliance`. Please refer to the script output for login credentials.
 
 The backend will be available at **http://localhost:8000**.
 
@@ -302,7 +305,8 @@ The backend will be available at **http://localhost:8000**.
 
 ### Demo Patient Data
 
-The platform includes a script to seed a rich, believable clinical dataset into the database for demonstration and testing purposes. All data is purely synthetic with no real PHI, and uses a fixed random seed for reproducibility.
+The platform includes a script to seed a rich, believable clinical dataset into the database for demonstration and testing purposes. 
+**Why Synthetic Data?** To strictly protect Patient Health Information (PHI) and comply with HIPAA regulations, all demo data is completely synthetic and algorithmically generated. No real patient data is included in this repository. The synthetic data uses a fixed random seed for reproducibility.
 
 Run the seed script in dev mode (it will automatically seed users if needed, then seed the patient data):
 ```bash
@@ -360,6 +364,37 @@ cd backend
 source .venv/bin/activate   # or .venv\Scripts\activate on Windows
 PYTHONPATH=. pytest tests/ -v
 ```
+
+### 5. Running Evaluations
+
+To run the evaluation suite for models (e.g., RAG latency, handwriting extraction):
+
+```bash
+cd backend
+source .venv/bin/activate
+PYTHONPATH=. python scripts/evaluate_handwriting_extraction.py
+PYTHONPATH=. python scripts/evaluate_rag_latency.py
+```
+Evaluation reports are saved to `backend/eval_reports/`.
+
+---
+
+## 🚀 Deployment
+
+The system is designed to be deployed using standard container orchestration (e.g., Kubernetes). A typical production deployment involves:
+1. **Database:** Provisioning a managed PostgreSQL instance (migrating away from the default SQLite).
+2. **Cache & Queues:** Provisioning a managed Redis instance for Celery brokers.
+3. **Storage:** Integrating AWS S3 or MinIO for secure document storage.
+4. **Compute:** Containerizing the FastAPI backend and Celery workers, deployed across separate pods.
+5. **Frontend:** Serving the built Vite assets (`dist/`) via NGINX or a CDN.
+
+---
+
+## 🛑 Known Limitations
+
+- **Handwriting Extraction Quality:** The multimodal handwriting extraction currently struggles with heavily degraded cursive, as shown in baseline evaluations. Human review is strictly required.
+- **Single-Node Storage:** By default, uploads are stored locally in `/uploads`. A distributed deployment requires implementing an S3-compatible storage backend.
+- **In-Memory Vectors:** FAISS currently runs in memory. Scaling to millions of vectors will require transitioning to a dedicated vector database.
 
 ---
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Clock,
   FileText,
@@ -6,11 +6,11 @@ import {
   Calendar,
   RefreshCw,
   AlertTriangle,
-  User,
+  
   Activity,
-  Syringe,
+  
   Pill,
-  Stethoscope,
+  
   Microscope,
   ShieldAlert,
   MessageCircleQuestion,
@@ -38,7 +38,7 @@ export default function TimelinePage() {
   const [patient, setPatient] = useState(null);
   const [allergies, setAllergies] = useState([]);
   const [events, setEvents] = useState([]);
-  const [totalEvents, setTotalEvents] = useState(0);
+
   
   const [diagnoses, setDiagnoses] = useState([]);
   const [medications, setMedications] = useState([]);
@@ -54,7 +54,7 @@ export default function TimelinePage() {
   const [contextPanel, setContextPanel] = useState(null);
   const [contextPanelLoading, setContextPanelLoading] = useState(true);
   const [contextPanelError, setContextPanelError] = useState(null);
-  const [noteText, setNoteText] = useState('');
+  
   const [showNoteEntry, setShowNoteEntry] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -82,7 +82,7 @@ export default function TimelinePage() {
       
       setPatient(patientRes);
       setEvents(timelineRes.events || []);
-      setTotalEvents(timelineRes.total_events || 0);
+
       setLastRefreshed(new Date());
 
       // 2. Fetch canonical records for clinical summary

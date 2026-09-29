@@ -361,7 +361,7 @@ def extract_text_from_pdf(filepath: str) -> str:
     # Quality gate: if embedded text is absent or garbage, fall through to OCR
     if not _is_embedded_text_usable(full_text):
         if full_text:
-            print(f"[Text Extraction] Embedded PDF text failed quality gate "
+            logger.info(f"[Text Extraction] Embedded PDF text failed quality gate "
                   f"({len(full_text)} chars). Falling back to OCR.")
         full_text = _ocr_pdf_pages(abs_path)
 
@@ -639,7 +639,7 @@ def extract_text_with_confidence(
             return full_text, []
 
         if full_text:
-            print(f"[Text Extraction] Embedded PDF text failed quality gate "
+            logger.info(f"[Text Extraction] Embedded PDF text failed quality gate "
                   f"({len(full_text)} chars). Falling back to OCR.")
 
         # Scanned / image-only PDF — OCR with scores

@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { 
-  Activity, 
+   
   FileCheck, 
   Clock, 
   Layers, 
@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import FileUploader from '../components/FileUploader';
 import ExtractedFieldsModal from '../components/ExtractedFieldsModal';
+import ConfirmDialog from '../components/ConfirmDialog';
 import { fetchDocuments, fetchDocumentStatus, deleteDocument, deleteAllDocuments, fetchUploadLogs, getWatchedFolderConfig, updateWatchedFolderConfig, fetchHealth, API_BASE_URL } from '../api';
 
 export default function UploadPage() {
@@ -31,6 +32,7 @@ export default function UploadPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedDocForFields, setSelectedDocForFields] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false });
   
   // Filters
   const [filterNeedsReview, setFilterNeedsReview] = useState(false);
@@ -111,8 +113,8 @@ export default function UploadPage() {
   useEffect(() => {
     const TERMINAL = new Set(['extracted', 'failed', 'verified', 'committed', 'unlinked', 'rejected', 'pending_review']);
     const MIN_DELAY = 2000;
-    const MAX_DELAY = 15000;
-    const BACKOFF_FACTOR = 1.5;
+    const MAX_DELAY = 4000;
+    const BACKOFF_FACTOR = 1.2;
 
     const activeDocs = documents.filter(
       (doc) => !TERMINAL.has((doc.status || '').toLowerCase())
@@ -166,7 +168,7 @@ export default function UploadPage() {
       }
       pollingRef.current = {};
     };
-  }, [documents.length]);
+  }, [documents.map(d => d.document_id + d.status).join(',')]);
 
   const statusLabel = (status) => ({
     queued: 'Queued',
@@ -199,25 +201,43 @@ export default function UploadPage() {
     loadData();
   };
 
-  const handleDeleteDocument = async (e, documentId, filename) => {
+  const handleDeleteDocument = (e, documentId, filename) => {
     e.stopPropagation(); // Prevent row click
-    if (!window.confirm(`Delete document "${filename}"?`)) return;
-    try {
-      await deleteDocument(documentId);
-      await loadData();
-    } catch (err) {
-      console.error('Failed to delete document:', err);
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Document',
+      message: `Are you sure you want to delete "${filename}"? This action cannot be undone.`,
+      isDanger: true,
+      confirmText: 'Delete',
+      onConfirm: async () => {
+        setConfirmDialog({ isOpen: false });
+        try {
+          await deleteDocument(documentId);
+          await loadData();
+        } catch (err) {
+          console.error('Failed to delete document:', err);
+        }
+      }
+    });
   };
 
-  const handleDeleteAll = async () => {
-    if (!window.confirm(`Delete ALL ${documents.length} document(s)? This cannot be undone.`)) return;
-    try {
-      await deleteAllDocuments();
-      await loadData();
-    } catch (err) {
-      console.error('Failed to delete all documents:', err);
-    }
+  const handleDeleteAll = () => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete All Documents',
+      message: `Are you sure you want to delete ALL ${documents.length} document(s)? This action is permanent and cannot be undone.`,
+      isDanger: true,
+      confirmText: 'Delete All',
+      onConfirm: async () => {
+        setConfirmDialog({ isOpen: false });
+        try {
+          await deleteAllDocuments();
+          await loadData();
+        } catch (err) {
+          console.error('Failed to delete all documents:', err);
+        }
+      }
+    });
   };
 
   const handleRowClick = (doc) => {
@@ -278,7 +298,7 @@ export default function UploadPage() {
 
   const queuedCount = documents.filter((d) => d.status === 'QUEUED' || d.status === 'new').length;
   const rejectedLogsCount = uploadLogs.filter((l) => l.status === 'REJECTED').length;
-  const acceptedLogsCount = uploadLogs.filter((l) => l.status === 'ACCEPTED').length;
+//   const acceptedLogsCount = uploadLogs.filter((l) => l.status === 'ACCEPTED').length;
 
   const formatDate = (isoString) => {
     if (!isoString) return 'N/A';
@@ -695,6 +715,12 @@ export default function UploadPage() {
           </div>
         </div>
       )}
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        {...confirmDialog}
+        onCancel={() => setConfirmDialog({ isOpen: false })}
+      />
     </div>
   );
 }

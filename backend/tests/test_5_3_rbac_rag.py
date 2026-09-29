@@ -44,13 +44,14 @@ def _seed_patient_with_chunk(patient_id: str, mrn: str):
     db = TestingSessionLocal()
     try:
         db.add(Patient(patient_id=patient_id, mrn=mrn, name="RBAC Test Patient"))
-        db.add(PatientRAGChunk(
-            patient_id=patient_id,
-            source_document_id="doc-rbac-1",
-            content="Patient was prescribed Metformin 500mg.",
-            embedding=[0.1, 0.2, 0.3],
-            metadata_json={"document_type": "Prescription"},
-        ))
+        from app.providers.rag import get_vector_store, RetrievalScope, RAGChunk
+        get_vector_store().add_chunks(RetrievalScope.PATIENT, [
+            RAGChunk(
+                content="Patient was prescribed Metformin 500mg.",
+                embedding=[0.1] * 256,
+                metadata={"patient_id": patient_id, "source_document_id": "doc-rbac-1", "document_type": "Prescription"},
+            )
+        ])
         db.commit()
     finally:
         db.close()
@@ -68,10 +69,10 @@ def test_allowed_role_reaches_rag(mock_genai, role):
 
     mock_instance = mock_genai.return_value
     mock_instance.models.embed_content.return_value = MagicMock(
-        embeddings=[MagicMock(values=[0.1, 0.2, 0.3])]
+        embeddings=[MagicMock(values=[0.1] * 256)]
     )
     mock_instance.models.generate_content.return_value = MagicMock(
-        text="Metformin 500mg recorded on file."
+        text='{"is_grounded": true, "answer": "Metformin 500mg recorded on file.", "citations": [{"chunk_id": "chunk_0"}]}'
     )
 
 

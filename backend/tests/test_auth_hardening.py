@@ -8,16 +8,19 @@ import time
 from app.core.security import create_access_token
 
 def test_login_rate_limiting(client_as):
+    from app.core.rate_limit import limiter
+    limiter.enabled = True
     c = TestClient(app)
-    # Clear rate limits for the test by resetting the dict if needed, or just spam different IPs.
-    # But since we use the same IP, 5 attempts should trigger it.
-    for i in range(5):
+    try:
+        for i in range(5):
+            resp = c.post("/api/v1/auth/login", json={"email": "wrong@test.com", "password": "wrong"})
+            assert resp.status_code in [401, 429]
+        
+        # 6th attempt should be 429
         resp = c.post("/api/v1/auth/login", json={"email": "wrong@test.com", "password": "wrong"})
-        assert resp.status_code in [401, 429]
-    
-    # 6th attempt should be 429
-    resp = c.post("/api/v1/auth/login", json={"email": "wrong@test.com", "password": "wrong"})
-    assert resp.status_code == 429
+        assert resp.status_code == 429
+    finally:
+        limiter.enabled = False
 
 def test_role_change_reflected_immediately(client_as, db_session):
     # Setup user

@@ -1,3 +1,4 @@
+// from 'prop-types';
 /**
  * Story 10.1 / FR-32 — ClinicalContextPanel
  *
@@ -10,7 +11,7 @@
  * clinical suggestion. Any such data silently passed in props
  * is ignored at render time (see render guards below).
  */
-import React from 'react';
+import { Children } from 'react';
 import { Pill, FlaskConical, ShieldAlert, ClipboardList, Info } from 'lucide-react';
 
 const Section = ({ icon: Icon, title, color, children, emptyText }) => (
@@ -23,13 +24,23 @@ const Section = ({ icon: Icon, title, color, children, emptyText }) => (
         {title}
       </span>
     </div>
-    {React.Children.count(children) === 0 ? (
+    {Children.count(children) === 0 ? (
       <p className="text-xs text-on-surface-variant/60 italic">{emptyText}</p>
     ) : (
       children
     )}
   </div>
 );
+
+import PropTypes from 'prop-types';
+
+Section.propTypes = {
+  icon: PropTypes.any,
+  title: PropTypes.any,
+  color: PropTypes.any,
+  children: PropTypes.any,
+  emptyText: PropTypes.any
+};
 
 export default function ClinicalContextPanel({ panel, loading, error }) {
   /* ── AC-3 runtime guard: drop any accidentally injected diag keys ── */
@@ -180,3 +191,9 @@ export default function ClinicalContextPanel({ panel, loading, error }) {
     </aside>
   );
 }
+
+ClinicalContextPanel.propTypes = {
+  panel: PropTypes.any,
+  loading: PropTypes.any,
+  error: PropTypes.any
+};

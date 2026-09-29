@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
+import { useState, useEffect } from 'react';
 import { saveNote, fetchNotes } from '../api';
 
 export default function AddNote({ patientId, complaintType, onNoteSaved }) {
@@ -20,7 +21,7 @@ export default function AddNote({ patientId, complaintType, onNoteSaved }) {
 
   useEffect(() => {
     loadNotes();
-  }, [patientId]);
+  }, [patientId, loadNotes]);
 
   const handleSave = async () => {
     if (!noteContent.trim() || !patientId) return;
@@ -94,3 +95,9 @@ export default function AddNote({ patientId, complaintType, onNoteSaved }) {
     </div>
   );
 }
+
+AddNote.propTypes = {
+  patientId: PropTypes.any,
+  complaintType: PropTypes.any,
+  onNoteSaved: PropTypes.any
+};

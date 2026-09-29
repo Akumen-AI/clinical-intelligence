@@ -1,13 +1,12 @@
-import React, { useState, useRef } from 'react';
+import PropTypes from 'prop-types';
+import { useState, useRef } from 'react';
 import { 
   UploadCloud, 
   FileText, 
   X, 
   AlertTriangle, 
   CheckCircle, 
-  Loader2,
-  XCircle,
-  FileCheck
+  Loader2
 } from 'lucide-react';
 import { uploadDocuments } from '../api';
 
@@ -260,3 +259,7 @@ export default function FileUploader({ onUploadSuccess }) {
     </div>
   );
 }
+
+FileUploader.propTypes = {
+  onUploadSuccess: PropTypes.any
+};

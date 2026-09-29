@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import LoginPage from './pages/LoginPage';
@@ -8,8 +9,7 @@ import ReviewQueuePage from './pages/ReviewQueuePage';
 import TimelinePage from './pages/TimelinePage';
 import PatientDashboardPage from './pages/PatientDashboardPage';
 import PolicyChatbot from './components/PolicyChatbot';
-import PolicyDocumentUploader from './components/PolicyDocumentUploader';
-import { Activity, ClipboardCheck, Database, Clock, MessageCircleQuestion, Users, LogOut } from 'lucide-react';
+
 import PatientQAPage from './pages/PatientQAPage';
 import PatientsPage from './pages/PatientsPage';
 import OperationsDashboardPage from './pages/OperationsDashboardPage';
@@ -72,6 +72,8 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+ErrorBoundary.propTypes = { children: PropTypes.any };
+
 import Layout from './components/Layout';
 import { RoleProtectedRoute } from './components/RoleProtectedRoute';
 
@@ -89,6 +91,8 @@ const ProtectedRoute = ({ children }) => {
 
   return children;
 };
+
+ProtectedRoute.propTypes = { children: PropTypes.any };
 
 function App() {
   return (
@@ -180,3 +184,4 @@ function App() {
 }
 
 export default App;
+

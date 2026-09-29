@@ -106,8 +106,8 @@ def test_oversized_file_rejected(client):
     large_bytes = b"A" * (20 * 1024 * 1024 + 100 * 1024)
     files = [("files", ("large_scan.pdf", io.BytesIO(large_bytes), "application/pdf"))]
     response = client.post("/api/v1/documents/upload", files=files)
-    assert response.status_code == 400
-    assert response.json()["detail"] == "File exceeds maximum upload size."
+    assert response.status_code == 413
+    assert response.json()["detail"] == "File large_scan.pdf exceeds 10MB limit"
 
 def test_multiple_upload_mixed_valid_and_invalid(client):
     pdf_valid = ("files", ("valid1.pdf", io.BytesIO(make_valid_pdf_bytes()), "application/pdf"))

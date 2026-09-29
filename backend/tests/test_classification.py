@@ -65,12 +65,14 @@ def test_factory_gemini(mocker):
 
 def test_factory_ollama(mocker):
     mocker.patch.object(settings, 'AI_PROVIDER', 'ollama')
+    mocker.patch('app.services.classification.factory._is_ollama_available', return_value=True)
     
     classifier = get_document_classifier()
     assert isinstance(classifier, OllamaClassifier)
 
 def test_factory_fallback(mocker):
     mocker.patch.object(settings, 'AI_PROVIDER', 'unknown_provider')
+    mocker.patch('app.services.classification.factory._is_ollama_available', return_value=True)
     
     classifier = get_document_classifier()
     assert isinstance(classifier, OllamaClassifier)

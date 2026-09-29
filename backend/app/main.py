@@ -67,6 +67,7 @@ from app.core.logging_config import configure_logging
 from app.core.rate_limit import limiter
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 import structlog
 
 # Initialize structured logging
@@ -104,22 +105,17 @@ upload_dir = ensure_upload_directory_exists()
 # Ensure watched folder exists
 try:
     from app.services.watched_folder_config_service import get_watched_folder_path_info
-    import logging
-    logger = logging.getLogger("app.main")
     watched_path, _ = get_watched_folder_path_info()
     os.makedirs(watched_path, exist_ok=True)
     logger.info(f"Verified watched folder exists at: {watched_path}")
 except Exception as e:
     # If logger is not fully configured yet, print as fallback
-    print(f"Failed to ensure watched folder exists: {e}")
+    logger.error(f"Failed to ensure watched folder exists: {e}")
 
 from contextlib import asynccontextmanager
-import logging
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from alembic.runtime.migration import MigrationContext
-
-logger = logging.getLogger("app.main")
 
 def check_schema_status():
     alembic_cfg = Config("alembic.ini")
@@ -172,6 +168,7 @@ app.add_middleware(
 )
 
 app.add_middleware(CorrelationIdMiddleware)
+app.add_middleware(SlowAPIMiddleware)
 
 # Include routers
 app.include_router(policy_chatbot_router)

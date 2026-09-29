@@ -7,7 +7,9 @@ vector_store = FaissVectorStoreProvider()
 
 def get_llm_provider() -> LLMProvider:
     from app.config import settings
-    if settings.AI_PROVIDER.lower() == "gemini" and settings.GEMINI_API_KEY:
+    if settings.AI_PROVIDER.lower() == "gemini":
+        if not settings.GEMINI_API_KEY:
+            raise ValueError("GEMINI_API_KEY is not set")
         from .gemini_provider import GeminiLLMProvider
         return GeminiLLMProvider(api_key=settings.GEMINI_API_KEY)
         
@@ -19,7 +21,9 @@ def get_llm_provider() -> LLMProvider:
 
 def get_embedding_provider() -> EmbeddingProvider:
     from app.config import settings
-    if settings.AI_PROVIDER.lower() == "gemini" and settings.GEMINI_API_KEY:
+    if settings.AI_PROVIDER.lower() == "gemini":
+        if not settings.GEMINI_API_KEY:
+            raise ValueError("GEMINI_API_KEY is not set")
         from .gemini_provider import GeminiEmbeddingProvider
         return GeminiEmbeddingProvider(api_key=settings.GEMINI_API_KEY)
         

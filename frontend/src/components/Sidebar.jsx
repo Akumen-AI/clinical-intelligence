@@ -1,13 +1,12 @@
-import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { 
   Activity, 
   ClipboardCheck, 
-  Database, 
+   
   Users,
   MessageSquare,
-  UploadCloud,
+  
   LogOut,
   BarChart2
 } from 'lucide-react';

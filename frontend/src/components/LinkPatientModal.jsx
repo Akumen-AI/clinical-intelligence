@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
+import { useState, useEffect } from 'react';
 import { X, Search, UserPlus } from 'lucide-react';
 import apiClient from '../api';
 
-export default function LinkPatientModal({ isOpen, onClose, onLink, documentId, suggestedPatientData = {} }) {
+export default function LinkPatientModal({ isOpen, onClose, onLink, suggestedPatientData = {} }) {
   const generateMRN = () => {
     const d = new Date();
     const dateStr = d.toISOString().split('T')[0].replace(/-/g, '');
@@ -24,24 +25,38 @@ export default function LinkPatientModal({ isOpen, onClose, onLink, documentId, 
   });
 
   useEffect(() => {
+    let active = true;
+
     if (isOpen) {
       setSearchQuery(suggestedPatientData.mrn || suggestedPatientData.name || '');
-      setFormData({
-        mrn: generateMRN(),
-        name: suggestedPatientData.name || '',
-        dob: suggestedPatientData.dob || '',
-        sex: suggestedPatientData.sex || ''
-      });
+      
+      const initializeForm = async () => {
+        let mrnToUse = '';
+        try {
+          const res = await apiClient.get('/patients/next-mrn');
+          mrnToUse = res.data.next_mrn;
+        } catch (err) {
+          console.error('Failed to get next MRN:', err);
+          mrnToUse = generateMRN(); // Fallback
+        }
+        
+        if (active) {
+          setFormData({
+            mrn: mrnToUse,
+            name: suggestedPatientData.name || '',
+            dob: suggestedPatientData.dob || '',
+            sex: suggestedPatientData.sex || ''
+          });
+        }
+      };
+
+      initializeForm();
     }
+
+    return () => {
+      active = false;
+    };
   }, [isOpen]); // Only run once when modal opens
-
-  useEffect(() => {
-    if (isOpen && tab === 'search' && searchQuery) {
-      handleSearch();
-    }
-  }, [isOpen, tab]);
-
-  if (!isOpen) return null;
 
   const handleSearch = async () => {
     if (!searchQuery) return;
@@ -55,6 +70,16 @@ export default function LinkPatientModal({ isOpen, onClose, onLink, documentId, 
       setIsSearching(false);
     }
   };
+
+  useEffect(() => {
+    if (isOpen && tab === 'search' && searchQuery) {
+      handleSearch();
+    }
+  }, [isOpen, tab]);
+
+  if (!isOpen) return null;
+
+
 
   const handleCreateAndLink = async (e) => {
     e.preventDefault();
@@ -159,3 +184,10 @@ export default function LinkPatientModal({ isOpen, onClose, onLink, documentId, 
     </div>
   );
 }
+
+LinkPatientModal.propTypes = {
+  isOpen: PropTypes.any,
+  onClose: PropTypes.any,
+  onLink: PropTypes.any,
+  suggestedPatientData: PropTypes.any
+};

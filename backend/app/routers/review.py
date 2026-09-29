@@ -69,13 +69,16 @@ def _render_document_image(raw_uri: str, filetype: str) -> Image.Image:
     ft = (filetype or "").lower().strip(".")
     if ft == "pdf":
         try:
-            from pdf2image import convert_from_path
-            pages = convert_from_path(abs_path, dpi=150, first_page=1, last_page=1)
-            if not pages:
+            import fitz
+            pdf_doc = fitz.open(abs_path)
+            if pdf_doc.page_count == 0:
                 raise ValueError("PDF produced no pages")
-            return pages[0]
+            page = pdf_doc.load_page(0)
+            pix = page.get_pixmap(dpi=150)
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            return img
         except Exception as e:
-            logger.warning(f"pdf2image failed ({e}); falling back to blank image")
+            logger.warning(f"PyMuPDF failed ({e}); falling back to blank image")
             img = Image.new("RGB", (800, 1100), color=(240, 240, 240))
             return img
     else:
@@ -206,7 +209,8 @@ def get_review_context(
     doc = db.query(Document).filter(Document.document_id == review_rec.document_id).first()
     
     try:
-        AuthorizationService.assert_can_access_patient(http_request.state.user, doc.patient_id if doc else None)
+        if doc:
+            AuthorizationService.assert_can_access_document(db, http_request.state.user, doc.document_id, Operation.READ)
     except HTTPException as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
 
@@ -291,7 +295,7 @@ def get_review_image(
         )
         
     try:
-        AuthorizationService.assert_can_access_patient(http_request.state.user, doc.patient_id)
+        AuthorizationService.assert_can_access_document(db, http_request.state.user, doc.document_id, Operation.READ)
     except HTTPException as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
 
@@ -367,10 +371,16 @@ def review_pending_field(
             detail=f"Pending review record with ID '{review_id}' not found.",
         )
         
+    if review_rec.status != ReviewStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only PENDING reviews can be modified.",
+        )
+        
     doc = db.query(Document).filter(Document.document_id == review_rec.document_id).first()
     if doc:
         try:
-            AuthorizationService.assert_can_access_patient(http_request.state.user, doc.patient_id)
+            AuthorizationService.assert_can_access_document(db, http_request.state.user, doc.document_id, Operation.WRITE)
         except HTTPException as e:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
 

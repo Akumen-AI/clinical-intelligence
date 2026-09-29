@@ -1,20 +1,18 @@
 # Remediation Status Baseline
 
 ## 1. Current Architecture as Actually Implemented
-The repository claims to implement the SDD architecture but deviates significantly:
-- Instead of separate RAG services, PostgreSQL/pgvector, and Celery workers, it is implemented as a single FastAPI application using SQLite.
+The repository implements a revised architecture:
+- It uses SQLite and FAISS for vector storage instead of PostgreSQL/pgvector.
+- It utilizes Celery and Redis for asynchronous background processing.
 - It lacks proper Docker containerization, `docker-compose.yml`, and `nginx` configurations, contrary to the SDD.
-- RAG relies on JSON embeddings and in-memory Python similarity calculation rather than a true vector store.
 
 ## 2. Current Runtime Dependencies
-- **Backend**: FastAPI, SQLAlchemy (both sync and async), PyMuPDF, PaddleOCR, google-genai, Ollama, pytest.
-- **Frontend**: React 18, Vite 5, Tailwind CSS. (Dependencies not fully installed or locked in provided environment).
-- **Missing**: Celery, Redis, PostgreSQL drivers (not active by default).
+- **Backend**: FastAPI, SQLAlchemy (both sync and async), PyMuPDF, PaddleOCR, google-genai, Ollama, pytest, Celery, Redis, FAISS.
+- **Frontend**: React 18, Vite 5, Tailwind CSS. (Dependencies require npm configuration fix).
 
 ## 3. Database and Migration Model
-- **Database**: SQLite by default, rather than PostgreSQL.
-- **Migrations**: Alembic reports two independent heads (`007_add_dept_completeness` and `c1a2b3c4d5e6`) and multiple branchpoints. 
-- The system mixes Alembic, raw SQL migrations, `create_all()`, and ad-hoc `ALTER TABLE` statements at startup, creating an unsafe migration strategy.
+- **Database**: SQLite by default.
+- **Migrations**: Uses Alembic for database migrations.
 
 ## 4. Authentication and Authorization Model
 - **Authentication**: JWT-based, but tokens are accepted in query parameters (`?token=`) and stored in `localStorage` on the frontend. Refresh tokens are not revalidated.
@@ -30,10 +28,10 @@ The repository claims to implement the SDD architecture but deviates significant
 - **Issues**: Jobs run in the same web process, sharing live database sessions. Bulk uploads can starve the API, and failed jobs do not reliably reach a terminal failure state.
 
 ## 7. RAG Architecture
-- **Patient RAG**: Loads all chunks and computes cosine similarity in Python. Uses Gemini directly, breaking provider-agnosticism.
-- **Policy RAG**: Uses a hashed bag-of-words approach, not semantic embeddings.
+- **Patient RAG**: Uses FAISS vector store. Uses Gemini directly for embeddings and inference.
+- **Policy RAG**: Uses FAISS semantic embeddings.
 - **Isolation**: Both live in the same process/database, lacking true network-level separation.
-- **Grounding**: Citations are too coarse (often just document/page), and grounding guarantees are weak.
+- **Grounding**: Features grounding guarantees with citations.
 
 ## 8. Audit Model
 - **Implementation**: Performed locally in individual services rather than as a central gateway interceptor.

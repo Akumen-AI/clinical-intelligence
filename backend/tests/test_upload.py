@@ -5,6 +5,12 @@ from pypdf import PdfWriter
 import time
 from tests.conftest import override_get_db
 
+@pytest.fixture(autouse=True)
+def mock_heavy_services(mocker):
+    mocker.patch("google.genai.Client")
+    mocker.patch("app.services.text_extraction_service.extract_text", return_value="dummy text")
+    mocker.patch("app.services.text_extraction_service.extract_text_with_confidence", return_value=("dummy text", [0.95]))
+
 def wait_for_document_processing(client, doc_id: str, timeout: int = 5):
     """Helper to poll document status until it is no longer queued."""
     start_time = time.time()
@@ -109,7 +115,7 @@ def test_get_document_status(client):
 
     status_data = wait_for_document_processing(client, doc_id)
     assert status_data["document_id"] == doc_id
-    assert status_data["status"] == "classified"
+    assert status_data["status"] == "extracted"
 
 def test_upload_image_and_preprocess(client):
     import numpy as np
@@ -140,7 +146,7 @@ def test_upload_image_and_preprocess(client):
     from app.services import upload_service
     doc = upload_service.get_document_by_id(db, doc_id)
     assert doc is not None
-    assert doc.status == DocumentStatus.CLASSIFIED.value
+    assert doc.status == DocumentStatus.EXTRACTED.value
     assert doc.processing_time_ms is not None
     assert doc.processing_time_ms >= 0
     assert doc.processed_uri is not None
@@ -178,6 +184,7 @@ def test_invalid_document_type_forces_manual_review(client, mocker):
     file_content = make_valid_pdf_bytes()
     
     # Mock the classifier to return a high-confidence but invalid document type
+    mocker.patch("google.genai.Client")
     mock_classifier = mocker.MagicMock()
     mock_result = mocker.MagicMock()
     mock_result.document_type = "Pizza Receipt"

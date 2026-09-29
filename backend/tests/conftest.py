@@ -26,6 +26,12 @@ def override_get_db():
 
 app.dependency_overrides[get_db] = override_get_db
 
+@pytest.fixture(autouse=True)
+def disable_rate_limiting():
+    from app.core.rate_limit import limiter
+    limiter.enabled = False
+    yield
+
 @pytest.fixture
 def db_session():
     db = TestingSessionLocal()
@@ -175,3 +181,14 @@ def patch_jwt_decode(monkeypatch):
         return payload
 
     monkeypatch.setattr(app.core.security.jwt, "decode", patched_decode)
+
+@pytest.fixture(autouse=True)
+def clear_vector_store():
+    from app.providers.rag import get_vector_store
+    from app.providers.rag.base import RetrievalScope
+    vs = get_vector_store()
+    vs.chunks_store[RetrievalScope.PATIENT] = []
+    vs.chunks_store[RetrievalScope.POLICY] = []
+    vs._rebuild_index(RetrievalScope.PATIENT)
+    vs._rebuild_index(RetrievalScope.POLICY)
+    yield

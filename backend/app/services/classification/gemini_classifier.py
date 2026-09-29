@@ -18,21 +18,17 @@ class GeminiClassifier(DocumentClassifier):
     def classify(self, text: str) -> ClassificationResult:
         prompt = self._get_prompt(text)
         
-        try:
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=prompt,
-                config=genai.types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                ),
-            )
-            
-            result_json = clean_and_parse_json(response.text or "", default={})
-            
-            return ClassificationResult(
-                document_type=result_json.get("document_type", "Unknown"),
-                confidence=float(result_json.get("confidence", 0.0))
-            )
-        except Exception as e:
-            logger.info(f"Gemini classification failed: {e}")
-            return ClassificationResult(document_type="Unknown", confidence=0.0)
+        response = self.client.models.generate_content(
+            model=self.model_name,
+            contents=prompt,
+            config=genai.types.GenerateContentConfig(
+                response_mime_type="application/json",
+            ),
+        )
+        
+        result_json = clean_and_parse_json(response.text or "", default={})
+        
+        return ClassificationResult(
+            document_type=result_json.get("document_type", "Unknown"),
+            confidence=float(result_json.get("confidence", 0.0))
+        )

@@ -38,7 +38,10 @@ def clear_audit_log():
     db.close()
 
 
-def test_declarative_upload(clear_audit_log):
+@patch("google.genai.Client")
+def test_declarative_upload(mock_genai_client, clear_audit_log):
+    mock_client_instance = mock_genai_client.return_value
+    mock_client_instance.models.generate_content.return_value.text = "Mocked Response"
     file_content = make_valid_pdf_bytes()
     with patch("app.services.text_extraction_service.extract_text_with_confidence", return_value=("Dummy text", [0.99])):
         response = client.post(
