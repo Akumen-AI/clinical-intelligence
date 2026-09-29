@@ -16,7 +16,7 @@ pandas<3.0
 openpyxl==3.1.0
 reportlab==4.0.0
 
-opencv-python-headless==4.8.0
+opencv-python-headless==4.8.0.76
 pymupdf==1.22.0
 paddleocr==3.7.0
 paddlepaddle==3.3.1
