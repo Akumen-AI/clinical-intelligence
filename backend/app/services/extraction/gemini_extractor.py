@@ -22,24 +22,20 @@ class GeminiFieldExtractor(ClinicalFieldExtractor):
 
     def extract(self, text: str, document_type: Optional[str] = None) -> ExtractionResult:
         prompt = self._get_prompt(text, document_type)
-        try:
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=prompt,
-                config=genai.types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                ),
-            )
-            raw_text = response.text or ""
-            data = clean_and_parse_json(raw_text, default={})
-            fields = ClinicalFieldsSchema.model_validate(data)
-            return ExtractionResult(
-                fields=fields,
-                confidence=0.92,
-                field_confidences={
-                    k: 0.92 for k, v in fields.model_dump().items() if v is not None
-                },
-            )
-        except Exception as e:
-            logger.info(f"[Field Extraction] Gemini extractor failed: {e}. Using rule-based fallback.")
-            return self._fallback_extractor.extract(text, document_type)
+        response = self.client.models.generate_content(
+            model=self.model_name,
+            contents=prompt,
+            config=genai.types.GenerateContentConfig(
+                response_mime_type="application/json",
+            ),
+        )
+        raw_text = response.text or ""
+        data = clean_and_parse_json(raw_text, default={})
+        fields = ClinicalFieldsSchema.model_validate(data)
+        return ExtractionResult(
+            fields=fields,
+            confidence=0.92,
+            field_confidences={
+                k: 0.92 for k, v in fields.model_dump().items() if v is not None
+            },
+        )

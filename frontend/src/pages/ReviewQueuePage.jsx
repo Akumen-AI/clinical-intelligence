@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   ClipboardCheck,
   RefreshCw,
@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import ReviewFieldCard from '../components/ReviewFieldCard';
 import LinkPatientModal from '../components/LinkPatientModal';
+import ConfirmDialog from '../components/ConfirmDialog';
 import {
   fetchPendingReviews,
   fetchReviewContext,
@@ -44,6 +45,7 @@ export default function ReviewQueuePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toastMsg, setToastMsg] = useState(null);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false });
   
   const patientAssignmentStr = allItems.find(i => i.document_id === selectedDocId && i.field_name === 'patient_assignment')?.extracted_value;
   const patientIdStr = allItems.find(i => i.document_id === selectedDocId && i.field_name === 'patient_identifier')?.extracted_value;
@@ -57,7 +59,7 @@ export default function ReviewQueuePage() {
         if (parsed.dob) data.dob = parsed.dob;
         if (parsed.gender) data.sex = parsed.gender;
         if (parsed.patient_id) data.mrn = parsed.patient_id;
-      } catch (e) {}
+      } /* no-op */ catch (e) {} /* no-op */
     } else if (patientIdStr) {
       try {
         const parsed = JSON.parse(patientIdStr);
@@ -91,7 +93,7 @@ export default function ReviewQueuePage() {
       ]);
       setAllItems(reviewsData.items || []);
       setDocuments(docsData || []);
-    } catch (err) {
+    } catch (err) { console.error(err);
       const raw = err.response?.data?.detail;
       let msg = 'Failed to load review queue';
       if (typeof raw === 'string') msg = raw;
@@ -152,7 +154,7 @@ export default function ReviewQueuePage() {
       try {
         const ctx = await fetchReviewContext(currentItem.id);
         if (!cancelled) setContext(ctx);
-      } catch (err) {
+      } catch (err) { console.error(err);
         if (!cancelled) setContext(null);
       } finally {
         if (!cancelled) setIsLoadingContext(false);
@@ -184,7 +186,7 @@ export default function ReviewQueuePage() {
         if (!cancelled) {
           setImgSrc(URL.createObjectURL(blob));
         }
-      } catch (err) {
+      } catch (err) { console.error(err);
         if (!cancelled) {
           if (currentItem.document_id) {
             try {
@@ -224,7 +226,7 @@ export default function ReviewQueuePage() {
       );
       setReviewedToday((n) => n + 1);
       setAllItems((prev) => prev.filter((i) => i.id !== currentItem.id));
-    } catch (err) {
+    } catch (err) { console.error(err);
       showToast(err.response?.data?.detail || 'Action failed', 'error');
     } finally {
       setIsSubmitting(false);
@@ -239,7 +241,7 @@ export default function ReviewQueuePage() {
       showToast(`❌ "${currentItem.field_name}" rejected`, 'warn');
       setReviewedToday((n) => n + 1);
       setAllItems((prev) => prev.filter((i) => i.id !== currentItem.id));
-    } catch (err) {
+    } catch (err) { console.error(err);
       showToast(err.response?.data?.detail || 'Action failed', 'error');
     } finally {
       setIsSubmitting(false);
@@ -379,10 +381,18 @@ export default function ReviewQueuePage() {
             <button 
               className="flex items-center gap-2 px-4 py-2 bg-surface-variant text-on-surface rounded-lg font-semibold border border-outline-variant/30 hover:bg-surface-variant/80 transition-colors text-sm"
               onClick={() => {
-                if (window.confirm("Return to queue? Any unsaved edits on the current field will be lost.")) {
-                  setViewMode('list'); 
-                  setSelectedDocId(null);
-                }
+                setConfirmDialog({
+                  isOpen: true,
+                  title: 'Return to Queue',
+                  message: 'Are you sure you want to return to the queue? Any unsaved edits on the current field will be lost.',
+                  isDanger: true,
+                  confirmText: 'Return to Queue',
+                  onConfirm: () => {
+                    setConfirmDialog({ isOpen: false });
+                    setViewMode('list'); 
+                    setSelectedDocId(null);
+                  }
+                });
               }}
             >
               <RotateCcw size={16} className="-rotate-45" /> Back to Queue
@@ -401,7 +411,7 @@ export default function ReviewQueuePage() {
                 await api.post(`/documents/${selectedDocId}/link-patient`, payload);
                 setToastMsg({ msg: `Document linked to patient successfully!`, type: 'success' });
                 setTimeout(() => setToastMsg(null), 2500);
-              } catch (err) {
+              } catch (err) { console.error(err);
                 setToastMsg({ msg: err.response?.data?.detail || 'Link failed', type: 'error' });
                 setTimeout(() => setToastMsg(null), 2500);
               }
@@ -530,6 +540,12 @@ export default function ReviewQueuePage() {
           {toastMsg.msg}
         </div>
       )}
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        {...confirmDialog}
+        onCancel={() => setConfirmDialog({ isOpen: false })}
+      />
     </div>
   );
 }

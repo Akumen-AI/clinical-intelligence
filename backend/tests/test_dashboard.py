@@ -77,9 +77,9 @@ def dashboard_seed():
         ])
 
         db.add_all([
-            Visit(visit_id="visit-dashboard-1", patient_id="p-dashboard-1", document_id="doc-dashboard-1", visit_date=datetime(2026, 2, 1, tzinfo=timezone.utc), department="Cardiology"),
-            Visit(visit_id="visit-dashboard-2", patient_id="p-dashboard-1", document_id="doc-dashboard-2", visit_date=datetime(2026, 2, 14, tzinfo=timezone.utc), department="Cardiology"),
-            Visit(visit_id="visit-dashboard-3", patient_id="p-dashboard-2", document_id="doc-dashboard-3", visit_date=datetime(2026, 2, 12, tzinfo=timezone.utc), department="Neurology"),
+            Visit(visit_id="visit-dashboard-1", patient_id="p-dashboard-1", document_id="doc-dashboard-1", visit_date=datetime(2026, 2, 1, tzinfo=timezone.utc), admission_date=datetime(2026, 2, 1, tzinfo=timezone.utc), discharge_date=datetime(2026, 2, 5, tzinfo=timezone.utc), department="Cardiology"),
+            Visit(visit_id="visit-dashboard-2", patient_id="p-dashboard-1", document_id="doc-dashboard-2", visit_date=datetime(2026, 2, 14, tzinfo=timezone.utc), admission_date=datetime(2026, 2, 14, tzinfo=timezone.utc), discharge_date=datetime(2026, 2, 18, tzinfo=timezone.utc), department="Cardiology"),
+            Visit(visit_id="visit-dashboard-3", patient_id="p-dashboard-2", document_id="doc-dashboard-3", visit_date=datetime(2026, 2, 12, tzinfo=timezone.utc), admission_date=datetime(2026, 2, 12, tzinfo=timezone.utc), discharge_date=datetime(2026, 2, 15, tzinfo=timezone.utc), department="Neurology"),
         ])
 
         db.commit()
@@ -113,7 +113,7 @@ def test_dashboard_department_metrics_are_live_and_filterable(dashboard_seed, cl
     readmission = next(item for item in payload["metrics"] if item["key"] == "readmission_rate")
 
     assert admissions["value"] == 2
-    assert disease["series"][0]["count"] == 2
+    assert disease["series"][0]["count"] == 1
     assert readmission["value"] == 50.0
 
     hospital_admin = client_as("hospital_admin")

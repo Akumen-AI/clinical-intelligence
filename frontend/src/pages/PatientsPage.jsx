@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Users, Copy, CheckCircle2, User, AlertCircle, RefreshCw, ChevronLeft, Activity, FileText, Pill, FileSymlink, MessageCircleQuestion, Search } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Users, Copy, CheckCircle2, User, AlertCircle, RefreshCw,      MessageCircleQuestion, Search } from 'lucide-react';
 import { fetchPatients } from '../api';
 import { useNavigate } from 'react-router-dom';
 
@@ -12,10 +12,6 @@ export default function PatientsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 12;
   const navigate = useNavigate();
-
-  useEffect(() => {
-    loadPatients();
-  }, []);
 
   const loadPatients = async () => {
     setLoading(true);
@@ -30,6 +26,11 @@ export default function PatientsPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadPatients();
+  }, []);
+
 
   const handleCopyId = (e, id) => {
     e.stopPropagation();

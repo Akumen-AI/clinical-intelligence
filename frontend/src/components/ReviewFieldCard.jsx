@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import PropTypes from 'prop-types';
+import { useState, useEffect, useRef } from 'react';
 import {
   CheckCircle2,
   XCircle,
@@ -121,11 +122,13 @@ export default function ReviewFieldCard({
           dob: payload.dob,
           sex: payload.sex
         });
+        setIsLinkModalOpen(false);
         onAccept(res.data.patient_id);
-      } catch (err) {
+      } catch (err) { console.error(err);
         alert(err.response?.data?.detail || 'Failed to create patient');
       }
     } else {
+      setIsLinkModalOpen(false);
       onAccept(payload.patient_id);
     }
   };
@@ -133,7 +136,7 @@ export default function ReviewFieldCard({
   const isPatientAssignment = item.field_name === 'patient_assignment';
   let parsedAssignment = null;
   if (isPatientAssignment && item.extracted_value) {
-    try { parsedAssignment = JSON.parse(item.extracted_value); } catch(e) {}
+    try { parsedAssignment = JSON.parse(item.extracted_value); } /* no-op */ catch(e) {} /* no-op */
   }
 
   return (
@@ -363,3 +366,14 @@ export default function ReviewFieldCard({
     </div>
   );
 }
+
+ReviewFieldCard.propTypes = {
+  item: PropTypes.any,
+  index: PropTypes.any,
+  total: PropTypes.any,
+  onAccept: PropTypes.any,
+  onReject: PropTypes.any,
+  onPrev: PropTypes.any,
+  onNext: PropTypes.any,
+  isSubmitting: PropTypes.any
+};

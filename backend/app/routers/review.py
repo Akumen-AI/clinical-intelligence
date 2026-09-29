@@ -69,13 +69,16 @@ def _render_document_image(raw_uri: str, filetype: str) -> Image.Image:
     ft = (filetype or "").lower().strip(".")
     if ft == "pdf":
         try:
-            from pdf2image import convert_from_path
-            pages = convert_from_path(abs_path, dpi=150, first_page=1, last_page=1)
-            if not pages:
+            import fitz
+            pdf_doc = fitz.open(abs_path)
+            if pdf_doc.page_count == 0:
                 raise ValueError("PDF produced no pages")
-            return pages[0]
+            page = pdf_doc.load_page(0)
+            pix = page.get_pixmap(dpi=150)
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            return img
         except Exception as e:
-            logger.warning(f"pdf2image failed ({e}); falling back to blank image")
+            logger.warning(f"PyMuPDF failed ({e}); falling back to blank image")
             img = Image.new("RGB", (800, 1100), color=(240, 240, 240))
             return img
     else:

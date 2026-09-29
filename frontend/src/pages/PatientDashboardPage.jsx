@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Clock,
   ExternalLink,
@@ -8,7 +8,7 @@ import {
   Pill,
   ShieldAlert,
   MessageCircleQuestion,
-  CheckCircle2,
+  
   FileText
 } from 'lucide-react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
@@ -133,7 +133,7 @@ export default function PatientDashboardPage() {
           </div>
           <div className="brand-title">
             <h2>Patient Dashboard</h2>
-            <p>Clinical overview for today's consult</p>
+            <p>Clinical overview for today&apos;s consult</p>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>

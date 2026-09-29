@@ -22,7 +22,7 @@ export const fetchHealth = async () => {
 };
 
 export const fetchDocuments = async (needsReview = null, documentType = null) => {
-  const params = {};
+  const params = { _t: Date.now(), limit: 10000 };
   if (needsReview !== null) params.needs_review = needsReview;
   if (documentType) params.document_type = documentType;
   
@@ -36,7 +36,7 @@ export const fetchDocumentById = async (documentId) => {
 };
 
 export const fetchDocumentStatus = async (documentId) => {
-  const response = await apiClient.get(`/documents/${documentId}/status`);
+  const response = await apiClient.get(`/documents/${documentId}/status`, { params: { _t: Date.now() } });
   return response.data;
 };
 

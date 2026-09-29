@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   MessageCircleQuestion,
   User,
@@ -15,6 +15,7 @@ import { askPatientQuestion, getDocumentFileUrl, fetchPatient } from '../api';
 import { useParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import ConfirmDialog from '../components/ConfirmDialog';
 const parseSnippetData = (snippet) => {
   if (!snippet) return { type: 'text', text: '' };
   
@@ -66,6 +67,7 @@ export default function PatientQAPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [errorType, setErrorType] = useState(null); // 'not_found', 'server_error', 'validation'
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false });
   
   const chatEndRef = useRef(null);
 
@@ -74,15 +76,14 @@ export default function PatientQAPage() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [history, loading, error]);
 
-  // Sync state with URL params
-  useEffect(() => {
-    if (patientId && patientId !== activePatientId) {
-      setPatientIdInput(patientId);
-      loadPatientData(patientId);
-    }
-  }, [patientId]);
+  const resetConversation = useCallback(() => {
+    setHistory([]);
+    setQuestion('');
+    setConversationId(null);
+  }, []);
 
-  const loadPatientData = async (idToLoad) => {
+
+  const loadPatientData = useCallback(async (idToLoad) => {
     if (!idToLoad) return;
     
     setLoading(true);
@@ -103,7 +104,7 @@ export default function PatientQAPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const handleLoadPatient = (e) => {
     e.preventDefault();
@@ -113,10 +114,23 @@ export default function PatientQAPage() {
 
   const handleClearPatient = () => {
     if (history.length > 0) {
-      if (!window.confirm("Are you sure you want to change patients? This will end the current active session and clear history.")) {
-        return;
-      }
+      setConfirmDialog({
+        isOpen: true,
+        title: 'Change Patient',
+        message: 'Are you sure you want to change patients? This will end the current active session and clear history.',
+        isDanger: true,
+        confirmText: 'Change Patient',
+        onConfirm: () => {
+          setConfirmDialog({ isOpen: false });
+          executeClearPatient();
+        }
+      });
+      return;
     }
+    executeClearPatient();
+  };
+
+  const executeClearPatient = () => {
     setPatientIdInput('');
     setActivePatientId('');
     setActivePatient(null);
@@ -126,11 +140,14 @@ export default function PatientQAPage() {
     navigate('/patients');
   };
 
-  const resetConversation = () => {
-    setHistory([]);
-    setQuestion('');
-    setConversationId(null);
-  };
+
+  // Sync state with URL params
+  useEffect(() => {
+    if (patientId && patientId !== activePatientId) {
+      setPatientIdInput(patientId);
+      loadPatientData(patientId);
+    }
+  }, [patientId, activePatientId, loadPatientData]);
 
   const handleAskQuestion = async (e) => {
     e.preventDefault();
@@ -187,12 +204,14 @@ export default function PatientQAPage() {
   };
 
   // Derive the active contexts for the right-hand browser based on the *most recent* assistant response
-  const activeContexts = history.length > 0 && history[history.length - 1].role === 'assistant' 
-    ? history[history.length - 1].sources || [] 
-    : [];
+  const activeContexts = useMemo(() => {
+    return history.length > 0 && history[history.length - 1].role === 'assistant' 
+      ? history[history.length - 1].sources || [] 
+      : [];
+  }, [history]);
 
   // Group contexts by document_id to avoid duplicates
-  const groupedContexts = React.useMemo(() => {
+  const groupedContexts = useMemo(() => {
     const groups = {};
     activeContexts.forEach(ctx => {
       const docId = typeof ctx === 'string' ? ctx : ctx.document_id;
@@ -327,10 +346,10 @@ export default function PatientQAPage() {
                   <p className="text-on-surface-variant text-sm mb-4">Ask a question about Patient <strong className="text-on-surface">{activePatientId}</strong>.</p>
                   <div className="flex flex-col gap-2 w-full max-w-sm">
                     <button onClick={() => setQuestion("What are the patient's active medications?")} className="px-4 py-2 bg-surface-container hover:bg-surface-variant rounded-lg border border-outline-variant/20 text-sm font-medium text-left transition-colors">
-                      "What are the patient's active medications?"
+                      &quot;What are the patient&apos;s active medications?&quot;
                     </button>
                     <button onClick={() => setQuestion("What were the latest lab results?")} className="px-4 py-2 bg-surface-container hover:bg-surface-variant rounded-lg border border-outline-variant/20 text-sm font-medium text-left transition-colors">
-                      "What were the latest lab results?"
+                      &quot;What were the latest lab results?&quot;
                     </button>
                   </div>
                 </div>
@@ -446,7 +465,7 @@ export default function PatientQAPage() {
                 <div className="m-auto text-center flex flex-col items-center justify-center h-full opacity-60">
                   <FileSearch size={32} className="text-on-surface-variant mb-3" />
                   <p className="text-sm font-semibold text-on-surface">No context available</p>
-                  <p className="text-xs text-on-surface-variant mt-1 max-w-[200px]">Sources for the AI's response will appear here.</p>
+                  <p className="text-xs text-on-surface-variant mt-1 max-w-[200px]">Sources for the AI&apos;s response will appear here.</p>
                 </div>
               ) : (
                 groupedContexts.map((group, idx) => {
@@ -489,7 +508,7 @@ export default function PatientQAPage() {
                                 </table>
                               ) : (
                                 <p className="italic font-serif leading-relaxed text-[13px] opacity-90 break-words border-l-2 border-primary/30 pl-2">
-                                  "{parsed.text}"
+                                  &quot;{parsed.text}&quot;
                                 </p>
                               )}
                               {ctx.location && (
@@ -511,6 +530,11 @@ export default function PatientQAPage() {
 
         </div>
       )}
+
+      <ConfirmDialog
+        {...confirmDialog}
+        onCancel={() => setConfirmDialog({ isOpen: false })}
+      />
     </div>
   );
 }

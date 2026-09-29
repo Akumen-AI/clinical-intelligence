@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import PropTypes from 'prop-types';
+import { useState, useMemo } from 'react';
 import { Microscope } from 'lucide-react';
 import { 
   LineChart, 
@@ -152,3 +153,12 @@ export default function LabTrendChart({ labTrends = {}, otherLabResults = [] }) 
     </div>
   );
 }
+
+LabTrendChart.propTypes = {
+  labTrends: PropTypes.any,
+  otherLabResults: PropTypes.any,
+  active: PropTypes.any,
+  payload: PropTypes.any,
+  cx: PropTypes.any,
+  cy: PropTypes.any
+};

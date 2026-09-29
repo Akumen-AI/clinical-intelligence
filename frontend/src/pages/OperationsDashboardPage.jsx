@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import PropTypes from 'prop-types';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { Activity, Building2, Download } from 'lucide-react';
 import apiClient from '../api';
@@ -74,7 +75,7 @@ export default function OperationsDashboardPage() {
   const [error, setError] = useState('');
   const [exportingFormat, setExportingFormat] = useState('');
 
-  const fetchDashboard = async () => {
+  const fetchDashboard = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -89,11 +90,11 @@ export default function OperationsDashboardPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [department, startDate, endDate]);
 
   useEffect(() => {
     fetchDashboard();
-  }, [department, startDate, endDate]);
+  }, [fetchDashboard]);
 
   const exportDashboard = async (format) => {
     setExportingFormat(format);
@@ -228,3 +229,12 @@ export default function OperationsDashboardPage() {
     </div>
   );
 }
+
+ChartCard.propTypes = {
+  title: PropTypes.any,
+  value: PropTypes.any,
+  unit: PropTypes.any,
+  chart: PropTypes.any,
+  available: PropTypes.any,
+  note: PropTypes.any
+};

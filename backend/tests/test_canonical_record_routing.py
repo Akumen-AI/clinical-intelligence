@@ -57,7 +57,7 @@ def test_medication_routing():
         document_id=doc_id,
         field_name="medications",
         verification_status=VerificationStatus.AUTO_PASSED,
-        raw_value=[{"medication_name": "Lisinopril", "rxnorm_code": "197361"}],
+        raw_value=[{"medication_name": "Lisinopril", "rxnorm_code": "314076"}],
         confidence_score=0.9
     )
     db.add(field)
@@ -69,7 +69,7 @@ def test_medication_routing():
     meds = db.query(Medication).filter(Medication.patient_id == patient_id).all()
     assert len(meds) == 1
     assert meds[0].raw_text == "Lisinopril"
-    assert meds[0].rxnorm_code == "197361"
+    assert meds[0].rxnorm_code == "314076"
     assert meds[0].source_field_id == field_id
 
 def test_lab_result_routing():

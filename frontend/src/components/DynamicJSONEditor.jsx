@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
+import { useState, useEffect } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 
 const SCHEMAS = {
@@ -146,7 +147,7 @@ export default function DynamicJSONEditor({ initialValue, fieldName, onChange, o
 
     const handleAddField = () => {
       const keyName = prompt('Enter new field name (e.g. pulse_rate):');
-      if (keyName && !data.hasOwnProperty(keyName)) {
+      if (keyName && !Object.prototype.hasOwnProperty.call(data, keyName)) {
         handleChange({ ...data, [keyName.toLowerCase().replace(/\s+/g, '_')]: '' });
       }
     };
@@ -185,3 +186,11 @@ export default function DynamicJSONEditor({ initialValue, fieldName, onChange, o
 
   return null;
 }
+
+DynamicJSONEditor.propTypes = {
+  initialValue: PropTypes.any,
+  fieldName: PropTypes.any,
+  onChange: PropTypes.any,
+  onSubmit: PropTypes.any,
+  onCancel: PropTypes.any
+};

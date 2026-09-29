@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
+import { useState, useEffect } from 'react';
 import { 
   X, 
   Copy, 
@@ -13,7 +14,7 @@ import {
   Activity, 
   Pill, 
   FlaskConical, 
-  CheckCircle2, 
+   
   Sparkles 
 } from 'lucide-react';
 import { fetchDocumentFields, extractDocumentFields, fetchDocumentFileBlob } from '../api';
@@ -47,6 +48,23 @@ export default function ExtractedFieldsModal({ document: doc, onClose, onRefresh
     };
   }, [docUrl]);
 
+  const loadFields = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await fetchDocumentFields(doc.document_id);
+      setData(res);
+    } catch (err) {
+      if (err.response && err.response.status === 404) {
+        setData(null);
+      } else {
+        setError('Failed to load fields: ' + (err.response?.data?.detail || err.message));
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!doc) return;
     loadFields();
@@ -58,22 +76,7 @@ export default function ExtractedFieldsModal({ document: doc, onClose, onRefresh
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [doc]);
 
-  const loadFields = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const res = await fetchDocumentFields(doc.document_id);
-      setData(res);
-    } catch (err) {
-      if (err.response && err.response.status === 404) {
-        setData(null);
-      } else {
-        setError(err.response?.data?.detail || err.message || 'Failed to load fields');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
+
 
   const handleRunExtraction = async () => {
     setIsExtracting(true);
@@ -670,3 +673,9 @@ export default function ExtractedFieldsModal({ document: doc, onClose, onRefresh
     </div>
   );
 }
+
+ExtractedFieldsModal.propTypes = {
+  document: PropTypes.any,
+  onClose: PropTypes.any,
+  onRefreshRequired: PropTypes.any
+};

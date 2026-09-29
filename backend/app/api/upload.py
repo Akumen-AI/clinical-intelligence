@@ -73,6 +73,7 @@ from app.core.rate_limit import limiter
 @limiter.limit("10/minute")
 async def upload_documents(
     request: Request,
+    background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
     db: Session = Depends(get_db)
 ):
@@ -109,7 +110,12 @@ async def upload_documents(
             
             from app.tasks.document_tasks import process_document_task
             correlation_id = getattr(request.state, "correlation_id", None)
-            process_document_task.delay(doc.document_id, str(actor_id), correlation_id)
+            background_tasks.add_task(
+                process_document_task.delay,
+                doc.document_id,
+                str(actor_id),
+                correlation_id
+            )
             
             accepted_item = DocumentUploadItem(
                 document_id=doc.document_id,
@@ -154,7 +160,12 @@ async def upload_documents(
             
             from app.tasks.document_tasks import process_document_task
             correlation_id = getattr(request.state, "correlation_id", None)
-            process_document_task.delay(doc.document_id, str(actor_id), correlation_id)
+            background_tasks.add_task(
+                process_document_task.delay,
+                doc.document_id,
+                str(actor_id),
+                correlation_id
+            )
             
             accepted_items.append(
                 DocumentUploadItem(
@@ -320,6 +331,7 @@ async def get_document_status(document_id: str, request: Request, db: Session = 
         "document_id": doc.document_id,
         "status": doc.status,
         "document_type": doc.document_type,
+        "classification_confidence": doc.classification_confidence,
         "needs_manual_review": doc.needs_manual_review
     }
 
@@ -512,7 +524,8 @@ async def link_patient(
     # "Replace heavy OCR/extraction/background processing that currently relies on FastAPI BackgroundTasks with a durable Redis + Celery workflow"
     # Is index_document_task a celery task? Let me verify first... wait, I can just enqueue it if I know it is. I'll use .delay() if it's decorated with @celery_app.task.
     # I'll just change it to use celery `.delay()`
-    index_document_task.delay(
+    background_tasks.add_task(
+        index_document_task.delay,
         doc.document_id,
         correlation_id,
         str(http_request.state.user.id)

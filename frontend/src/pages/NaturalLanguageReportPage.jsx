@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { BarChart2, Search, RotateCcw, Loader2, AlertTriangle, Filter } from 'lucide-react';
 import apiClient from '../api';
@@ -175,7 +175,7 @@ export default function NaturalLanguageReportPage() {
             <BarChart2 size={64} className="text-on-surface-variant mb-6" />
             <h2 className="text-xl font-bold text-on-surface mb-2">Awaiting Query</h2>
             <p className="text-on-surface-variant max-w-md mx-auto">
-              Use natural language to ask questions about your hospital's canonical data.
+              Use natural language to ask questions about your hospital&apos;s canonical data.
               Security scopes are automatically applied based on your role.
             </p>
           </div>

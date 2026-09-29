@@ -22,6 +22,8 @@ def policy_runtime(monkeypatch, tmp_path):
     monkeypatch.setattr(policy_ingestion_service, "engine", test_engine)
     monkeypatch.setattr(policy_rag_service, "SessionLocal", TestingSessionLocal)
     monkeypatch.setenv("POLICY_LLM_ENABLED", "0")
+    import app.config
+    monkeypatch.setattr(app.config.settings, "AI_PROVIDER", "mock")
     return tmp_path
 
 
@@ -56,14 +58,10 @@ def test_same_filename_replaces_existing_indexed_content(client, policy_runtime)
     _upload(client, "retention.md", "## Section 1\nOld retention period is thirty days.")
     _upload(client, "retention.md", "## Section 1\nNew retention period is ninety days.")
 
-    db = TestingSessionLocal()
-    try:
-        chunks = db.query(PolicyRAGChunk).filter(
-            PolicyRAGChunk.source_document_id == "retention.md"
-        ).all()
-        contents = [chunk.content for chunk in chunks]
-    finally:
-        db.close()
+    from app.providers.rag import get_vector_store, RetrievalScope
+    vs = get_vector_store()
+    chunks = [c for c in vs.chunks_store[RetrievalScope.POLICY] if c.metadata.get("source_document_id") == "retention.md"]
+    contents = [chunk.content for chunk in chunks]
 
     assert len(contents) == 1
     assert "Old retention period" not in contents[0]
