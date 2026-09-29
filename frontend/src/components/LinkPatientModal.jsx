@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { X, Search, UserPlus } from 'lucide-react';
 import apiClient from '../api';
 
-export default function LinkPatientModal({ isOpen, onClose, onLink, documentId, suggestedPatientData = {} }) {
+export default function LinkPatientModal({ isOpen, onClose, onLink, suggestedPatientData = {} }) {
   const generateMRN = () => {
     const d = new Date();
     const dateStr = d.toISOString().split('T')[0].replace(/-/g, '');
@@ -189,6 +189,5 @@ LinkPatientModal.propTypes = {
   isOpen: PropTypes.any,
   onClose: PropTypes.any,
   onLink: PropTypes.any,
-  documentId: PropTypes.any,
   suggestedPatientData: PropTypes.any
 };

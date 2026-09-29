@@ -38,6 +38,7 @@ def test_ask_unauthorized():
             app.dependency_overrides[get_current_user] = old_override
 
 
+@patch("app.config.settings.AI_PROVIDER", "gemini")
 @patch("app.config.settings.GEMINI_API_KEY", "dummy_key")
 @patch("google.genai.Client")
 def test_ask_patient_question(mock_genai_client):
@@ -85,6 +86,7 @@ def test_ask_patient_question(mock_genai_client):
     pass
 
 
+@patch("app.config.settings.AI_PROVIDER", "gemini")
 @patch("app.config.settings.GEMINI_API_KEY", "dummy_key")
 @patch("google.genai.Client")
 def test_rag_citation_object_structure(mock_genai_client):
@@ -147,6 +149,7 @@ def test_rag_citation_object_structure(mock_genai_client):
 
 
 
+@patch("app.config.settings.AI_PROVIDER", "gemini")
 @patch("app.config.settings.GEMINI_API_KEY", "dummy_key")
 @patch("google.genai.Client")
 def test_ask_patient_isolation(mock_genai_client):
@@ -193,6 +196,7 @@ def test_ask_patient_isolation(mock_genai_client):
     pass
 
 
+@patch("app.config.settings.AI_PROVIDER", "gemini")
 @patch("app.config.settings.GEMINI_API_KEY", "dummy_key")
 def test_ask_patient_404():
     """404 when patient_id doesn't exist."""
@@ -208,6 +212,7 @@ def test_ask_patient_404():
     pass
 
 
+@patch("app.config.settings.AI_PROVIDER", "gemini")
 @patch("app.config.settings.GEMINI_API_KEY", "dummy_key")
 @patch("google.genai.Client")
 def test_ask_zero_chunks(mock_genai_client):
@@ -239,6 +244,7 @@ def test_ask_zero_chunks(mock_genai_client):
     pass
 
 
+@patch("app.config.settings.AI_PROVIDER", "gemini")
 @patch("app.config.settings.GEMINI_API_KEY", "")
 def test_ask_missing_api_key():
     """Missing GEMINI_API_KEY returns a 500 with a clear error, not a crash."""

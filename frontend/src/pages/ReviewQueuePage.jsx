@@ -59,7 +59,7 @@ export default function ReviewQueuePage() {
         if (parsed.dob) data.dob = parsed.dob;
         if (parsed.gender) data.sex = parsed.gender;
         if (parsed.patient_id) data.mrn = parsed.patient_id;
-      } /* no-op */ catch (e) {} /* no-op */
+      } catch (e) { console.error(e); }
     } else if (patientIdStr) {
       try {
         const parsed = JSON.parse(patientIdStr);
@@ -120,7 +120,7 @@ export default function ReviewQueuePage() {
   }, [docItems.length]);
 
   const uniqueDocs = [...new Map(allItems.map((i) => [i.document_id, i])).entries()].map(
-    ([docId, item]) => {
+    ([docId]) => {
       const dItems = allItems.filter((x) => x.document_id === docId);
       const isPatientAssignment = dItems.some(x => x.field_name === 'patient_assignment');
       return { 

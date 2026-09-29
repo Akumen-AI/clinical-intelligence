@@ -136,7 +136,7 @@ export default function ReviewFieldCard({
   const isPatientAssignment = item.field_name === 'patient_assignment';
   let parsedAssignment = null;
   if (isPatientAssignment && item.extracted_value) {
-    try { parsedAssignment = JSON.parse(item.extracted_value); } /* no-op */ catch(e) {} /* no-op */
+    try { parsedAssignment = JSON.parse(item.extracted_value); } catch(e) { console.error(e); }
   }
 
   return (

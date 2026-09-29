@@ -19,7 +19,9 @@ def db_session():
 
 @pytest.fixture
 def mock_gemini_client():
-    with patch("google.genai.Client") as mock_client:
+    with patch("google.genai.Client") as mock_client, \
+         patch("app.config.settings.AI_PROVIDER", "gemini"), \
+         patch("app.config.settings.GEMINI_API_KEY", "dummy_key"):
         mock_instance = MagicMock()
         mock_embed_response = MagicMock()
         mock_embed_response.embeddings = [MagicMock(values=[0.1] * 256)]

@@ -30,6 +30,7 @@ def test_process_document_idempotency(db_session: Session, mocker):
     db_session.commit()
 
     # Mocks
+    mocker.patch("google.genai.Client")
     mocker.patch("app.services.preprocessing_service.preprocess_document_file", return_value=("processed.pdf", 100))
     
     mock_classifier = mocker.MagicMock()

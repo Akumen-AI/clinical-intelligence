@@ -178,6 +178,7 @@ def test_invalid_document_type_forces_manual_review(client, mocker):
     file_content = make_valid_pdf_bytes()
     
     # Mock the classifier to return a high-confidence but invalid document type
+    mocker.patch("google.genai.Client")
     mock_classifier = mocker.MagicMock()
     mock_result = mocker.MagicMock()
     mock_result.document_type = "Pizza Receipt"

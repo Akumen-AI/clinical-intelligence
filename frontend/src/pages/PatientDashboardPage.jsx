@@ -7,9 +7,7 @@ import {
   AlertTriangle,
   Pill,
   ShieldAlert,
-  MessageCircleQuestion,
-  
-  FileText
+  MessageCircleQuestion
 } from 'lucide-react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 

@@ -6,9 +6,7 @@ import {
   X, 
   AlertTriangle, 
   CheckCircle, 
-  Loader2,
-  
-  FileCheck
+  Loader2
 } from 'lucide-react';
 import { uploadDocuments } from '../api';
 
